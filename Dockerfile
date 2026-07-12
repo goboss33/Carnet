@@ -21,12 +21,13 @@ RUN addgroup -S nodejs -g 1001 && adduser -S nextjs -u 1001
 
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-# Prisma CLI + schéma + migrations pour "migrate deploy" au démarrage
+# Schéma + client généré (ceinture en plus du tracing standalone)
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.bin ./node_modules/.bin
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/client ./node_modules/@prisma/client
+# CLI Prisma complet et isolé (db push au démarrage) — npm résout tout son arbre
+RUN npm install --prefix /prisma-cli --no-save --no-audit --no-fund prisma@6.19.3 \
+    && chown -R nextjs:nodejs /prisma-cli
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
