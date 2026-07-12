@@ -34,6 +34,8 @@ services:
       POSTGRES_DB: carnet
       POSTGRES_USER: carnet
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    ports:
+      - "127.0.0.1:5433:5432" # accès local-VPS uniquement (tunnel SSH pour le dev)
     volumes:
       - carnet-pgdata:/var/lib/postgresql/data
     healthcheck:
