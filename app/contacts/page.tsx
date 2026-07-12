@@ -11,11 +11,11 @@ const COLS = [
   { id: "nom", label: "Nom" },
   { id: "canal", label: "Canal" },
   { id: "date", label: "Ajouté le" },
-  { id: "commande", label: "Dernière commande" },
+  { id: "commande", label: "Dernier événement" },
 ] as const;
 
 export default async function Contacts({ searchParams }: { searchParams: Promise<{ tri?: string; dir?: string }> }) {
-  const { tri = "date", dir = "desc" } = await searchParams;
+  const { tri = "commande", dir = "desc" } = await searchParams;
   const d: "asc" | "desc" = dir === "asc" ? "asc" : "desc";
   const orderBy: Prisma.ContactOrderByWithRelationInput =
     tri === "nom" ? { firstName: d } : tri === "canal" ? { source: d } : { createdAt: d };
@@ -23,9 +23,18 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
   const tenant = await currentTenant();
   const contacts = await prisma.contact.findMany({
     where: { tenantId: tenant.id },
-    include: { orders: { orderBy: { createdAt: "desc" }, take: 1 } },
+    include: { orders: { orderBy: { eventDate: "desc" }, take: 1 } },
     orderBy,
   });
+
+  /* Tri par date d'événement de la dernière commande (agrégat non trié par Prisma -> JS) */
+  if (tri === "commande") {
+    contacts.sort((a, b) => {
+      const ta = a.orders[0]?.eventDate?.getTime() ?? -Infinity;
+      const tb = b.orders[0]?.eventDate?.getTime() ?? -Infinity;
+      return d === "asc" ? ta - tb : tb - ta;
+    });
+  }
 
   const arrow = (c: string) => (tri === c ? (d === "asc" ? " ↑" : " ↓") : "");
   const flip = (c: string) => (tri === c && d === "desc" ? "asc" : "desc");
@@ -50,17 +59,13 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
         <table className="w-full min-w-[640px] text-sm">
           <thead className="border-b border-stone-200 bg-stone-50 text-left text-[11px] uppercase tracking-wider text-stone-500">
             <tr>
-              {COLS.map((c) =>
-                c.id === "commande" ? (
-                  <th key={c.id} className="px-4 py-3">{c.label}</th>
-                ) : (
-                  <th key={c.id} className="px-4 py-3">
-                    <Link href={`/contacts?tri=${c.id}&dir=${flip(c.id)}`} className="hover:text-stone-800">
-                      {c.label}{arrow(c.id)}
-                    </Link>
-                  </th>
-                )
-              )}
+              {COLS.map((c) => (
+                <th key={c.id} className="px-4 py-3">
+                  <Link href={`/contacts?tri=${c.id}&dir=${flip(c.id)}`} className="hover:text-stone-800">
+                    {c.label}{arrow(c.id)}
+                  </Link>
+                </th>
+              ))}
               <th className="px-4 py-3">Mobile</th>
             </tr>
           </thead>
