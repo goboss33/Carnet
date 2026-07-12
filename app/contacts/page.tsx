@@ -10,7 +10,6 @@ export const dynamic = "force-dynamic";
 const COLS = [
   { id: "nom", label: "Nom" },
   { id: "canal", label: "Canal" },
-  { id: "date", label: "Ajouté le" },
   { id: "commande", label: "Dernier événement" },
 ] as const;
 
@@ -56,7 +55,7 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
-        <table className="w-full min-w-[640px] text-sm">
+        <table className="w-full min-w-[980px] text-sm">
           <thead className="border-b border-stone-200 bg-stone-50 text-left text-[11px] uppercase tracking-wider text-stone-500">
             <tr>
               {COLS.map((c) => (
@@ -66,7 +65,11 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
                   </Link>
                 </th>
               ))}
+              <th className="px-4 py-3">Prix</th>
+              <th className="px-4 py-3">Adresse (dernière)</th>
               <th className="px-4 py-3">Mobile</th>
+              <th className="px-4 py-3">E-mail</th>
+              <th className="px-4 py-3">Instagram</th>
             </tr>
           </thead>
           <tbody>
@@ -85,7 +88,6 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
                     </Link>
                   </td>
                   <td className="px-4 py-2.5 text-stone-500">{src.emoji} {src.label}</td>
-                  <td className="px-4 py-2.5 text-stone-500">{fmtDate(c.createdAt)}</td>
                   <td className="px-4 py-2.5 text-stone-500">
                     {o ? (
                       <Link href={`/commandes/${o.id}`} className="hover:underline">
@@ -93,12 +95,18 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
                       </Link>
                     ) : "—"}
                   </td>
-                  <td className="px-4 py-2.5">{c.phone || "—"}</td>
+                  <td className="px-4 py-2.5 font-semibold">{o?.priceQuoted ? `CHF ${o.priceQuoted}` : "—"}</td>
+                  <td className="max-w-[220px] truncate px-4 py-2.5 text-stone-500" title={o?.deliveryAddress || ""}>
+                    {o?.deliveryAddress || "—"}
+                  </td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">{c.phone || "—"}</td>
+                  <td className="px-4 py-2.5 text-stone-500">{c.email || "—"}</td>
+                  <td className="px-4 py-2.5 text-stone-500">{c.instagram || "—"}</td>
                 </tr>
               );
             })}
             {contacts.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-stone-400">Aucun contact — crée ta première fiche.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-stone-400">Aucun contact — crée ta première fiche.</td></tr>
             )}
           </tbody>
         </table>
