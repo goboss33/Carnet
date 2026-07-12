@@ -349,3 +349,38 @@ export async function importCsv(
     report: `${created} commande${created > 1 ? "s" : ""} importée${created > 1 ? "s" : ""}.${errors.length ? ` ${errors.length} erreur(s) : ${errors.slice(0, 5).join(" · ")}` : ""}`,
   };
 }
+
+/* ------------------------------------------------------------ contacts */
+
+const contactPatch = z.object({
+  firstName: z.string().min(1, "Prénom requis"),
+  lastName: z.string().default(""),
+  phone: z.string().default(""),
+  email: z.string().default(""),
+  instagram: z.string().default(""),
+  source: z.enum(["CONFIGURATEUR", "WHATSAPP", "INSTAGRAM", "TELEPHONE", "AUTRE"]).default("AUTRE"),
+  notes: z.string().default(""),
+});
+
+export async function updateContact(id: string, _prev: { error?: string; ok?: boolean } | undefined, formData: FormData) {
+  const parsed = contactPatch.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide" };
+  await prisma.contact.update({ where: { id }, data: { ...parsed.data, consentNewsletter: formData.get("consentNewsletter") === "on" } });
+  revalidatePath(`/contacts/${id}`);
+  revalidatePath("/contacts");
+  return { ok: true };
+}
+
+export async function deleteContact(id: string) {
+  const orders = await prisma.order.count({ where: { contactId: id } });
+  if (orders > 0) return; // le bouton est désactivé côté UI, ceinture ici
+  await prisma.contact.delete({ where: { id } });
+  revalidatePath("/contacts");
+  redirect("/contacts");
+}
+
+export async function deleteOrder(orderId: string) {
+  await prisma.order.delete({ where: { id: orderId } }).catch(() => null);
+  revalidatePath("/");
+  redirect("/");
+}
