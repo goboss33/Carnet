@@ -157,3 +157,92 @@ export async function addNote(orderId: string, formData: FormData) {
   await prisma.activity.create({ data: { orderId, type: "NOTE", body } });
   revalidatePath(`/commandes/${orderId}`);
 }
+
+/* ------------------------------------------------------------- compta */
+
+const expensePatch = z.object({
+  date: z.string().default(""),
+  merchant: z.string().default(""),
+  totalChf: z.coerce.number().min(0).default(0),
+  category: z.enum(["MATIERES_PREMIERES", "EMBALLAGE", "MATERIEL", "DEPLACEMENT", "MARKETING", "AUTRE"]).default("AUTRE"),
+  notes: z.string().default(""),
+});
+
+export async function updateExpense(id: string, formData: FormData) {
+  const d = expensePatch.parse(Object.fromEntries(formData));
+  await prisma.expense.update({
+    where: { id },
+    data: {
+      date: d.date ? new Date(d.date) : undefined,
+      merchant: d.merchant,
+      totalCents: Math.round(d.totalChf * 100),
+      category: d.category,
+      notes: d.notes,
+      status: "CONFIRMED",
+    },
+  });
+  revalidatePath("/compta");
+}
+
+export async function createExpense(formData: FormData) {
+  const d = expensePatch.parse(Object.fromEntries(formData));
+  const tenant = await currentTenant();
+  await prisma.expense.create({
+    data: {
+      tenantId: tenant.id,
+      status: "CONFIRMED",
+      date: d.date ? new Date(d.date) : new Date(),
+      merchant: d.merchant,
+      totalCents: Math.round(d.totalChf * 100),
+      category: d.category,
+      notes: d.notes,
+    },
+  });
+  revalidatePath("/compta");
+}
+
+export async function deleteExpense(id: string) {
+  await prisma.expense.delete({ where: { id } }).catch(() => null);
+  revalidatePath("/compta");
+}
+
+/* -------------------------------------------------------- partenaires */
+
+const partnerSchema = z.object({
+  name: z.string().min(1, "Nom requis"),
+  type: z.enum(["COMMERCE", "PHOTOGRAPHE", "WEDDING_PLANNER", "SALLE", "AUTRE"]).default("COMMERCE"),
+  code: z.string().min(2, "Code requis (ex. BOUL-PULLY)"),
+  ratePct: z.coerce.number().int().min(0).max(50).default(10),
+  contact: z.string().default(""),
+});
+
+export async function createPartner(_prev: { error?: string } | undefined, formData: FormData) {
+  const parsed = partnerSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide" };
+  const d = parsed.data;
+  const tenant = await currentTenant();
+  const code = d.code.toUpperCase().replace(/[^A-Z0-9-]/g, "");
+  const exists = await prisma.partner.findUnique({ where: { tenantId_code: { tenantId: tenant.id, code } } });
+  if (exists) return { error: `Le code ${code} existe déjà.` };
+  await prisma.partner.create({ data: { tenantId: tenant.id, name: d.name, type: d.type, code, ratePct: d.ratePct, contact: d.contact } });
+  revalidatePath("/partenaires");
+  return {};
+}
+
+export async function setOrderPartner(orderId: string, formData: FormData) {
+  const partnerId = String(formData.get("partnerId") ?? "");
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      partnerId: partnerId || null,
+      activities: { create: { type: "SYSTEM", body: partnerId ? "Rattachée à un partenaire." : "Détachée du partenaire." } },
+    },
+  });
+  revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/partenaires");
+}
+
+export async function markCommissionPaid(orderId: string) {
+  await prisma.order.update({ where: { id: orderId }, data: { commissionPaidAt: new Date() } });
+  revalidatePath("/partenaires");
+}

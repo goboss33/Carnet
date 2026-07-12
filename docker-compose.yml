@@ -22,6 +22,11 @@ services:
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
       TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:-}
       HOOK_SECRET: ${HOOK_SECRET:?}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      RECEIPTS_DIR: /data/receipts
+    volumes:
+      - carnet-receipts:/data/receipts
     networks:
       - proxy
       - internal
@@ -48,6 +53,7 @@ services:
 
 volumes:
   carnet-pgdata:
+  carnet-receipts:
 
 networks:
   internal:

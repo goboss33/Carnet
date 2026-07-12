@@ -32,6 +32,7 @@ const payload = z.object({
     deliveryKm: z.number().int().nullish(),
     priceQuoted: z.number().int().nullish(),
     extras: z.unknown().nullish(),
+    partnerCode: z.string().nullish(),
   }),
 });
 
@@ -62,6 +63,12 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  const partner = o.partnerCode
+    ? await prisma.partner.findUnique({
+        where: { tenantId_code: { tenantId: tenant.id, code: o.partnerCode.toUpperCase().replace(/[^A-Z0-9-]/g, "") } },
+      })
+    : null;
+
   const order = await prisma.order.create({
     data: {
       tenantId: tenant.id,
@@ -83,7 +90,15 @@ export async function POST(req: NextRequest) {
       deliveryKm: o.deliveryKm ?? null,
       priceQuoted: o.priceQuoted ?? null,
       extras: o.extras as never,
-      activities: { create: { type: "SYSTEM", body: "Demande reçue via le configurateur." } },
+      partnerId: partner?.id ?? null,
+      activities: {
+        create: {
+          type: "SYSTEM",
+          body: partner
+            ? `Demande reçue via le configurateur — apportée par ${partner.name} (${partner.code}).`
+            : "Demande reçue via le configurateur.",
+        },
+      },
     },
   });
 

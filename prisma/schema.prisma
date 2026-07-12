@@ -18,6 +18,8 @@ model Tenant {
   contacts  Contact[]
   orders    Order[]
   sessions  BotSession[]
+  expenses  Expense[]
+  partners  Partner[]
 }
 
 enum Source {
@@ -88,6 +90,10 @@ model Order {
   balancePaidAt   DateTime?
   deliveredAt     DateTime?
 
+  partnerId        String?
+  partner          Partner?   @relation(fields: [partnerId], references: [id])
+  commissionPaidAt DateTime?
+
   notes           String      @default("")
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -95,6 +101,7 @@ model Order {
 
   @@index([tenantId, status])
   @@index([tenantId, eventDate])
+  @@index([tenantId, partnerId])
 }
 
 model Activity {
@@ -116,4 +123,63 @@ model BotSession {
   step      String   @default("idle")
   draft     Json?
   updatedAt DateTime @updatedAt
+}
+
+/// Dépense (ticket de caisse scanné ou saisie manuelle)
+enum ExpenseCategory {
+  MATIERES_PREMIERES
+  EMBALLAGE
+  MATERIEL
+  DEPLACEMENT
+  MARKETING
+  AUTRE
+}
+
+enum ExpenseStatus {
+  DRAFT
+  CONFIRMED
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  tenantId    String
+  tenant      Tenant          @relation(fields: [tenantId], references: [id])
+  status      ExpenseStatus   @default(DRAFT)
+  date        DateTime        @default(now())
+  merchant    String          @default("")
+  totalCents  Int             @default(0)
+  vat         Json?           // [{ rate: 2.6, amountCents: 61 }]
+  category    ExpenseCategory @default(AUTRE)
+  receiptPath String          @default("")
+  ocrJson     Json?
+  notes       String          @default("")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([tenantId, status, date])
+}
+
+/// Partenaire apporteur (commerce, photographe, salle…)
+enum PartnerType {
+  COMMERCE
+  PHOTOGRAPHE
+  WEDDING_PLANNER
+  SALLE
+  AUTRE
+}
+
+model Partner {
+  id        String      @id @default(cuid())
+  tenantId  String
+  tenant    Tenant      @relation(fields: [tenantId], references: [id])
+  name      String
+  type      PartnerType @default(COMMERCE)
+  code      String
+  ratePct   Int         @default(10)
+  contact   String      @default("")
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  orders    Order[]
+
+  @@unique([tenantId, code])
 }

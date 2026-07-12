@@ -8,6 +8,8 @@ const NAV = [
   { href: "/nouveau", label: "+ Nouveau" },
   { href: "/contacts", label: "Contacts" },
   { href: "/agenda", label: "Agenda" },
+  { href: "/compta", label: "Compta" },
+  { href: "/partenaires", label: "Partenaires" },
 ];
 
 export default function ShellClient({ children }: { children: React.ReactNode }) {

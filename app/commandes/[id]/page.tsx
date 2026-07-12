@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { STATUTS, SOURCES, fmtCHF, fmtDate } from "@/lib/statuts";
-import { updateOrder, setStatus, addNote } from "@/app/actions";
+import { updateOrder, setStatus, addNote, setOrderPartner } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 import type { OrderStatus } from "@prisma/client";
 
@@ -14,9 +14,10 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const order = await prisma.order.findUnique({
     where: { id },
-    include: { contact: true, activities: { orderBy: { createdAt: "desc" }, take: 30 } },
+    include: { contact: true, partner: true, activities: { orderBy: { createdAt: "desc" }, take: 30 } },
   });
   if (!order) notFound();
+  const partners = await prisma.partner.findMany({ where: { tenantId: order.tenantId, active: true }, orderBy: { name: "asc" } });
   const c = order.contact;
   const d = (x?: Date | null) => (x ? x.toISOString().slice(0, 10) : "");
 
@@ -97,6 +98,25 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               >
                 Ouvrir WhatsApp
               </a>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-stone-200 bg-white p-5 text-sm">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Partenaire apporteur</p>
+            <form action={setOrderPartner.bind(null, order.id)} className="flex items-center gap-2">
+              <select name="partnerId" defaultValue={order.partnerId ?? ""} className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-amber-600">
+                <option value="">— Aucun (client direct)</option>
+                {partners.map((pt) => (
+                  <option key={pt.id} value={pt.id}>{pt.name} · {pt.ratePct} %</option>
+                ))}
+              </select>
+              <button className="shrink-0 rounded-lg bg-stone-900 px-3 py-2 text-sm font-semibold text-white hover:bg-stone-700">OK</button>
+            </form>
+            {order.partner && order.priceQuoted && (
+              <p className="mt-2 text-xs text-stone-500">
+                Commission : CHF {Math.round((order.priceQuoted * order.partner.ratePct) / 100)}
+                {order.commissionPaidAt ? ` · versée le ${order.commissionPaidAt.toLocaleDateString("fr-CH")}` : " · à verser après livraison"}
+              </p>
             )}
           </div>
 
