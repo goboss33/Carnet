@@ -23,15 +23,52 @@ DEPLACEMENT pour essence/parking/transports, MARKETING pour impressions/pub. Sin
 
 const FALLBACK_MODEL = "gemini-flash-latest";
 
+/** Extrait le premier objet JSON balancé d'un texte (fences et bavardage tolérés). */
+function extractJson(raw: string): Record<string, unknown> | null {
+  const cleaned = raw.replace(/```(?:json)?/gi, "").trim();
+  const start = cleaned.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (esc) { esc = false; continue; }
+    if (ch === "\\") { esc = true; continue; }
+    if (ch === '"') inStr = !inStr;
+    else if (!inStr) {
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          try {
+            return JSON.parse(cleaned.slice(start, i + 1));
+          } catch {
+            return null;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
 export async function analyzeReceipt(image: Buffer, mime = "image/webp"): Promise<ReceiptData | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
   const model = process.env.GEMINI_MODEL || FALLBACK_MODEL;
-  const first = await callGemini(key, model, image, mime);
-  if (first !== "MODEL_GONE") return first;
-  console.warn(`gemini: modèle « ${model} » indisponible → fallback ${FALLBACK_MODEL}`);
-  const second = await callGemini(key, FALLBACK_MODEL, image, mime);
-  return second === "MODEL_GONE" ? null : second;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await callGemini(key, model, image, mime);
+    if (r === "MODEL_GONE") break;
+    if (r) return r;
+    console.warn(`gemini: tentative ${attempt + 1} sans résultat exploitable${attempt === 0 ? " → retry" : ""}`);
+  }
+  if ((process.env.GEMINI_MODEL || FALLBACK_MODEL) !== FALLBACK_MODEL) {
+    console.warn(`gemini: fallback ${FALLBACK_MODEL}`);
+    const r = await callGemini(key, FALLBACK_MODEL, image, mime);
+    return r === "MODEL_GONE" ? null : r;
+  }
+  return null;
 }
 
 async function callGemini(key: string, model: string, image: Buffer, mime: string): Promise<ReceiptData | null | "MODEL_GONE"> {
@@ -41,7 +78,7 @@ async function callGemini(key: string, model: string, image: Buffer, mime: strin
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(45000),
         body: JSON.stringify({
           contents: [
             {
@@ -51,7 +88,7 @@ async function callGemini(key: string, model: string, image: Buffer, mime: strin
               ],
             },
           ],
-          generationConfig: { response_mime_type: "application/json", temperature: 0 },
+          generationConfig: { responseMimeType: "application/json", temperature: 0, maxOutputTokens: 4096 },
         }),
       }
     );
@@ -64,13 +101,23 @@ async function callGemini(key: string, model: string, image: Buffer, mime: strin
       return null;
     }
     const data = await res.json();
-    const text: string | undefined = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return null;
-    const j = JSON.parse(text);
+    const cand = data?.candidates?.[0];
+    if (cand?.finishReason && cand.finishReason !== "STOP") {
+      console.warn("gemini finishReason:", cand.finishReason);
+    }
+    const text: string = (cand?.content?.parts ?? [])
+      .map((p: { text?: string }) => p.text ?? "")
+      .join("");
+    if (!text.trim()) return null;
+    const j = extractJson(text);
+    if (!j) {
+      console.error("gemini bad json:", text.slice(0, 300));
+      return null;
+    }
     const cats = ["MATIERES_PREMIERES", "EMBALLAGE", "MATERIEL", "DEPLACEMENT", "MARKETING", "AUTRE"];
     return {
       merchant: String(j.merchant ?? "").slice(0, 80),
-      date: j.date && /^\d{4}-\d{2}-\d{2}$/.test(j.date) ? j.date : null,
+      date: typeof j.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(j.date) ? j.date : null,
       totalCents: Math.round(Number(j.total_chf ?? 0) * 100) || 0,
       vat: Array.isArray(j.vat)
         ? j.vat
@@ -80,7 +127,7 @@ async function callGemini(key: string, model: string, image: Buffer, mime: strin
               amountCents: Math.round(Number(v.amount_chf ?? 0) * 100) || 0,
             }))
         : [],
-      category: (cats.includes(j.category) ? j.category : "AUTRE") as ReceiptData["category"],
+      category: (typeof j.category === "string" && cats.includes(j.category) ? j.category : "AUTRE") as ReceiptData["category"],
     };
   } catch (e) {
     console.error("gemini error", e);
