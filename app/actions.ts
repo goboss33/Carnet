@@ -259,6 +259,48 @@ export async function purgeEmptyDrafts() {
 
 const STATUTS_IMPORT = ["LEAD", "DEVIS_ENVOYE", "ACOMPTE_RECU", "EN_PRODUCTION", "LIVRE", "ANNULE"] as const;
 
+/** Parseur CSV complet : guillemets, séparateur et sauts de ligne dans les champs. */
+function parseCsv(text: string, sep: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { cell += '"'; i++; }
+        else inQuotes = false;
+      } else cell += ch;
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === sep) {
+      row.push(cell); cell = "";
+    } else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); cell = "";
+      if (row.some((c) => c !== "")) rows.push(row);
+      row = [];
+    } else cell += ch;
+  }
+  row.push(cell);
+  if (row.some((c) => c !== "")) rows.push(row);
+  return rows;
+}
+
+/** Vide commandes + contacts du tenant (les dépenses et partenaires restent). */
+export async function purgeCrm(_prev: { error?: string; report?: string } | undefined, formData: FormData) {
+  if (String(formData.get("confirm")).trim().toUpperCase() !== "SUPPRIMER") {
+    return { error: "Tape SUPPRIMER dans le champ pour confirmer." };
+  }
+  const tenant = await currentTenant();
+  const orders = await prisma.order.deleteMany({ where: { tenantId: tenant.id } });
+  const contacts = await prisma.contact.deleteMany({ where: { tenantId: tenant.id } });
+  revalidatePath("/");
+  revalidatePath("/contacts");
+  return { report: `${orders.count} commandes et ${contacts.count} contacts supprimés. Tu peux réimporter.` };
+}
+
 function parseFrDate(t: string): Date | null {
   const m = t.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
   if (!m) return null;
@@ -276,13 +318,13 @@ export async function importCsv(
   if (file.size > 2_000_000) return { error: "Fichier trop lourd (max 2 Mo)." };
 
   const text = (await file.text()).replace(/^﻿/, "");
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
-  if (lines.length < 2) return { error: "Le fichier semble vide (en-tête + au moins une ligne)." };
-
-  const sep = (lines[0].match(/;/g)?.length ?? 0) >= (lines[0].match(/,/g)?.length ?? 0) ? ";" : ",";
+  const firstLine = text.split(/\r?\n/)[0] ?? "";
+  const sep = (firstLine.match(/;/g)?.length ?? 0) >= (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";
+  const table = parseCsv(text, sep);
+  if (table.length < 2) return { error: "Le fichier semble vide (en-tête + au moins une ligne)." };
   const norm = (s: string) =>
     s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z_]/g, "");
-  const header = lines[0].split(sep).map(norm);
+  const header = table[0].map(norm);
   const col = (name: string) => header.indexOf(name);
   const idx = {
     prenom: col("prenom"), nom: col("nom"), telephone: col("telephone"), email: col("email"),
@@ -296,8 +338,9 @@ export async function importCsv(
   let created = 0;
   const errors: string[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const c = lines[i].split(sep).map((x) => x.replace(/^"|"$/g, "").trim());
+  for (let i = 1; i < table.length; i++) {
+    const c = table[i].map((x) => x.trim());
+    if (!c.some(Boolean)) continue;
     const get = (j: number) => (j >= 0 && j < c.length ? c[j] : "");
     const firstName = get(idx.prenom);
     if (!firstName) { errors.push(`ligne ${i + 1} : prénom manquant`); continue; }

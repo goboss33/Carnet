@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { importCsv } from "@/app/actions";
+import { importCsv, purgeCrm } from "@/app/actions";
 import ShellClient from "@/app/components/ShellClient";
 
 export default function ImportPage() {
   const [state, action, pending] = useActionState(importCsv, undefined);
+  const [purgeState, purgeAction, purging] = useActionState(purgeCrm, undefined);
   return (
     <ShellClient>
       <h1 className="mb-1 text-2xl font-bold tracking-tight">Importer l'historique</h1>
@@ -32,6 +33,28 @@ export default function ImportPage() {
           {pending ? "Import en cours…" : "Importer"}
         </button>
       </form>
+
+      <details className="mt-8 max-w-xl rounded-2xl border border-red-200 bg-red-50/50 p-6">
+        <summary className="cursor-pointer text-sm font-bold text-red-700">
+          ⚠️ Zone dangereuse — vider commandes & contacts
+        </summary>
+        <p className="mt-3 text-sm text-red-800/80">
+          Supprime <b>toutes</b> les commandes et <b>tous</b> les contacts (les dépenses et
+          partenaires ne sont pas touchés). Utile pour repartir propre avant un réimport.
+        </p>
+        <form action={purgeAction} className="mt-4 flex flex-wrap items-center gap-2">
+          <input
+            name="confirm"
+            placeholder="Tape SUPPRIMER"
+            className="rounded-lg border border-red-300 bg-white px-3 py-2 text-sm outline-none focus:border-red-500"
+          />
+          <button disabled={purging} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+            {purging ? "…" : "Tout supprimer"}
+          </button>
+        </form>
+        {purgeState?.report && <p className="mt-3 text-sm font-medium text-emerald-700">{purgeState.report}</p>}
+        {purgeState?.error && <p className="mt-3 text-sm font-medium text-red-700">{purgeState.error}</p>}
+      </details>
     </ShellClient>
   );
 }
