@@ -75,7 +75,13 @@ export async function POST(req: NextRequest) {
     await say(chatId, `Bienvenue sur <b>Carnet</b> 👋\nTon chat id : <code>${chatId}</code>\nAjoute-le à TELEGRAM_ALLOWED_CHAT_IDS pour activer le bot.`);
     return NextResponse.json({ ok: true });
   }
-  if (!allowed.includes(String(chatId))) return NextResponse.json({ ok: true });
+  if (!allowed.includes(String(chatId))) {
+    await say(
+      chatId,
+      `Ce bot est privé 🧁\nTon identifiant : <code>${chatId}</code> — transmets-le à l'administrateur pour être ajouté.`
+    );
+    return NextResponse.json({ ok: true });
+  }
 
   const tenant = await currentTenant();
   const session = await prisma.botSession.findUnique({ where: { chatId: BigInt(chatId) } });
