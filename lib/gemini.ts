@@ -21,11 +21,20 @@ Catégorie : MATIERES_PREMIERES pour l'alimentaire (farine, beurre, œufs, sucre
 EMBALLAGE pour boîtes/cartons/rubans, MATERIEL pour ustensiles/moules/petit équipement,
 DEPLACEMENT pour essence/parking/transports, MARKETING pour impressions/pub. Sinon AUTRE.`;
 
+const FALLBACK_MODEL = "gemini-flash-latest";
+
 export async function analyzeReceipt(image: Buffer): Promise<ReceiptData | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
-  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = process.env.GEMINI_MODEL || FALLBACK_MODEL;
+  const first = await callGemini(key, model, image);
+  if (first !== "MODEL_GONE") return first;
+  console.warn(`gemini: modèle « ${model} » indisponible → fallback ${FALLBACK_MODEL}`);
+  const second = await callGemini(key, FALLBACK_MODEL, image);
+  return second === "MODEL_GONE" ? null : second;
+}
 
+async function callGemini(key: string, model: string, image: Buffer): Promise<ReceiptData | null | "MODEL_GONE"> {
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
@@ -46,6 +55,10 @@ export async function analyzeReceipt(image: Buffer): Promise<ReceiptData | null>
         }),
       }
     );
+    if (res.status === 404) {
+      await res.text().catch(() => "");
+      return "MODEL_GONE";
+    }
     if (!res.ok) {
       console.error("gemini http", res.status, await res.text().catch(() => ""));
       return null;

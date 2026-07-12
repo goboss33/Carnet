@@ -23,7 +23,7 @@ services:
       TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:-}
       HOOK_SECRET: ${HOOK_SECRET:?}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
       RECEIPTS_DIR: /data/receipts
     volumes:
       - carnet-receipts:/data/receipts
