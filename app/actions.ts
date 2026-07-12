@@ -288,6 +288,7 @@ export async function importCsv(
     prenom: col("prenom"), nom: col("nom"), telephone: col("telephone"), email: col("email"),
     occasion: col("occasion"), dateEvenement: col("date_evenement"), parts: col("parts"),
     prix: col("prix_chf"), statut: col("statut"), dateLivraison: col("date_livraison"), notes: col("notes"),
+    adresse: col("adresse_livraison"), distance: col("distance_km"),
   };
   if (idx.prenom < 0) return { error: "Colonne « prenom » introuvable — utilise le modèle fourni." };
 
@@ -328,6 +329,9 @@ export async function importCsv(
           eventDate: parseFrDate(get(idx.dateEvenement)),
           parts: parseInt(get(idx.parts)) || null,
           priceQuoted: Math.round(parseFloat(get(idx.prix).replace(",", "."))) || null,
+          deliveryMode: get(idx.adresse) ? "livraison" : "retrait",
+          deliveryAddress: get(idx.adresse),
+          deliveryKm: Math.round(parseFloat(get(idx.distance).replace(",", "."))) || null,
           deliveredAt: statut === "LIVRE" ? (deliveredAt ?? parseFrDate(get(idx.dateEvenement))) : null,
           reviewAskedAt: old ? new Date() : null, // pas d'avalanche d'avis rétroactive
           notes: get(idx.notes),
