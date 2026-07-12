@@ -1,0 +1,3 @@
+prenom;nom;telephone;email;occasion;date_evenement;parts;prix_chf;statut;date_livraison;notes
+Marie;Favre;+41791234567;marie@exemple.ch;Anniversaire 6 ans;15.03.2026;20;140;LIVRE;14.03.2026;Thème licorne, biscuit vanille
+Sophie;Martin;+41781112233;;Baby shower;02.05.2026;15;110;LIVRE;01.05.2026;

@@ -254,3 +254,94 @@ export async function purgeEmptyDrafts() {
   });
   revalidatePath("/compta");
 }
+
+/* ------------------------------------------------------------- import */
+
+const STATUTS_IMPORT = ["LEAD", "DEVIS_ENVOYE", "ACOMPTE_RECU", "EN_PRODUCTION", "LIVRE", "ANNULE"] as const;
+
+function parseFrDate(t: string): Date | null {
+  const m = t.trim().match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+  if (!m) return null;
+  const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  const d = new Date(Date.UTC(y, Number(m[2]) - 1, Number(m[1])));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+export async function importCsv(
+  _prev: { report?: string; error?: string } | undefined,
+  formData: FormData
+): Promise<{ report?: string; error?: string }> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || !file.size) return { error: "Choisis un fichier CSV." };
+  if (file.size > 2_000_000) return { error: "Fichier trop lourd (max 2 Mo)." };
+
+  const text = (await file.text()).replace(/^﻿/, "");
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return { error: "Le fichier semble vide (en-tête + au moins une ligne)." };
+
+  const sep = (lines[0].match(/;/g)?.length ?? 0) >= (lines[0].match(/,/g)?.length ?? 0) ? ";" : ",";
+  const norm = (s: string) =>
+    s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z_]/g, "");
+  const header = lines[0].split(sep).map(norm);
+  const col = (name: string) => header.indexOf(name);
+  const idx = {
+    prenom: col("prenom"), nom: col("nom"), telephone: col("telephone"), email: col("email"),
+    occasion: col("occasion"), dateEvenement: col("date_evenement"), parts: col("parts"),
+    prix: col("prix_chf"), statut: col("statut"), dateLivraison: col("date_livraison"), notes: col("notes"),
+  };
+  if (idx.prenom < 0) return { error: "Colonne « prenom » introuvable — utilise le modèle fourni." };
+
+  const tenant = await currentTenant();
+  let created = 0;
+  const errors: string[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const c = lines[i].split(sep).map((x) => x.replace(/^"|"$/g, "").trim());
+    const get = (j: number) => (j >= 0 && j < c.length ? c[j] : "");
+    const firstName = get(idx.prenom);
+    if (!firstName) { errors.push(`ligne ${i + 1} : prénom manquant`); continue; }
+
+    try {
+      const phone = get(idx.telephone);
+      const email = get(idx.email);
+      let contact =
+        (phone && (await prisma.contact.findFirst({ where: { tenantId: tenant.id, phone } }))) ||
+        (email && (await prisma.contact.findFirst({ where: { tenantId: tenant.id, email } }))) ||
+        null;
+      if (!contact) {
+        contact = await prisma.contact.create({
+          data: { tenantId: tenant.id, firstName, lastName: get(idx.nom), phone, email, source: "AUTRE" },
+        });
+      }
+      const statut = STATUTS_IMPORT.includes(get(idx.statut).toUpperCase() as never)
+        ? (get(idx.statut).toUpperCase() as (typeof STATUTS_IMPORT)[number])
+        : "LIVRE";
+      const deliveredAt = parseFrDate(get(idx.dateLivraison));
+      const old = deliveredAt && deliveredAt.getTime() < Date.now() - 7 * 86400000;
+      await prisma.order.create({
+        data: {
+          tenantId: tenant.id,
+          contactId: contact.id,
+          status: statut,
+          source: "AUTRE",
+          occasion: get(idx.occasion),
+          eventDate: parseFrDate(get(idx.dateEvenement)),
+          parts: parseInt(get(idx.parts)) || null,
+          priceQuoted: Math.round(parseFloat(get(idx.prix).replace(",", "."))) || null,
+          deliveredAt: statut === "LIVRE" ? (deliveredAt ?? parseFrDate(get(idx.dateEvenement))) : null,
+          reviewAskedAt: old ? new Date() : null, // pas d'avalanche d'avis rétroactive
+          notes: get(idx.notes),
+          activities: { create: { type: "SYSTEM", body: "Importée depuis l'historique (CSV)." } },
+        },
+      });
+      created++;
+    } catch (e) {
+      errors.push(`ligne ${i + 1} : ${e instanceof Error ? e.message.slice(0, 80) : "erreur"}`);
+    }
+  }
+  revalidatePath("/");
+  revalidatePath("/contacts");
+  return {
+    report: `${created} commande${created > 1 ? "s" : ""} importée${created > 1 ? "s" : ""}.${errors.length ? ` ${errors.length} erreur(s) : ${errors.slice(0, 5).join(" · ")}` : ""}`,
+  };
+}

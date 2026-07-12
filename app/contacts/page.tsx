@@ -15,7 +15,12 @@ export default async function Contacts() {
 
   return (
     <Shell>
-      <h1 className="mb-6 text-2xl font-bold tracking-tight">Contacts</h1>
+      <div className="mb-6 flex items-baseline justify-between">
+        <h1 className="text-2xl font-bold tracking-tight">Contacts</h1>
+        <Link href="/import" className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-600 hover:border-stone-500">
+          ⬆ Importer l'historique (CSV)
+        </Link>
+      </div>
       <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
         <table className="w-full text-sm">
           <thead className="border-b border-stone-200 bg-stone-50 text-left text-[11px] uppercase tracking-wider text-stone-500">
