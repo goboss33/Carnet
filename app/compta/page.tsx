@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
 import { chf, CATEGORIES, catLabel } from "@/lib/money";
-import { updateExpense, createExpense, deleteExpense } from "@/app/actions";
+import { updateExpense, createExpense, deleteExpense, purgeEmptyDrafts } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +70,14 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
       {/* Brouillons à compléter */}
       {drafts.length > 0 && (
         <div className="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-5">
-          <p className="mb-3 text-sm font-bold text-amber-800">🧾 {drafts.length} ticket{drafts.length > 1 ? "s" : ""} à compléter</p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-bold text-amber-800">🧾 {drafts.length} ticket{drafts.length > 1 ? "s" : ""} à compléter</p>
+            <form action={purgeEmptyDrafts}>
+              <button className="text-xs font-semibold text-amber-700 underline-offset-2 hover:underline">
+                Supprimer les brouillons vides
+              </button>
+            </form>
+          </div>
           <div className="space-y-3">
             {drafts.map((e) => (
               <form key={e.id} action={updateExpense.bind(null, e.id)} className="flex flex-wrap items-center gap-2">

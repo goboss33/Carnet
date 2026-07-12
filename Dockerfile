@@ -31,6 +31,7 @@ RUN npm install --prefix /prisma-cli --no-save --no-audit --no-fund prisma@6.19.
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
+RUN mkdir -p /data/receipts && chown -R nextjs:nodejs /data
 USER nextjs
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \

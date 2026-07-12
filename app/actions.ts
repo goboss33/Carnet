@@ -246,3 +246,11 @@ export async function markCommissionPaid(orderId: string) {
   await prisma.order.update({ where: { id: orderId }, data: { commissionPaidAt: new Date() } });
   revalidatePath("/partenaires");
 }
+
+export async function purgeEmptyDrafts() {
+  const tenant = await currentTenant();
+  await prisma.expense.deleteMany({
+    where: { tenantId: tenant.id, status: "DRAFT", receiptPath: "", totalCents: 0 },
+  });
+  revalidatePath("/compta");
+}

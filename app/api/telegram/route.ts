@@ -128,12 +128,23 @@ async function handlePhoto(chatId: number, tenantId: string, tenantSlug: string,
   }
   const img = await sharp(raw).rotate().resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
 
-  const expense = await prisma.expense.create({ data: { tenantId } });
-  const now = new Date();
-  const rel = path.join(tenantSlug, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`, `${expense.id}.webp`);
-  const abs = path.join(RECEIPTS(), rel);
-  await mkdir(path.dirname(abs), { recursive: true });
-  await writeFile(abs, img);
+  let expense;
+  try {
+    expense = await prisma.expense.create({ data: { tenantId } });
+    const now = new Date();
+    const rel = path.join(tenantSlug, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`, `${expense.id}.webp`);
+    const abs = path.join(RECEIPTS(), rel);
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, img);
+    await finishReceipt(chatId, expense.id, rel, img);
+  } catch (e) {
+    console.error("handlePhoto error:", e);
+    if (expense) await prisma.expense.delete({ where: { id: expense.id } }).catch(() => null);
+    await say(chatId, "⚠️ Je n'ai pas pu enregistrer ce ticket (erreur interne notée dans les logs). Réessaie dans un instant.");
+  }
+}
+
+async function finishReceipt(chatId: number, expenseId: string, rel: string, img: Buffer) {
 
   const ocr = await analyzeReceipt(img);
   const data = {
@@ -143,13 +154,13 @@ async function handlePhoto(chatId: number, tenantId: string, tenantSlug: string,
           merchant: ocr.merchant,
           totalCents: ocr.totalCents,
           category: ocr.category as ExpenseCategory,
-          date: ocr.date ? new Date(ocr.date) : now,
+          date: ocr.date ? new Date(ocr.date) : new Date(),
           vat: ocr.vat,
           ocrJson: ocr as object,
         }
       : {}),
   };
-  await prisma.expense.update({ where: { id: expense.id }, data });
+  await prisma.expense.update({ where: { id: expenseId }, data });
 
   if (!ocr) {
     await say(
@@ -158,15 +169,16 @@ async function handlePhoto(chatId: number, tenantId: string, tenantSlug: string,
     );
     return;
   }
+  void 0;
   const vatTxt = ocr.vat.length ? `\nTVA : ${ocr.vat.map((v) => `${v.rate}% → ${chf(v.amountCents)}`).join(" · ")}` : "";
   await sayInline(
     chatId,
     `🧾 <b>${ocr.merchant || "Commerçant ?"}</b> — <b>${chf(ocr.totalCents)}</b>\n📅 ${ocr.date ?? "date inconnue"} · ${catLabel(ocr.category)}${vatTxt}\n\nTout est bon ?`,
     [
       [
-        { text: "✅ Valider", callback_data: `exp:ok:${expense.id}` },
-        { text: "🏷 Catégorie", callback_data: `exp:cat:${expense.id}` },
-        { text: "🗑", callback_data: `exp:del:${expense.id}` },
+        { text: "✅ Valider", callback_data: `exp:ok:${expenseId}` },
+        { text: "🏷 Catégorie", callback_data: `exp:cat:${expenseId}` },
+        { text: "🗑", callback_data: `exp:del:${expenseId}` },
       ],
     ]
   );
@@ -229,6 +241,22 @@ export async function POST(req: NextRequest) {
   const update = await req.json().catch(() => null);
   const ok = () => NextResponse.json({ ok: true });
 
+  try {
+    return await handleUpdate(update, ok);
+  } catch (e) {
+    console.error("telegram webhook error:", e);
+    const cid = update?.message?.chat?.id ?? update?.callback_query?.message?.chat?.id;
+    if (cid) await say(cid, "⚠️ Oups, une erreur interne — réessaie dans un instant.").catch(() => null);
+    return ok(); // toujours 200 : pas de retry-storm Telegram
+  }
+}
+
+type TgUpdate = {
+  message?: { chat?: { id: number }; photo?: { file_id: string }[]; text?: string };
+  callback_query?: { id: string; data?: string; message: { chat: { id: number }; message_id: number } };
+} | null;
+
+async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
   const msg = update?.message;
   const cb = update?.callback_query;
   const chatId: number | undefined = msg?.chat?.id ?? cb?.message?.chat?.id;
