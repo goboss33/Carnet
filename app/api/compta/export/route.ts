@@ -6,10 +6,20 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const m = req.nextUrl.searchParams.get("m") ?? "";
-  if (!/^\d{4}-\d{2}$/.test(m)) return new NextResponse("?m=YYYY-MM requis", { status: 400 });
-  const [y, mo] = m.split("-").map(Number);
-  const start = new Date(Date.UTC(y, mo - 1, 1));
-  const end = new Date(Date.UTC(y, mo, 1));
+  const yy = req.nextUrl.searchParams.get("y") ?? "";
+  let start: Date, end: Date, label: string;
+  if (/^\d{4}-\d{2}$/.test(m)) {
+    const [y, mo] = m.split("-").map(Number);
+    start = new Date(Date.UTC(y, mo - 1, 1));
+    end = new Date(Date.UTC(y, mo, 1));
+    label = m;
+  } else if (/^\d{4}$/.test(yy)) {
+    start = new Date(Date.UTC(Number(yy), 0, 1));
+    end = new Date(Date.UTC(Number(yy) + 1, 0, 1));
+    label = yy;
+  } else {
+    return new NextResponse("?m=YYYY-MM ou ?y=YYYY requis", { status: 400 });
+  }
 
   const tenant = await currentTenant();
   const [expenses, delivered] = await Promise.all([
@@ -18,19 +28,23 @@ export async function GET(req: NextRequest) {
   ]);
 
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+  const vatTxt = (v: unknown) =>
+    Array.isArray(v)
+      ? (v as { rate: number; amountCents: number }[]).map((x) => `${x.rate}%: ${(x.amountCents / 100).toFixed(2)}`).join(" | ")
+      : "";
   const rows = [
-    ["type", "date", "libelle", "categorie", "montant_chf", "note"].join(";"),
+    ["type", "date", "libelle", "categorie", "montant_chf", "tva", "note"].join(";"),
     ...delivered.map((o) =>
-      ["recette", o.deliveredAt!.toISOString().slice(0, 10), esc(`Commande ${o.contact.firstName} ${o.contact.lastName} — ${o.occasion}`), "vente", ((o.priceQuoted ?? 0)).toFixed(2), ""].join(";")
+      ["recette", o.deliveredAt!.toISOString().slice(0, 10), esc(`Commande ${o.contact.firstName} ${o.contact.lastName} — ${o.occasion}`), "vente", ((o.priceQuoted ?? 0)).toFixed(2), "", ""].join(";")
     ),
     ...expenses.map((e) =>
-      ["depense", e.date.toISOString().slice(0, 10), esc(e.merchant || "—"), esc(catLabel(e.category)), (e.totalCents / 100).toFixed(2), esc(e.notes)].join(";")
+      ["depense", e.date.toISOString().slice(0, 10), esc(e.merchant || "—"), esc(catLabel(e.category)), (e.totalCents / 100).toFixed(2), esc(vatTxt(e.vat)), esc(e.notes)].join(";")
     ),
   ];
   return new NextResponse("﻿" + rows.join("\n"), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="carnet-compta-${m}.csv"`,
+      "Content-Disposition": `attachment; filename="carnet-compta-${label}.csv"`,
     },
   });
 }

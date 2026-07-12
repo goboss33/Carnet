@@ -119,34 +119,37 @@ async function advanceLead(chatId: number, tenantId: string, idx: number, draft:
 
 /* ------------------------------------------------------- ticket scan */
 
-async function handlePhoto(chatId: number, tenantId: string, tenantSlug: string, fileId: string) {
+async function handleReceipt(chatId: number, tenantId: string, tenantSlug: string, fileId: string, isPdf: boolean) {
   await tg("sendChatAction", { chat_id: chatId, action: "typing" });
   const raw = await downloadPhoto(fileId);
   if (!raw) {
-    await say(chatId, "Je n'ai pas réussi à récupérer la photo — réessaie ?");
+    await say(chatId, "Je n'ai pas réussi à récupérer le fichier — réessaie ?");
     return;
   }
-  const img = await sharp(raw).rotate().resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+  const buf = isPdf
+    ? raw
+    : await sharp(raw).rotate().resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
 
   let expense;
   try {
     expense = await prisma.expense.create({ data: { tenantId } });
     const now = new Date();
-    const rel = path.join(tenantSlug, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`, `${expense.id}.webp`);
+    const ext = isPdf ? "pdf" : "webp";
+    const rel = path.join(tenantSlug, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`, `${expense.id}.${ext}`);
     const abs = path.join(RECEIPTS(), rel);
     await mkdir(path.dirname(abs), { recursive: true });
-    await writeFile(abs, img);
-    await finishReceipt(chatId, expense.id, rel, img);
+    await writeFile(abs, buf);
+    await finishReceipt(chatId, tenantId, expense.id, rel, buf, isPdf ? "application/pdf" : "image/webp");
   } catch (e) {
-    console.error("handlePhoto error:", e);
+    console.error("handleReceipt error:", e);
     if (expense) await prisma.expense.delete({ where: { id: expense.id } }).catch(() => null);
-    await say(chatId, "⚠️ Je n'ai pas pu enregistrer ce ticket (erreur interne notée dans les logs). Réessaie dans un instant.");
+    await say(chatId, "⚠️ Je n'ai pas pu enregistrer ce justificatif (erreur notée dans les logs). Réessaie dans un instant.");
   }
 }
 
-async function finishReceipt(chatId: number, expenseId: string, rel: string, img: Buffer) {
+async function finishReceipt(chatId: number, tenantId: string, expenseId: string, rel: string, img: Buffer, mime: string) {
 
-  const ocr = await analyzeReceipt(img);
+  const ocr = await analyzeReceipt(img, mime);
   const data = {
     receiptPath: rel,
     ...(ocr
@@ -170,15 +173,27 @@ async function finishReceipt(chatId: number, expenseId: string, rel: string, img
     return;
   }
   void 0;
+  const dup = await prisma.expense.findFirst({
+    where: {
+      tenantId,
+      id: { not: expenseId },
+      totalCents: ocr.totalCents,
+      date: ocr.date ? new Date(ocr.date) : undefined,
+    },
+  });
   const vatTxt = ocr.vat.length ? `\nTVA : ${ocr.vat.map((v) => `${v.rate}% → ${chf(v.amountCents)}`).join(" · ")}` : "";
+  const dupTxt = dup ? "\n\n⚠️ <b>Possible doublon</b> : un justificatif au même montant et à la même date existe déjà." : "";
   await sayInline(
     chatId,
-    `🧾 <b>${ocr.merchant || "Commerçant ?"}</b> — <b>${chf(ocr.totalCents)}</b>\n📅 ${ocr.date ?? "date inconnue"} · ${catLabel(ocr.category)}${vatTxt}\n\nTout est bon ?`,
+    `🧾 <b>${ocr.merchant || "Commerçant ?"}</b> — <b>${chf(ocr.totalCents)}</b>\n📅 ${ocr.date ?? "date inconnue"} · ${catLabel(ocr.category)}${vatTxt}${dupTxt}\n\nTout est bon ?`,
     [
       [
         { text: "✅ Valider", callback_data: `exp:ok:${expenseId}` },
+        { text: "✏️ Corriger", callback_data: `exp:fix:${expenseId}` },
+      ],
+      [
         { text: "🏷 Catégorie", callback_data: `exp:cat:${expenseId}` },
-        { text: "🗑", callback_data: `exp:del:${expenseId}` },
+        { text: "🗑 Annuler", callback_data: `exp:del:${expenseId}` },
       ],
     ]
   );
@@ -252,7 +267,12 @@ export async function POST(req: NextRequest) {
 }
 
 type TgUpdate = {
-  message?: { chat?: { id: number }; photo?: { file_id: string }[]; text?: string };
+  message?: {
+    chat?: { id: number };
+    photo?: { file_id: string }[];
+    document?: { file_id: string; mime_type?: string; file_size?: number };
+    text?: string;
+  };
   callback_query?: { id: string; data?: string; message: { chat: { id: number }; message_id: number } };
 } | null;
 
@@ -306,6 +326,14 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         await prisma.expense.delete({ where: { id: rest[0] } }).catch(() => null);
         await answerCallback(cb.id, "Annulé");
         await editMessage(chatId, mid, "🗑 Ticket annulé.");
+      } else if (action === "fix") {
+        await answerCallback(cb.id);
+        await prisma.botSession.upsert({
+          where: { chatId: BigInt(chatId) },
+          update: { step: `fix:${rest[0]}` },
+          create: { chatId: BigInt(chatId), tenantId: tenant.id, step: `fix:${rest[0]}` },
+        });
+        await say(chatId, "✏️ Envoie la correction : un <b>montant</b> (34.50), un <b>commerçant</b> (Coop), une <b>date</b> (12.01.2026) — ou les trois d'un coup.");
       } else if (action === "cat") {
         await answerCallback(cb.id);
         const rows = [];
@@ -339,7 +367,21 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
   // Photo = ticket, toujours.
   if (Array.isArray(msg.photo) && msg.photo.length) {
     const best = msg.photo[msg.photo.length - 1];
-    await handlePhoto(chatId, tenant.id, tenant.slug, best.file_id);
+    await handleReceipt(chatId, tenant.id, tenant.slug, best.file_id, false);
+    return ok();
+  }
+  // Document : image « en fichier » ou facture PDF.
+  if (msg.document?.file_id) {
+    const mime = msg.document.mime_type ?? "";
+    if ((msg.document.file_size ?? 0) > 15_000_000) {
+      await say(chatId, "Fichier trop lourd (max ~15 Mo).");
+      return ok();
+    }
+    if (mime === "application/pdf" || mime.startsWith("image/")) {
+      await handleReceipt(chatId, tenant.id, tenant.slug, msg.document.file_id, mime === "application/pdf");
+    } else {
+      await say(chatId, "Je ne lis que les images et les PDF pour l'instant.");
+    }
     return ok();
   }
 
@@ -378,8 +420,56 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
     return ok();
   }
 
-  // Étape lead en cours ?
   const session = await prisma.botSession.findUnique({ where: { chatId: BigInt(chatId) } });
+
+  // Correction d'un justificatif en cours ?
+  if (session?.step?.startsWith("fix:")) {
+    const expId = session.step.slice(4);
+    const exp = await prisma.expense.findUnique({ where: { id: expId } });
+    if (!exp) {
+      await prisma.botSession.update({ where: { chatId: BigInt(chatId) }, data: { step: "idle" } });
+      await say(chatId, "Ce justificatif n'existe plus.");
+      return ok();
+    }
+    const data: { totalCents?: number; merchant?: string; date?: Date } = {};
+    let rest = text;
+    const dm = rest.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
+    if (dm) {
+      const d = parseDate(dm[0]);
+      if (d) data.date = d;
+      rest = rest.replace(dm[0], " ");
+    }
+    const am = rest.match(/(\d+(?:[.,]\d{1,2})?)/);
+    if (am) {
+      data.totalCents = Math.round(parseFloat(am[1].replace(",", ".")) * 100);
+      rest = rest.replace(am[1], " ");
+    }
+    const merchant = rest.replace(/\s+/g, " ").trim();
+    if (merchant) data.merchant = merchant;
+    if (!Object.keys(data).length) {
+      await say(chatId, "Je n'ai rien reconnu — montant (34.50), commerçant, ou date (12.01.2026).");
+      return ok();
+    }
+    const upd = await prisma.expense.update({ where: { id: expId }, data });
+    await prisma.botSession.update({ where: { chatId: BigInt(chatId) }, data: { step: "idle" } });
+    await sayInline(
+      chatId,
+      `🧾 <b>${upd.merchant || "Commerçant ?"}</b> — <b>${chf(upd.totalCents)}</b>\n📅 ${upd.date.toLocaleDateString("fr-CH")} · ${catLabel(upd.category)}\n\nTout est bon ?`,
+      [
+        [
+          { text: "✅ Valider", callback_data: `exp:ok:${upd.id}` },
+          { text: "✏️ Corriger", callback_data: `exp:fix:${upd.id}` },
+        ],
+        [
+          { text: "🏷 Catégorie", callback_data: `exp:cat:${upd.id}` },
+          { text: "🗑 Annuler", callback_data: `exp:del:${upd.id}` },
+        ],
+      ]
+    );
+    return ok();
+  }
+
+  // Étape lead en cours ?
   if (session?.step?.startsWith("lead:")) {
     const idx = parseInt(session.step.slice(5));
     const draft: Draft = (session.draft as Draft) ?? {};

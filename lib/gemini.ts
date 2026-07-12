@@ -8,7 +8,7 @@ export type ReceiptData = {
   category: "MATIERES_PREMIERES" | "EMBALLAGE" | "MATERIEL" | "DEPLACEMENT" | "MARKETING" | "AUTRE";
 };
 
-const PROMPT = `Tu analyses la photo d'un ticket de caisse suisse pour la comptabilité d'une pâtissière artisanale (cake design).
+const PROMPT = `Tu analyses un justificatif d'achat suisse (ticket de caisse, facture en ligne, PDF) pour la comptabilité d'une pâtissière artisanale (cake design).
 Extrais et réponds UNIQUEMENT avec un objet JSON (aucun autre texte) :
 {
   "merchant": "nom du commerce (ex. Migros, Coop, Landi)",
@@ -23,18 +23,18 @@ DEPLACEMENT pour essence/parking/transports, MARKETING pour impressions/pub. Sin
 
 const FALLBACK_MODEL = "gemini-flash-latest";
 
-export async function analyzeReceipt(image: Buffer): Promise<ReceiptData | null> {
+export async function analyzeReceipt(image: Buffer, mime = "image/webp"): Promise<ReceiptData | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
   const model = process.env.GEMINI_MODEL || FALLBACK_MODEL;
-  const first = await callGemini(key, model, image);
+  const first = await callGemini(key, model, image, mime);
   if (first !== "MODEL_GONE") return first;
   console.warn(`gemini: modèle « ${model} » indisponible → fallback ${FALLBACK_MODEL}`);
-  const second = await callGemini(key, FALLBACK_MODEL, image);
+  const second = await callGemini(key, FALLBACK_MODEL, image, mime);
   return second === "MODEL_GONE" ? null : second;
 }
 
-async function callGemini(key: string, model: string, image: Buffer): Promise<ReceiptData | null | "MODEL_GONE"> {
+async function callGemini(key: string, model: string, image: Buffer, mime: string): Promise<ReceiptData | null | "MODEL_GONE"> {
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
@@ -47,7 +47,7 @@ async function callGemini(key: string, model: string, image: Buffer): Promise<Re
             {
               parts: [
                 { text: PROMPT },
-                { inline_data: { mime_type: "image/webp", data: image.toString("base64") } },
+                { inline_data: { mime_type: mime, data: image.toString("base64") } },
               ],
             },
           ],

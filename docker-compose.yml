@@ -25,6 +25,9 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
       RECEIPTS_DIR: /data/receipts
+      TZ: ${TZ:-Europe/Zurich}
+      DIGEST_HOUR: ${DIGEST_HOUR:-7}
+      GOOGLE_REVIEW_URL: ${GOOGLE_REVIEW_URL:-}
     volumes:
       - carnet-receipts:/data/receipts
     networks:

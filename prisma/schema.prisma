@@ -90,6 +90,7 @@ model Order {
   balancePaidAt   DateTime?
   deliveredAt     DateTime?
 
+  reviewAskedAt    DateTime?
   partnerId        String?
   partner          Partner?   @relation(fields: [partnerId], references: [id])
   commissionPaidAt DateTime?

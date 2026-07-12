@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma, currentTenant } from "@/lib/db";
+import { notifyAll } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +102,17 @@ export async function POST(req: NextRequest) {
       },
     },
   });
+
+  notifyAll(
+    [
+      "🎂 <b>Nouvelle demande de devis !</b>",
+      `${c.firstName} ${c.lastName} — ${o.occasion || "occasion ?"}`,
+      o.eventDate ? `📅 ${new Date(o.eventDate).toLocaleDateString("fr-CH")}` : "",
+      `${o.parts ?? "?"} parts · ${o.deliveryMode}${o.priceQuoted ? ` · dès CHF ${o.priceQuoted}` : ""}`,
+      partner ? `🤝 Apportée par ${partner.name}` : "",
+      `${process.env.APP_URL ?? ""}/commandes/${order.id}`,
+    ].filter(Boolean).join("\n")
+  ).catch((e) => console.error("notify error", e));
 
   return NextResponse.json({ ok: true, orderId: order.id });
 }

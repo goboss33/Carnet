@@ -62,3 +62,9 @@ export async function downloadPhoto(fileId: string): Promise<Buffer | null> {
   if (!res.ok) return null;
   return Buffer.from(await res.arrayBuffer());
 }
+
+/** Envoie un message à tous les utilisateurs autorisés du bot. */
+export async function notifyAll(text: string) {
+  const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  await Promise.allSettled(ids.map((id) => say(Number(id), text)));
+}

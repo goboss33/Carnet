@@ -40,8 +40,20 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
         <h1 className="text-2xl font-bold tracking-tight">Compta</h1>
         <nav className="flex items-center gap-1 text-sm font-semibold text-stone-500">
           <Link href={`/compta?m=${fmtM(prev)}`} className="rounded-md px-2 py-1 hover:bg-stone-100">←</Link>
-          <span className="w-40 text-center capitalize text-stone-800">{label}</span>
+          <form className="inline">
+            <input
+              type="month"
+              name="m"
+              defaultValue={month}
+              onChange={undefined}
+              className="rounded-md border border-transparent px-2 py-1 text-center font-semibold text-stone-800 hover:border-stone-300"
+            />
+            <button className="ml-1 rounded-md border border-stone-300 px-2 py-1 text-xs hover:bg-stone-100">OK</button>
+          </form>
           <Link href={`/compta?m=${fmtM(next)}`} className="rounded-md px-2 py-1 hover:bg-stone-100">→</Link>
+          <Link href={`/compta/annee?y=${month.slice(0, 4)}`} className="ml-2 rounded-md border border-stone-300 px-2.5 py-1 text-xs hover:bg-stone-100">
+            Vue annuelle
+          </Link>
         </nav>
         <a href={`/api/compta/export?m=${month}`} className="ml-auto rounded-lg border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-600 hover:border-stone-500">
           ⬇ Export CSV
@@ -99,34 +111,37 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
       )}
 
       {/* Dépenses du mois */}
-      <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="border-b border-stone-200 bg-stone-50 text-left text-[11px] uppercase tracking-wider text-stone-500">
-            <tr>
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Commerçant</th>
-              <th className="px-4 py-3">Catégorie</th>
-              <th className="px-4 py-3 text-right">Montant</th>
-              <th className="px-4 py-3 text-right">Ticket</th>
-            </tr>
-          </thead>
-          <tbody>
-            {expenses.map((e) => (
-              <tr key={e.id} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
-                <td className="px-4 py-3">{e.date.toLocaleDateString("fr-CH", { timeZone: "UTC" })}</td>
-                <td className="px-4 py-3 font-semibold">{e.merchant || "—"}</td>
-                <td className="px-4 py-3">{catLabel(e.category)}</td>
-                <td className="px-4 py-3 text-right font-semibold">{chf(e.totalCents)}</td>
-                <td className="px-4 py-3 text-right">
-                  {e.receiptPath ? <a href={`/api/receipts/${e.receiptPath}`} target="_blank" className="hover:underline">📷</a> : "—"}
-                </td>
-              </tr>
-            ))}
-            {expenses.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-stone-400">Aucune dépense ce mois-ci — envoie une photo de ticket au bot 📸</td></tr>
-            )}
-          </tbody>
-        </table>
+      <div className="space-y-1.5 rounded-2xl border border-stone-200 bg-white p-3">
+        {expenses.map((e) => (
+          <form
+            key={e.id}
+            action={updateExpense.bind(null, e.id)}
+            className="group flex flex-wrap items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-stone-50"
+          >
+            <input name="date" type="date" defaultValue={e.date.toISOString().slice(0, 10)} className={`${input} border-transparent bg-transparent group-hover:border-stone-300`} />
+            <input name="merchant" defaultValue={e.merchant} placeholder="Commerçant" className={`${input} w-44 border-transparent bg-transparent font-semibold group-hover:border-stone-300`} />
+            <select name="category" defaultValue={e.category} className={`${input} border-transparent bg-transparent group-hover:border-stone-300`}>
+              {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
+            </select>
+            <div className="ml-auto flex items-center gap-2">
+              <input name="totalChf" type="number" step="0.05" min="0" defaultValue={(e.totalCents / 100).toFixed(2)} className={`${input} w-24 border-transparent bg-transparent text-right font-semibold group-hover:border-stone-300`} />
+              {e.receiptPath ? (
+                <a href={`/api/receipts/${e.receiptPath}`} target="_blank" title="Voir le justificatif">{e.receiptPath.endsWith(".pdf") ? "📄" : "📷"}</a>
+              ) : (
+                <span className="w-5 text-center text-stone-300">—</span>
+              )}
+              <button className="rounded-md border border-stone-300 px-2 py-1 text-xs font-semibold text-stone-500 opacity-0 transition-opacity hover:bg-stone-100 group-focus-within:opacity-100 group-hover:opacity-100" title="Enregistrer">
+                💾
+              </button>
+              <button formAction={deleteExpense.bind(null, e.id)} className="rounded-md px-1.5 py-1 text-xs text-stone-400 opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100" title="Supprimer">
+                🗑
+              </button>
+            </div>
+          </form>
+        ))}
+        {expenses.length === 0 && (
+          <p className="px-4 py-10 text-center text-stone-400">Aucune dépense ce mois-ci — envoie une photo de ticket au bot 📸</p>
+        )}
       </div>
 
       {/* Saisie manuelle */}
