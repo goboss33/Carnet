@@ -1,0 +1,54 @@
+# ---------------------------------------------------------------------------
+# Carnet — stack Portainer (Repository) : app + PostgreSQL
+# Variables à définir dans Portainer : voir .env.example
+# ---------------------------------------------------------------------------
+services:
+  app:
+    build: .
+    image: carnet:latest
+    container_name: carnet
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://carnet:${POSTGRES_PASSWORD:?}@db:5432/carnet
+      AUTH_SECRET: ${AUTH_SECRET:?}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?}
+      APP_URL: ${APP_URL:-https://carnet.mamangateau.ch}
+      TENANT_NAME: ${TENANT_NAME:-Maman Gâteau}
+      TENANT_SLUG: ${TENANT_SLUG:-maman-gateau}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:-}
+      HOOK_SECRET: ${HOOK_SECRET:?}
+    networks:
+      - proxy
+      - internal
+
+  db:
+    image: postgres:16-alpine
+    container_name: carnet-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: carnet
+      POSTGRES_USER: carnet
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    volumes:
+      - carnet-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U carnet -d carnet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+volumes:
+  carnet-pgdata:
+
+networks:
+  internal:
+  proxy:
+    external: true
+    name: ${NPM_NETWORK:-npm_default}

@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #faf9f7;
+  --color-ink: #1c1917;
+  --color-accent: #b45309; /* ambre artisan */
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-feature-settings: "tnum";
+}

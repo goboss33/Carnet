@@ -1,0 +1,119 @@
+// Carnet — schéma v1
+// tenant_id partout dès le jour 1 : le multi-clients restera trivial.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  name      String
+  createdAt DateTime  @default(now())
+  contacts  Contact[]
+  orders    Order[]
+  sessions  BotSession[]
+}
+
+enum Source {
+  CONFIGURATEUR
+  WHATSAPP
+  INSTAGRAM
+  TELEPHONE
+  AUTRE
+}
+
+model Contact {
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  firstName         String
+  lastName          String   @default("")
+  phone             String   @default("")
+  email             String   @default("")
+  instagram         String   @default("")
+  source            Source   @default(AUTRE)
+  consentNewsletter Boolean  @default(false)
+  notes             String   @default("")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  orders            Order[]
+
+  @@index([tenantId, lastName])
+  @@index([tenantId, email])
+  @@index([tenantId, phone])
+}
+
+enum OrderStatus {
+  LEAD
+  DEVIS_ENVOYE
+  ACOMPTE_RECU
+  EN_PRODUCTION
+  LIVRE
+  ANNULE
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  tenantId        String
+  tenant          Tenant      @relation(fields: [tenantId], references: [id])
+  contactId       String
+  contact         Contact     @relation(fields: [contactId], references: [id])
+  status          OrderStatus @default(LEAD)
+  source          Source      @default(AUTRE)
+
+  occasion        String      @default("")
+  eventDate       DateTime?
+  celebrant       String      @default("")
+  celebrantAge    Int?
+  parts           Int?
+  tiers           Int?
+  biscuit         String      @default("")
+  fourrages       String[]    @default([])
+  style           String      @default("")
+  themeNote       String      @default("")
+  extras          Json?
+
+  deliveryMode    String      @default("retrait") // retrait | livraison
+  deliveryAddress String      @default("")
+  deliveryKm      Int?
+
+  priceQuoted     Int? // CHF
+  depositPaidAt   DateTime?
+  balancePaidAt   DateTime?
+  deliveredAt     DateTime?
+
+  notes           String      @default("")
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  activities      Activity[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, eventDate])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type      String   @default("NOTE") // NOTE | STATUS | SYSTEM
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+/// État de conversation du bot Telegram (webhook stateless)
+model BotSession {
+  chatId    BigInt   @id
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  step      String   @default("idle")
+  draft     Json?
+  updatedAt DateTime @updatedAt
+}
