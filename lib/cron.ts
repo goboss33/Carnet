@@ -6,6 +6,7 @@
 
 import { prisma } from "@/lib/db";
 import { notifyAll, sayInline } from "@/lib/telegram";
+import { waLink } from "@/lib/wa";
 import { normPhone, normEmail } from "@/lib/normalize";
 
 let lastDigestDay = "";
@@ -39,6 +40,7 @@ async function tick() {
     lastDigestDay = today;
     await morningDigest();
     await reviewNudges();
+    await birthdayNudges();
   }
   if (now.getHours() === Number(process.env.NUDGE_HOUR ?? 20) && lastNudgeDay !== today) {
     lastNudgeDay = today;
@@ -198,14 +200,69 @@ async function reviewNudges() {
       await notifyAll(
         [
           `💬 <b>Demande d'avis — ${o.contact.firstName}</b> (livré il y a 2 jours)`,
-          `Transfère-lui ce message sur WhatsApp${o.contact.phone ? ` (${o.contact.phone})` : ""} :`,
+          o.contact.phone ? `<a href="${waLink(o.contact.phone, msgClient)}">📲 Ouvrir WhatsApp avec le message</a>` : `Transfère-lui ce message :`,
           "",
           `<code>${msgClient}</code>`,
           "",
-          `(appui long sur le message → copier)`,
+          `(ou appui long → copier)`,
         ].join("\n")
       );
       await prisma.order.update({ where: { id: o.id }, data: { reviewAskedAt: new Date() } });
     }
   }
+}
+
+/* ------------------------------------------------ relance anniversaire
+   ~3 semaines avant l'anniversaire (1 an, puis chaque année) d'une commande
+   d'anniversaire passée : message prêt à envoyer, au plus une fois par an. */
+async function birthdayNudges() {
+  const tenants = await prisma.tenant.findMany();
+  const now = new Date();
+  const SOON_MIN = 18;
+  const SOON_MAX = 25; // fenêtre ~3 semaines avant
+  for (const t of tenants) {
+    const candidates = await prisma.order.findMany({
+      where: {
+        tenantId: t.id,
+        occasion: { contains: "anniversaire", mode: "insensitive" },
+        eventDate: { lt: new Date(now.getTime() - 60 * 86400000) }, // au moins 2 mois passés
+        OR: [{ anniversaryNudgedAt: null }, { anniversaryNudgedAt: { lt: new Date(now.getTime() - 300 * 86400000) } }],
+      },
+      include: { contact: true },
+    });
+    for (const o of candidates) {
+      if (!o.eventDate) continue;
+      const next = nextAnniversary(o.eventDate, now);
+      const days = Math.ceil((next.getTime() - now.getTime()) / 86400000);
+      if (days < SOON_MIN || days > SOON_MAX) continue;
+      const yearsSince = next.getUTCFullYear() - o.eventDate.getUTCFullYear();
+      const nextAge = o.celebrantAge ? o.celebrantAge + yearsSince : null;
+      const who = o.celebrant || o.contact.firstName;
+      const msgClient = [
+        `Bonjour ${o.contact.firstName} ! C'est Annie de Maman Gâteau 🧁`,
+        `Je pensais à ${o.celebrant ? o.celebrant : "vous"} — l'anniversaire approche${nextAge ? ` (déjà ${nextAge} ans !)` : ""}. Ce serait une joie de vous refaire un beau gâteau cette année.`,
+        `Vous avez une idée en tête, ou envie qu'on en imagine un ensemble ? Écrivez-moi quand vous voulez.`,
+        `Belle journée !`,
+      ].join("\n");
+      await notifyAll(
+        [
+          `🎂 <b>Anniversaire à venir — ${who}</b> (dans ~${days} jours)`,
+          `L'an dernier : ${o.occasion || "anniversaire"}${o.eventDate ? ` le ${o.eventDate.toLocaleDateString("fr-CH")}` : ""}. Envie de reprendre contact avec ${o.contact.firstName} ?`,
+          o.contact.phone ? `<a href="${waLink(o.contact.phone, msgClient)}">📲 Ouvrir WhatsApp</a>` : "",
+          "",
+          `<code>${msgClient}</code>`,
+        ].filter(Boolean).join("\n")
+      );
+      await prisma.order.update({ where: { id: o.id }, data: { anniversaryNudgedAt: new Date() } });
+    }
+  }
+}
+
+/** Prochain anniversaire (même jour/mois) à venir à partir de `now`. */
+function nextAnniversary(eventDate: Date, now: Date): Date {
+  const m = eventDate.getUTCMonth();
+  const d = eventDate.getUTCDate();
+  let candidate = new Date(Date.UTC(now.getUTCFullYear(), m, d));
+  if (candidate.getTime() < now.getTime()) candidate = new Date(Date.UTC(now.getUTCFullYear() + 1, m, d));
+  return candidate;
 }

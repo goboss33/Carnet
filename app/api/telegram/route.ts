@@ -15,6 +15,7 @@ import { say, sayInline, editMessage, answerCallback, downloadPhoto, tg } from "
 import { analyzeReceipt } from "@/lib/gemini";
 import { chf, CATEGORIES, catLabel } from "@/lib/money";
 import { paymentState } from "@/lib/payments";
+import { waLink } from "@/lib/wa";
 import { normPhone } from "@/lib/normalize";
 import type { Source, ExpenseCategory } from "@prisma/client";
 
@@ -550,12 +551,13 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         await say(
           chatId,
           [
-            `✍️ <b>Relance prête pour ${name}</b>${order.contact.phone ? ` (${order.contact.phone})` : ""} :`,
+            `✍️ <b>Relance prête pour ${name}</b> :`,
+            order.contact.phone ? `<a href="${waLink(order.contact.phone, msgClient)}">📲 Ouvrir WhatsApp avec ce message</a>` : "",
             "",
             `<code>${msgClient}</code>`,
             "",
-            "(appui long → copier, puis colle dans WhatsApp)",
-          ].join("\n")
+            "(ou appui long → copier)",
+          ].filter(Boolean).join("\n")
         );
         await prisma.order.update({ where: { id: orderId }, data: { lastNudgeAt: new Date() } });
       }
