@@ -1,7 +1,9 @@
 /* ---------------------------------------------------------------------------
-   Bot Telegram v2 — l'interface d'Annie, sans un seul slash.
-   Menu permanent : 📸 Scanner un ticket · ✍️ Nouveau lead · 📅 Cette semaine
-   · 💰 Dépenses du mois. Toute photo envoyée = ticket à analyser (Gemini).
+   Bot Telegram v3 — un seul flux « 🎂 Nouvelle commande ».
+   Le bot cherche le client par nom : existant → questions commande ;
+   nouveau → canal + téléphone (anti-doublon) puis commande.
+   Clavier figé à 4 boutons ; tout le reste vit dans ☰ Menu.
+   Toute photo/PDF envoyé = justificatif à comptabiliser (Gemini).
 --------------------------------------------------------------------------- */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -9,10 +11,10 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 import { prisma, currentTenant } from "@/lib/db";
-import { say, sayInline, editMessage, answerCallback, downloadPhoto, MAIN_KEYBOARD, tg } from "@/lib/telegram";
+import { say, sayInline, editMessage, answerCallback, downloadPhoto, tg } from "@/lib/telegram";
 import { analyzeReceipt } from "@/lib/gemini";
-import { normPhone } from "@/lib/normalize";
 import { chf, CATEGORIES, catLabel } from "@/lib/money";
+import { normPhone } from "@/lib/normalize";
 import type { Source, ExpenseCategory } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -20,35 +22,43 @@ export const maxDuration = 60;
 
 const RECEIPTS = () => path.resolve(process.env.RECEIPTS_DIR ?? "./data/receipts");
 
-/* ------------------------------------------------------------ lead flow */
+type TgUpdate = {
+  message?: {
+    chat?: { id: number };
+    photo?: { file_id: string }[];
+    document?: { file_id: string; mime_type?: string; file_size?: number };
+    text?: string;
+  };
+  callback_query?: { id: string; data?: string; message: { chat: { id: number }; message_id: number } };
+} | null;
+
+/* ------------------------------------------- flux unique « commande » */
 
 type Draft = {
+  contactId?: string;
+  contactName?: string;
   firstName?: string;
+  lastName?: string;
   source?: string;
+  phone?: string;
   occasion?: string;
   eventDate?: string;
   parts?: number;
-  phone?: string;
-  contactId?: string;
-  contactName?: string;
   priceQuoted?: number;
 };
 
-const RC_STEPS = [
-  { key: "occasion", q: "Occasion ? (ex. anniversaire 8 ans)", skippable: false },
-  { key: "eventDate", q: "Date de l'événement ? (JJ.MM.AAAA)", skippable: true },
-  { key: "parts", q: "Nombre de parts ?", skippable: true },
-  { key: "priceQuoted", q: "Prix annoncé (CHF) ?", skippable: true },
-] as const;
+const QUESTIONS: Record<string, { q: string; skippable: boolean }> = {
+  who: { q: "C'est pour qui ? (prénom ou nom du client)", skippable: false },
+  src: { q: "Par quel canal est-elle arrivée ?", skippable: false },
+  phone: { q: "Son numéro de mobile ?", skippable: true },
+  occasion: { q: "Occasion ? (ex. anniversaire 8 ans, mariage…)", skippable: false },
+  date: { q: "Date de l'événement ? (JJ.MM.AAAA)", skippable: true },
+  parts: { q: "Nombre de parts ?", skippable: true },
+  price: { q: "Prix annoncé (CHF) ?", skippable: true },
+};
 
-const LEAD_STEPS = [
-  { key: "firstName", q: "Prénom du client ?", skippable: false },
-  { key: "source", q: "Par quel canal ?", skippable: false }, // inline
-  { key: "occasion", q: "Occasion ? (ex. anniversaire 6 ans, mariage…)", skippable: true },
-  { key: "eventDate", q: "Date de l'événement ? (JJ.MM.AAAA)", skippable: true },
-  { key: "parts", q: "Nombre de parts ?", skippable: true },
-  { key: "phone", q: "Numéro de mobile ?", skippable: true },
-] as const;
+const seqFor = (draft: Draft) =>
+  draft.contactId ? ["occasion", "date", "parts", "price"] : ["src", "phone", "occasion", "date", "parts", "price"];
 
 const parseDate = (t: string): Date | null => {
   const m = t.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
@@ -58,124 +68,111 @@ const parseDate = (t: string): Date | null => {
   return isNaN(d.getTime()) ? null : d;
 };
 
-async function askLeadStep(chatId: number, idx: number) {
-  const step = LEAD_STEPS[idx];
-  if (step.key === "source") {
-    await sayInline(chatId, `<b>${idx + 1}/6</b> — ${step.q}`, [
-      [
-        { text: "WhatsApp", callback_data: "lead:src:WHATSAPP" },
-        { text: "Instagram", callback_data: "lead:src:INSTAGRAM" },
-      ],
-      [
-        { text: "Téléphone", callback_data: "lead:src:TELEPHONE" },
-        { text: "Autre", callback_data: "lead:src:AUTRE" },
-      ],
-    ]);
-  } else if (step.skippable) {
-    await sayInline(chatId, `<b>${idx + 1}/6</b> — ${step.q}`, [
-      [{ text: "⏭ Passer", callback_data: `lead:skip:${idx}` }],
-    ]);
-  } else {
-    await say(chatId, `<b>${idx + 1}/6</b> — ${step.q}`);
-  }
-}
-
-async function askRcStep(chatId: number, idx: number) {
-  const step = RC_STEPS[idx];
-  if (step.skippable) {
-    await sayInline(chatId, `<b>${idx + 1}/4</b> — ${step.q}`, [[{ text: "⏭ Passer", callback_data: `rc:skip:${idx}` }]]);
-  } else {
-    await say(chatId, `<b>${idx + 1}/4</b> — ${step.q}`);
-  }
-}
-
-async function advanceRc(chatId: number, tenantId: string, idx: number, draft: Draft) {
-  const next = idx + 1;
-  if (next < RC_STEPS.length) {
-    await prisma.botSession.update({ where: { chatId: BigInt(chatId) }, data: { step: `rc:${next}`, draft } });
-    await askRcStep(chatId, next);
-    return;
-  }
-  await prisma.botSession.update({ where: { chatId: BigInt(chatId) }, data: { step: "idle", draft: {} } });
-  if (!draft.contactId || !draft.occasion) {
-    await say(chatId, "Il manque l'essentiel — recommence avec 🔁 Client existant.");
-    return;
-  }
-  const order = await prisma.order.create({
-    data: {
-      tenantId,
-      contactId: draft.contactId,
-      source: "AUTRE",
-      occasion: draft.occasion,
-      eventDate: draft.eventDate ? new Date(draft.eventDate) : null,
-      parts: draft.parts,
-      priceQuoted: draft.priceQuoted,
-      activities: { create: { type: "SYSTEM", body: "Nouvelle commande (client existant) via le bot." } },
-    },
+async function setStep(chatId: number, tenantId: string, step: string, draft: Draft) {
+  await prisma.botSession.upsert({
+    where: { chatId: BigInt(chatId) },
+    update: { step, draft },
+    create: { chatId: BigInt(chatId), tenantId, step, draft },
   });
-  await say(
-    chatId,
-    [
-      `✅ <b>Commande ajoutée pour ${draft.contactName}</b>`,
-      `${draft.occasion}${draft.parts ? ` · ${draft.parts} parts` : ""}${draft.priceQuoted ? ` · CHF ${draft.priceQuoted}` : ""}`,
-      draft.eventDate ? `📅 ${new Date(draft.eventDate).toLocaleDateString("fr-CH")}` : "",
-      `${process.env.APP_URL ?? ""}/commandes/${order.id}`,
-    ].filter(Boolean).join("\n")
-  );
 }
 
-async function advanceLead(chatId: number, tenantId: string, idx: number, draft: Draft) {
-  const next = idx + 1;
-  if (next < LEAD_STEPS.length) {
-    await prisma.botSession.upsert({
-      where: { chatId: BigInt(chatId) },
-      update: { step: `lead:${next}`, draft },
-      create: { chatId: BigInt(chatId), tenantId, step: `lead:${next}`, draft },
-    });
-    await askLeadStep(chatId, next);
+async function askNc(chatId: number, key: string) {
+  const spec = QUESTIONS[key];
+  if (key === "src") {
+    await sayInline(chatId, spec.q, [
+      [
+        { text: "WhatsApp", callback_data: "nc:src:WHATSAPP" },
+        { text: "Instagram", callback_data: "nc:src:INSTAGRAM" },
+      ],
+      [
+        { text: "Téléphone", callback_data: "nc:src:TELEPHONE" },
+        { text: "Autre", callback_data: "nc:src:AUTRE" },
+      ],
+    ]);
+  } else if (spec.skippable) {
+    await sayInline(chatId, spec.q, [[{ text: "⏭ Passer", callback_data: "nc:skip" }]]);
+  } else {
+    await say(chatId, spec.q);
+  }
+}
+
+async function startNc(chatId: number, tenantId: string) {
+  await setStep(chatId, tenantId, "nc:who", {});
+  await say(chatId, "🎂 <b>Nouvelle commande</b>\n" + QUESTIONS.who.q);
+}
+
+async function advanceNc(chatId: number, tenantId: string, currentKey: string, draft: Draft) {
+  const seq = seqFor(draft);
+  const idx = seq.indexOf(currentKey);
+  const next = idx >= 0 && idx + 1 < seq.length ? seq[idx + 1] : null;
+  if (next) {
+    await setStep(chatId, tenantId, `nc:${next}`, draft);
+    await askNc(chatId, next);
     return;
   }
-  // fin → création
-  await prisma.botSession.update({ where: { chatId: BigInt(chatId) }, data: { step: "idle", draft: {} } });
-  if (!draft.firstName) {
-    await say(chatId, "Il me faut au moins un prénom — recommence avec ✍️ Nouveau lead.");
-    return;
+  await finishNc(chatId, tenantId, draft);
+}
+
+async function finishNc(chatId: number, tenantId: string, draft: Draft) {
+  await setStep(chatId, tenantId, "idle", {});
+  let contactId = draft.contactId ?? null;
+  let contactName = draft.contactName ?? "";
+  let knownNote = "";
+
+  if (!contactId) {
+    if (!draft.firstName) {
+      await say(chatId, "Il me faut au moins un prénom — relance 🎂 Nouvelle commande.");
+      return;
+    }
+    const phoneN = draft.phone ? normPhone(draft.phone) : "";
+    const existing = phoneN
+      ? await prisma.contact.findFirst({ where: { tenantId, phone: phoneN }, include: { _count: { select: { orders: true } } } })
+      : null;
+    if (existing) {
+      contactId = existing.id;
+      contactName = `${existing.firstName} ${existing.lastName}`.trim();
+      knownNote = `👋 Ce numéro existait déjà : rattachée à <b>${contactName}</b> (${existing._count.orders} commande${existing._count.orders > 1 ? "s" : ""}).`;
+    } else {
+      const c = await prisma.contact.create({
+        data: {
+          tenantId,
+          firstName: draft.firstName,
+          lastName: draft.lastName ?? "",
+          phone: phoneN,
+          source: (draft.source ?? "AUTRE") as Source,
+        },
+      });
+      contactId = c.id;
+      contactName = `${c.firstName} ${c.lastName}`.trim();
+    }
   }
-  const source = (draft.source ?? "AUTRE") as Source;
-  const phoneN = draft.phone ? normPhone(draft.phone) : "";
-  let contact = phoneN ? await prisma.contact.findFirst({ where: { tenantId, phone: phoneN } }) : null;
-  const known = !!contact;
-  let knownCount = 0;
-  if (contact) knownCount = await prisma.order.count({ where: { contactId: contact.id } });
-  if (!contact) {
-    contact = await prisma.contact.create({
-      data: { tenantId, firstName: draft.firstName, phone: phoneN, source },
-    });
-  }
+
   const order = await prisma.order.create({
     data: {
       tenantId,
-      contactId: contact.id,
-      source,
+      contactId,
+      source: (draft.source ?? "AUTRE") as Source,
       occasion: draft.occasion ?? "",
       eventDate: draft.eventDate ? new Date(draft.eventDate) : null,
       parts: draft.parts,
-      activities: { create: { type: "SYSTEM", body: "Fiche créée via le bot Telegram." } },
+      priceQuoted: draft.priceQuoted,
+      activities: { create: { type: "SYSTEM", body: "Commande créée via le bot Telegram." } },
     },
   });
+
   await say(
     chatId,
     [
-      "✅ <b>Fiche créée</b>",
-      known ? `👋 Client déjà connu : rattachée à <b>${contact.firstName} ${contact.lastName}</b> (${knownCount} commande${knownCount > 1 ? "s" : ""} avant celle-ci).` : "",
-      `${draft.firstName} — ${draft.occasion || "occasion à préciser"}`,
+      `✅ <b>Commande créée pour ${contactName}</b>`,
+      knownNote,
+      `${draft.occasion || "occasion à préciser"}${draft.parts ? ` · ${draft.parts} parts` : ""}${draft.priceQuoted ? ` · CHF ${draft.priceQuoted}` : ""}`,
       draft.eventDate ? `📅 ${new Date(draft.eventDate).toLocaleDateString("fr-CH")}` : "",
       `${process.env.APP_URL ?? ""}/commandes/${order.id}`,
     ].filter(Boolean).join("\n")
   );
 }
 
-/* ------------------------------------------------------- ticket scan */
+/* ------------------------------------------------------- justificatifs */
 
 async function handleReceipt(chatId: number, tenantId: string, tenantSlug: string, fileId: string, isPdf: boolean) {
   await tg("sendChatAction", { chat_id: chatId, action: "typing" });
@@ -206,7 +203,6 @@ async function handleReceipt(chatId: number, tenantId: string, tenantSlug: strin
 }
 
 async function finishReceipt(chatId: number, tenantId: string, expenseId: string, rel: string, img: Buffer, mime: string) {
-
   const ocr = await analyzeReceipt(img, mime);
   const data = {
     receiptPath: rel,
@@ -230,7 +226,6 @@ async function finishReceipt(chatId: number, tenantId: string, expenseId: string
     );
     return;
   }
-  void 0;
   const dup = await prisma.expense.findFirst({
     where: {
       tenantId,
@@ -305,6 +300,14 @@ async function monthExpenses(chatId: number, tenantId: string) {
   );
 }
 
+async function showMenu(chatId: number) {
+  await sayInline(chatId, "☰ <b>Menu</b>", [
+    [{ text: "📸 Scanner un ticket / une facture", callback_data: "menu:scan" }],
+    [{ text: "🔗 Ouvrir Carnet", url: `${process.env.APP_URL ?? "https://carnet.mamangateau.ch"}` } as never],
+    [{ text: "❓ Aide", callback_data: "menu:aide" }],
+  ]);
+}
+
 /* --------------------------------------------------------------- POST */
 
 export async function POST(req: NextRequest) {
@@ -324,16 +327,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-type TgUpdate = {
-  message?: {
-    chat?: { id: number };
-    photo?: { file_id: string }[];
-    document?: { file_id: string; mime_type?: string; file_size?: number };
-    text?: string;
-  };
-  callback_query?: { id: string; data?: string; message: { chat: { id: number }; message_id: number } };
-} | null;
-
 async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
   const msg = update?.message;
   const cb = update?.callback_query;
@@ -348,33 +341,14 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
 
   const tenant = await currentTenant();
 
-  /* ---------- boutons inline (callback_query) ---------- */
+  /* ---------- boutons inline ---------- */
   if (cb) {
     const [ns, action, ...rest] = String(cb.data ?? "").split(":");
     const mid: number = cb.message.message_id;
+    const session = await prisma.botSession.findUnique({ where: { chatId: BigInt(chatId) } });
+    const draft: Draft = (session?.draft as Draft) ?? {};
 
-    if (ns === "lead") {
-      const session = await prisma.botSession.findUnique({ where: { chatId: BigInt(chatId) } });
-      const idx = session?.step?.startsWith("lead:") ? parseInt(session.step.slice(5)) : -1;
-      const draft: Draft = (session?.draft as Draft) ?? {};
-      if (idx < 0) {
-        await answerCallback(cb.id, "Saisie expirée — relance ✍️ Nouveau lead");
-        return ok();
-      }
-      if (action === "src") {
-        draft.source = rest[0];
-        await answerCallback(cb.id);
-        await editMessage(chatId, mid, `Canal : <b>${rest[0].toLowerCase()}</b> ✓`);
-        await advanceLead(chatId, tenant.id, idx, draft);
-      } else if (action === "skip") {
-        await answerCallback(cb.id);
-        await editMessage(chatId, mid, "⏭ Passé");
-        await advanceLead(chatId, tenant.id, idx, draft);
-      }
-      return ok();
-    }
-
-    if (ns === "rc") {
+    if (ns === "nc") {
       if (action === "pick") {
         const contact = await prisma.contact.findUnique({
           where: { id: rest[0] },
@@ -384,31 +358,54 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
           await answerCallback(cb.id, "Introuvable");
           return ok();
         }
-        const draft = { contactId: contact.id, contactName: `${contact.firstName} ${contact.lastName}`.trim() };
-        await prisma.botSession.upsert({
-          where: { chatId: BigInt(chatId) },
-          update: { step: "rc:0", draft },
-          create: { chatId: BigInt(chatId), tenantId: tenant.id, step: "rc:0", draft },
-        });
+        const d: Draft = { contactId: contact.id, contactName: `${contact.firstName} ${contact.lastName}`.trim() };
+        await setStep(chatId, tenant.id, "nc:occasion", d);
         await answerCallback(cb.id);
-        await editMessage(chatId, mid, `🔁 <b>${contact.firstName} ${contact.lastName}</b> — ${contact._count.orders} commande${contact._count.orders > 1 ? "s" : ""} au compteur.`);
-        await askRcStep(chatId, 0);
+        await editMessage(chatId, mid, `🎂 Pour <b>${d.contactName}</b> (${contact._count.orders} commande${contact._count.orders > 1 ? "s" : ""} au compteur).`);
+        await askNc(chatId, "occasion");
+      } else if (action === "new") {
+        const d: Draft = { firstName: draft.firstName, lastName: draft.lastName };
+        await setStep(chatId, tenant.id, "nc:src", d);
+        await answerCallback(cb.id);
+        await editMessage(chatId, mid, `🎂 Nouvelle cliente : <b>${[d.firstName, d.lastName].filter(Boolean).join(" ")}</b>`);
+        await askNc(chatId, "src");
+      } else if (action === "src") {
+        draft.source = rest[0];
+        await answerCallback(cb.id);
+        await editMessage(chatId, mid, `Canal : <b>${rest[0].toLowerCase()}</b> ✓`);
+        await advanceNc(chatId, tenant.id, "src", draft);
       } else if (action === "skip") {
-        const rcSession = await prisma.botSession.findUnique({ where: { chatId: BigInt(chatId) } });
-        const idx = rcSession?.step?.startsWith("rc:") ? parseInt(rcSession.step.slice(3)) : -1;
-        if (idx < 0) {
-          await answerCallback(cb.id, "Saisie expirée");
+        const key = session?.step?.startsWith("nc:") ? session.step.slice(3) : "";
+        if (!key || !QUESTIONS[key]) {
+          await answerCallback(cb.id, "Saisie expirée — relance 🎂");
           return ok();
         }
         await answerCallback(cb.id);
         await editMessage(chatId, mid, "⏭ Passé");
-        await advanceRc(chatId, tenant.id, idx, (rcSession?.draft as Draft) ?? {});
+        await advanceNc(chatId, tenant.id, key, draft);
+      }
+      return ok();
+    }
+
+    if (ns === "menu") {
+      await answerCallback(cb.id);
+      if (action === "scan") {
+        await say(chatId, "📸 Envoie-moi simplement la <b>photo d'un ticket</b> ou un <b>PDF de facture</b> — n'importe quand, sans bouton. Je lis le montant, la date et la TVA, tu valides d'un tap.");
+      } else if (action === "aide") {
+        await say(chatId, [
+          "<b>Carnet — aide</b>",
+          "🎂 <b>Nouvelle commande</b> : je cherche le client par son nom (existant ou nouveau), puis 4 questions max.",
+          "📸 Photo/PDF envoyé = dépense comptabilisée après ta validation.",
+          "📅 <b>Cette semaine</b> : ce qui sort de l'atelier.",
+          "💰 <b>Dépenses du mois</b> : total et détail par catégorie.",
+          "Chaque matin à 7 h : le programme du jour + demandes d'avis à J+2.",
+          "/annule pour abandonner une saisie en cours.",
+        ].join("\n"));
       }
       return ok();
     }
 
     if (ns === "exp") {
-      const id = rest[0] ?? action; // exp:<action>:<id>[:<cat>]
       if (action === "ok") {
         const e = await prisma.expense.update({ where: { id: rest[0] }, data: { status: "CONFIRMED" } });
         await answerCallback(cb.id, "Enregistré ✓");
@@ -419,11 +416,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         await editMessage(chatId, mid, "🗑 Ticket annulé.");
       } else if (action === "fix") {
         await answerCallback(cb.id);
-        await prisma.botSession.upsert({
-          where: { chatId: BigInt(chatId) },
-          update: { step: `fix:${rest[0]}` },
-          create: { chatId: BigInt(chatId), tenantId: tenant.id, step: `fix:${rest[0]}` },
-        });
+        await setStep(chatId, tenant.id, `fix:${rest[0]}`, {});
         await say(chatId, "✏️ Envoie la correction : un <b>montant</b> (34.50), un <b>commerçant</b> (Coop), une <b>date</b> (12.01.2026) — ou les trois d'un coup.");
       } else if (action === "cat") {
         await answerCallback(cb.id);
@@ -443,25 +436,33 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
           data: { category: rest[1] as ExpenseCategory },
         });
         await answerCallback(cb.id, catLabel(rest[1]));
-        await sayInlineConfirm(chatId, mid, e.id, e.merchant, e.totalCents, e.category);
+        await editMessage(chatId, mid, `🧾 <b>${e.merchant || "Commerçant ?"}</b> — <b>${chf(e.totalCents)}</b> · ${catLabel(e.category)}\n\nTout est bon ?`, [
+          [
+            { text: "✅ Valider", callback_data: `exp:ok:${e.id}` },
+            { text: "✏️ Corriger", callback_data: `exp:fix:${e.id}` },
+          ],
+          [
+            { text: "🏷 Catégorie", callback_data: `exp:cat:${e.id}` },
+            { text: "🗑 Annuler", callback_data: `exp:del:${e.id}` },
+          ],
+        ]);
       }
-      void id;
       return ok();
     }
-    await answerCallback(cb.id);
+
+    // callbacks d'anciennes versions (lead:/rc:) : session périmée
+    await answerCallback(cb.id, "Session expirée — relance depuis le menu 👇");
     return ok();
   }
 
   /* ---------- messages ---------- */
   if (!msg) return ok();
 
-  // Photo = ticket, toujours.
   if (Array.isArray(msg.photo) && msg.photo.length) {
     const best = msg.photo[msg.photo.length - 1];
     await handleReceipt(chatId, tenant.id, tenant.slug, best.file_id, false);
     return ok();
   }
-  // Document : image « en fichier » ou facture PDF.
   if (msg.document?.file_id) {
     const mime = msg.document.mime_type ?? "";
     if ((msg.document.file_size ?? 0) > 15_000_000) {
@@ -479,31 +480,21 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
   const text: string = typeof msg.text === "string" ? msg.text.trim() : "";
   if (!text) return ok();
 
-  // Menu
   if (text === "/start" || text === "/aide") {
-    await say(chatId, "Bienvenue sur <b>Carnet</b> 🧁\nUtilise les boutons ci-dessous — ou envoie directement la photo d'un ticket de caisse.");
+    await say(chatId, "Bienvenue sur <b>Carnet</b> 🧁\n🎂 pour une nouvelle commande, ou envoie directement la photo d'un ticket.");
+    return ok();
+  }
+  // nouvelle commande — et compatibilité avec les anciens boutons
+  if (text.startsWith("🎂") || text.startsWith("✍️") || text.startsWith("🔁") || text === "/lead") {
+    await startNc(chatId, tenant.id);
+    return ok();
+  }
+  if (text.startsWith("☰") || text.toLowerCase() === "menu") {
+    await showMenu(chatId);
     return ok();
   }
   if (text.startsWith("📸")) {
-    await say(chatId, "Envoie-moi la photo du ticket 📷 (ou n'importe quand, sans passer par ce bouton).");
-    return ok();
-  }
-  if (text.startsWith("✍️") || text === "/lead") {
-    await prisma.botSession.upsert({
-      where: { chatId: BigInt(chatId) },
-      update: { step: "lead:0", draft: {} },
-      create: { chatId: BigInt(chatId), tenantId: tenant.id, step: "lead:0", draft: {} },
-    });
-    await askLeadStep(chatId, 0);
-    return ok();
-  }
-  if (text.startsWith("🔁")) {
-    await prisma.botSession.upsert({
-      where: { chatId: BigInt(chatId) },
-      update: { step: "rcsearch", draft: {} },
-      create: { chatId: BigInt(chatId), tenantId: tenant.id, step: "rcsearch", draft: {} },
-    });
-    await say(chatId, "🔁 Nom ou prénom du client ?");
+    await say(chatId, "Envoie-moi la photo du ticket ou le PDF 📷 — sans bouton, ça marche aussi.");
     return ok();
   }
   if (text.startsWith("📅") || text === "/jour") {
@@ -522,8 +513,8 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
 
   const session = await prisma.botSession.findUnique({ where: { chatId: BigInt(chatId) } });
 
-  // Recherche client existant ?
-  if (session?.step === "rcsearch") {
+  /* ---- flux nouvelle commande ---- */
+  if (session?.step === "nc:who") {
     const found = await prisma.contact.findMany({
       where: {
         tenantId: tenant.id,
@@ -533,56 +524,68 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         ],
       },
       include: { _count: { select: { orders: true } } },
-      take: 6,
+      take: 5,
       orderBy: { updatedAt: "desc" },
     });
+    const tokens = text.split(/\s+/);
+    const draft: Draft = { firstName: tokens[0], lastName: tokens.slice(1).join(" ") };
     if (!found.length) {
-      await say(chatId, `Aucun client trouvé pour « ${text} ». Réessaie, ou ✍️ Nouveau lead si c'est quelqu'un de nouveau.`);
+      await setStep(chatId, tenant.id, "nc:src", draft);
+      await say(chatId, `Nouvelle cliente : <b>${text}</b> ✓`);
+      await askNc(chatId, "src");
       return ok();
     }
+    await setStep(chatId, tenant.id, "nc:who", draft);
     await sayInline(
       chatId,
-      `${found.length} résultat${found.length > 1 ? "s" : ""} — c'est qui ?`,
-      found.map((c) => [{
-        text: `${c.firstName} ${c.lastName}`.trim() + ` (${c._count.orders})${c.phone ? " · …" + c.phone.slice(-4) : ""}`,
-        callback_data: `rc:pick:${c.id}`,
-      }])
+      "Je connais peut-être déjà — c'est qui ?",
+      [
+        ...found.map((c) => [{
+          text: `${c.firstName} ${c.lastName}`.trim() + ` (${c._count.orders})${c.phone ? " · …" + c.phone.slice(-4) : ""}`,
+          callback_data: `nc:pick:${c.id}`,
+        }]),
+        [{ text: `➕ Nouvelle cliente « ${text.slice(0, 24)} »`, callback_data: "nc:new" }],
+      ]
     );
     return ok();
   }
 
-  // Étapes commande client existant ?
-  if (session?.step?.startsWith("rc:")) {
-    const idx = parseInt(session.step.slice(3));
+  if (session?.step?.startsWith("nc:")) {
+    const key = session.step.slice(3);
     const draft: Draft = (session.draft as Draft) ?? {};
-    const step = RC_STEPS[idx];
-    if (step.key === "parts" || step.key === "priceQuoted") {
+    if (key === "parts" || key === "price") {
       const n = parseInt(text.replace(/\D/g, ""));
       if (isNaN(n)) {
         await say(chatId, "Un nombre, ou ⏭ Passer.");
         return ok();
       }
-      draft[step.key] = n;
-    } else if (step.key === "eventDate") {
+      if (key === "parts") draft.parts = n;
+      else draft.priceQuoted = n;
+    } else if (key === "date") {
       const d = parseDate(text);
       if (!d) {
         await say(chatId, "Format JJ.MM.AAAA, ou ⏭ Passer.");
         return ok();
       }
       draft.eventDate = d.toISOString();
-    } else {
+    } else if (key === "phone") {
+      draft.phone = text;
+    } else if (key === "occasion") {
       draft.occasion = text;
+    } else if (key === "src") {
+      await say(chatId, "Choisis le canal avec les boutons ci-dessus 👆");
+      return ok();
     }
-    await advanceRc(chatId, tenant.id, idx, draft);
+    await advanceNc(chatId, tenant.id, key, draft);
     return ok();
   }
 
-  // Correction d'un justificatif en cours ?
+  /* ---- correction d'un justificatif ---- */
   if (session?.step?.startsWith("fix:")) {
     const expId = session.step.slice(4);
     const exp = await prisma.expense.findUnique({ where: { id: expId } });
     if (!exp) {
-      await prisma.botSession.update({ where: { chatId: BigInt(chatId) }, data: { step: "idle" } });
+      await setStep(chatId, tenant.id, "idle", {});
       await say(chatId, "Ce justificatif n'existe plus.");
       return ok();
     }
@@ -606,7 +609,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       return ok();
     }
     const upd = await prisma.expense.update({ where: { id: expId }, data });
-    await prisma.botSession.update({ where: { chatId: BigInt(chatId) }, data: { step: "idle" } });
+    await setStep(chatId, tenant.id, "idle", {});
     await sayInline(
       chatId,
       `🧾 <b>${upd.merchant || "Commerçant ?"}</b> — <b>${chf(upd.totalCents)}</b>\n📅 ${upd.date.toLocaleDateString("fr-CH")} · ${catLabel(upd.category)}\n\nTout est bon ?`,
@@ -624,46 +627,6 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
     return ok();
   }
 
-  // Étape lead en cours ?
-  if (session?.step?.startsWith("lead:")) {
-    const idx = parseInt(session.step.slice(5));
-    const draft: Draft = (session.draft as Draft) ?? {};
-    const step = LEAD_STEPS[idx];
-    if (step.key === "source") {
-      await say(chatId, "Choisis le canal avec les boutons ci-dessus 👆");
-      return ok();
-    }
-    if (step.key === "parts") {
-      const n = parseInt(text.replace(/\D/g, ""));
-      if (isNaN(n)) {
-        await say(chatId, "Un nombre, ou ⏭ Passer.");
-        return ok();
-      }
-      draft.parts = n;
-    } else if (step.key === "eventDate") {
-      const d = parseDate(text);
-      if (!d) {
-        await say(chatId, "Format JJ.MM.AAAA, ou ⏭ Passer.");
-        return ok();
-      }
-      draft.eventDate = d.toISOString();
-    } else {
-      (draft as Record<string, unknown>)[step.key] = text;
-    }
-    await advanceLead(chatId, tenant.id, idx, draft);
-    return ok();
-  }
-
-  await say(chatId, "Utilise les boutons du menu 👇 — ou envoie la photo d'un ticket.");
+  await say(chatId, "Utilise les boutons 👇 — ou envoie la photo d'un ticket.");
   return ok();
-}
-
-async function sayInlineConfirm(chatId: number, mid: number, id: string, merchant: string, totalCents: number, category: string) {
-  await editMessage(chatId, mid, `🧾 <b>${merchant || "Commerçant ?"}</b> — <b>${chf(totalCents)}</b> · ${catLabel(category)}\n\nTout est bon ?`, [
-    [
-      { text: "✅ Valider", callback_data: `exp:ok:${id}` },
-      { text: "🏷 Catégorie", callback_data: `exp:cat:${id}` },
-      { text: "🗑", callback_data: `exp:del:${id}` },
-    ],
-  ]);
 }
