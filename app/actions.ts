@@ -379,6 +379,22 @@ export async function markCommissionPaid(orderId: string) {
   revalidatePath("/partenaires");
 }
 
+/** Active / désactive un partenaire (garde tout l'historique et les commissions). */
+export async function togglePartnerActive(id: string) {
+  const p = await prisma.partner.findUnique({ where: { id } });
+  if (!p) return;
+  await prisma.partner.update({ where: { id }, data: { active: !p.active } });
+  revalidatePath("/partenaires");
+}
+
+/** Supprime définitivement un partenaire — refusé s'il a des commandes rattachées. */
+export async function deletePartner(id: string) {
+  const count = await prisma.order.count({ where: { partnerId: id } });
+  if (count > 0) return; // sécurité : ne pas casser l'attribution des commandes
+  await prisma.partner.delete({ where: { id } }).catch(() => null);
+  revalidatePath("/partenaires");
+}
+
 export async function purgeEmptyDrafts() {
   const tenant = await currentTenant();
   await prisma.expense.deleteMany({

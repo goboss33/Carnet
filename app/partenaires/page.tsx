@@ -1,5 +1,5 @@
 import { prisma, currentTenant } from "@/lib/db";
-import { markCommissionPaid } from "@/app/actions";
+import { markCommissionPaid, togglePartnerActive, deletePartner } from "@/app/actions";
 import PartnerForm from "./PartnerForm";
 import Shell from "@/app/components/Shell";
 import Link from "next/link";
@@ -50,9 +50,10 @@ export default async function Partenaires() {
           const dueCents = due.reduce((a, o) => a + Math.round((o.priceQuoted ?? 0) * 100 * (p.ratePct / 100)), 0);
           const totalBrought = p.orders.reduce((a, o) => a + (o.priceQuoted ?? 0) * 100, 0);
           return (
-            <section key={p.id} className="rounded-2xl border border-stone-200 bg-white p-6">
+            <section key={p.id} className={`rounded-2xl border border-stone-200 bg-white p-6 ${p.active ? "" : "opacity-60"}`}>
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <h2 className="text-lg font-bold">{p.name}</h2>
+                {!p.active && <span className="rounded bg-stone-200 px-1.5 py-0.5 text-[11px] font-semibold text-stone-500">Inactif</span>}
                 <span className="text-sm text-stone-500">{TYPES[p.type]} · {p.ratePct} %</span>
                 <code className="rounded bg-stone-100 px-2 py-0.5 text-xs font-bold text-stone-600">{p.code}</code>
                 <a href={`/api/partenaires/${p.id}/flyer`} className="rounded-md border border-stone-300 px-2.5 py-1 text-xs font-semibold text-stone-600 hover:border-stone-500" title="Flyer A6 avec son QR">
@@ -66,6 +67,22 @@ export default async function Partenaires() {
               <p className="mt-2 text-xs text-stone-400">
                 Lien à encoder dans le QR : <code className="select-all rounded bg-stone-50 px-1.5 py-0.5">{site}/?ref={p.code}</code>
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-4 border-t border-stone-100 pt-3">
+                <form action={togglePartnerActive.bind(null, p.id)}>
+                  <button className="text-xs font-semibold text-stone-500 hover:text-stone-800">
+                    {p.active ? "⏸ Désactiver" : "▶ Réactiver"}
+                  </button>
+                </form>
+                {p.orders.length === 0 ? (
+                  <form action={deletePartner.bind(null, p.id)}>
+                    <button className="text-xs font-semibold text-red-500 hover:text-red-700">🗑 Supprimer</button>
+                  </form>
+                ) : (
+                  <span className="text-xs text-stone-400">
+                    Suppression impossible ({p.orders.length} commande{p.orders.length > 1 ? "s" : ""}) — désactive plutôt.
+                  </span>
+                )}
+              </div>
               {due.length > 0 && (
                 <ul className="mt-4 space-y-2 border-t border-stone-100 pt-4 text-sm">
                   {due.map((o) => (
