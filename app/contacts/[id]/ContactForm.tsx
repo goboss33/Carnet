@@ -11,8 +11,15 @@ type C = {
   instagram: string; source: string; notes: string; consentNewsletter: boolean;
 };
 
-export default function ContactForm({ contact, hasOrders }: { contact: C; hasOrders: boolean }) {
+export default function ContactForm({ contact, ordersCount }: { contact: C; ordersCount: number }) {
   const [state, action, pending] = useActionState(updateContact.bind(null, contact.id), undefined);
+  const confirmDelete = (e: React.FormEvent) => {
+    const msg =
+      ordersCount > 0
+        ? `Supprimer ${contact.firstName} ET ses ${ordersCount} commande(s) ? C'est définitif.`
+        : `Supprimer ${contact.firstName} ? C'est définitif.`;
+    if (!window.confirm(msg)) e.preventDefault();
+  };
   return (
     <form action={action} className="space-y-4 self-start rounded-2xl border border-stone-200 bg-white p-6">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -45,11 +52,11 @@ export default function ContactForm({ contact, hasOrders }: { contact: C; hasOrd
         </button>
         <button
           formAction={deleteContact.bind(null, contact.id)}
-          disabled={hasOrders}
-          title={hasOrders ? "Ce contact a des commandes — supprime-les d'abord." : "Supprimer définitivement"}
-          className="text-sm text-stone-400 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={confirmDelete}
+          title="Supprimer définitivement (avec ses commandes)"
+          className="text-sm text-stone-400 hover:text-red-600"
         >
-          Supprimer le contact
+          🗑 Supprimer{ordersCount > 0 ? ` (+${ordersCount} cmd)` : ""}
         </button>
       </div>
     </form>

@@ -44,7 +44,7 @@ export default async function ContactFiche({ params }: { params: Promise<{ id: s
             notes: contact.notes,
             consentNewsletter: contact.consentNewsletter,
           }}
-          hasOrders={contact.orders.length > 0}
+          ordersCount={contact.orders.length}
         />
 
         <div className="rounded-2xl border border-stone-200 bg-white p-5">

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { STATUTS, SOURCES, fmtCHF, fmtDate } from "@/lib/statuts";
 import { updateOrder, setStatus, addNote, setOrderPartner } from "@/app/actions";
 import Shell from "@/app/components/Shell";
+import DeleteOrderButton from "./DeleteOrderButton";
 import type { OrderStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -132,7 +133,10 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           </div>
 
           <div className="rounded-2xl border border-stone-200 bg-white p-5">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Journal</p>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Journal</p>
+              <DeleteOrderButton orderId={order.id} name={`${c.firstName} ${c.lastName}`.trim()} />
+            </div>
             <form action={addNote.bind(null, order.id)} className="mb-4 flex gap-2">
               <input name="body" placeholder="Ajouter une note…" className={input} />
               <button className="shrink-0 rounded-lg bg-stone-900 px-3 text-sm font-semibold text-white hover:bg-stone-700">+</button>

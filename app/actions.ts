@@ -418,10 +418,10 @@ export async function updateContact(id: string, _prev: { error?: string; ok?: bo
 }
 
 export async function deleteContact(id: string) {
-  const orders = await prisma.order.count({ where: { contactId: id } });
-  if (orders > 0) return; // le bouton est désactivé côté UI, ceinture ici
-  await prisma.contact.delete({ where: { id } });
+  await prisma.order.deleteMany({ where: { contactId: id } }); // activités en cascade
+  await prisma.contact.delete({ where: { id } }).catch(() => null);
   revalidatePath("/contacts");
+  revalidatePath("/");
   redirect("/contacts");
 }
 
