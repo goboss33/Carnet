@@ -93,6 +93,7 @@ model Order {
   reviewAskedAt    DateTime?
   lastNudgeAt      DateTime?
   depositCents     Int?
+  balanceCents     Int?
   partnerId        String?
   partner          Partner?   @relation(fields: [partnerId], references: [id])
   commissionPaidAt DateTime?

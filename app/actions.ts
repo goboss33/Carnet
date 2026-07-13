@@ -97,7 +97,13 @@ export async function advanceStatus(orderId: string) {
     where: { id: orderId },
     data: {
       status: next,
-      ...(next === "ACOMPTE_RECU" ? { depositPaidAt: new Date() } : {}),
+      ...(next === "ACOMPTE_RECU"
+        ? {
+            depositPaidAt: new Date(),
+            // acompte 30 % par défaut si aucun montant n'a encore été saisi (cohérent avec le bot)
+            ...(order.depositCents || !order.priceQuoted ? {} : { depositCents: Math.round(order.priceQuoted * 0.3) * 100 }),
+          }
+        : {}),
       ...(next === "LIVRE" ? { deliveredAt: new Date() } : {}),
       activities: { create: { type: "STATUS", body: `Statut : ${order.status} → ${next}` } },
     },
@@ -160,6 +166,54 @@ export async function addNote(orderId: string, formData: FormData) {
   if (!body) return;
   await prisma.activity.create({ data: { orderId, type: "NOTE", body } });
   revalidatePath(`/commandes/${orderId}`);
+}
+
+/* ------------------------------------------------------------ paiement */
+
+const paymentPatch = z.object({
+  depositChf: z.coerce.number().min(0).optional(),
+  balanceChf: z.coerce.number().min(0).optional(),
+});
+
+/** Enregistre acompte + solde depuis la fiche (montants en CHF ; 0/​vide = efface). */
+export async function recordPayment(orderId: string, formData: FormData) {
+  const d = paymentPatch.parse(Object.fromEntries(formData));
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) return;
+  const depositCents = Math.round((d.depositChf ?? 0) * 100);
+  const balanceCents = Math.round((d.balanceChf ?? 0) * 100);
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      depositCents: depositCents || null,
+      balanceCents: balanceCents || null,
+      depositPaidAt: depositCents ? (order.depositPaidAt ?? new Date()) : null,
+      balancePaidAt: balanceCents ? (order.balancePaidAt ?? new Date()) : null,
+      activities: { create: { type: "STATUS", body: "Paiement mis à jour depuis la fiche." } },
+    },
+  });
+  revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/");
+}
+
+/** Marque une commande intégralement payée (acompte = total, solde = 0). */
+export async function markPaidInFull(orderId: string) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order?.priceQuoted) return;
+  const total = order.priceQuoted * 100;
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: order.status === "LEAD" || order.status === "DEVIS_ENVOYE" ? "ACOMPTE_RECU" : order.status,
+      depositCents: total,
+      balanceCents: 0,
+      depositPaidAt: order.depositPaidAt ?? new Date(),
+      balancePaidAt: new Date(),
+      activities: { create: { type: "STATUS", body: `Payé en entier (CHF ${order.priceQuoted}) — depuis la fiche.` } },
+    },
+  });
+  revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/");
 }
 
 /* ------------------------------------------------------------- compta */

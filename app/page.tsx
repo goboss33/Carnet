@@ -117,7 +117,7 @@ export default async function Pipeline() {
                 })}
                 {col.id === "LIVRE" && all.length > 5 && (
                   <li className="px-2 py-1.5 text-center text-[11px] text-stone-400">
-                    + {all.length - 5} plus anciennes — voir <Link href="/compta" className="underline">Compta</Link> & <Link href="/contacts" className="underline">Contacts</Link>
+                    + {all.length - 5} plus anciennes — voir l’<Link href="/commandes" className="underline">historique</Link>
                   </li>
                 )}
               </ul>

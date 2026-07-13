@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { STATUTS, SOURCES, fmtCHF, fmtDate } from "@/lib/statuts";
-import { updateOrder, setStatus, addNote, setOrderPartner } from "@/app/actions";
+import { chf } from "@/lib/money";
+import { paymentState } from "@/lib/payments";
+import { updateOrder, setStatus, addNote, setOrderPartner, recordPayment, markPaidInFull } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 import DeleteOrderButton from "./DeleteOrderButton";
 import type { OrderStatus } from "@prisma/client";
@@ -20,6 +22,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
   if (!order) notFound();
   const partners = await prisma.partner.findMany({ where: { tenantId: order.tenantId, active: true }, orderBy: { name: "asc" } });
   const c = order.contact;
+  const pay = paymentState(order);
   const d = (x?: Date | null) => (x ? x.toISOString().slice(0, 10) : "");
 
   return (
@@ -99,7 +102,6 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               {c.phone && <div className="flex justify-between"><dt className="text-stone-500">Mobile</dt><dd><a className="font-medium hover:underline" href={`tel:${c.phone}`}>{c.phone}</a></dd></div>}
               {c.email && <div className="flex justify-between"><dt className="text-stone-500">E-mail</dt><dd><a className="font-medium hover:underline" href={`mailto:${c.email}`}>{c.email}</a></dd></div>}
               {c.instagram && <div className="flex justify-between"><dt className="text-stone-500">Instagram</dt><dd className="font-medium">{c.instagram}</dd></div>}
-              <div className="flex justify-between"><dt className="text-stone-500">Acompte (30 %)</dt><dd className="font-medium">{order.priceQuoted ? fmtCHF(Math.round(order.priceQuoted * 0.3)) : "—"}{order.depositPaidAt ? ` · reçu ${fmtDate(order.depositPaidAt)}` : ""}</dd></div>
             </dl>
             {c.phone && (
               <a
@@ -110,6 +112,38 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               >
                 Ouvrir WhatsApp
               </a>
+            )}
+          </div>
+
+          {/* -------- paiement -------- */}
+          <div className="rounded-2xl border border-stone-200 bg-white p-5 text-sm">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Paiement</p>
+            <dl className="space-y-1.5">
+              <div className="flex justify-between"><dt className="text-stone-500">Total</dt><dd className="font-medium">{fmtCHF(order.priceQuoted)}</dd></div>
+              <div className="flex justify-between"><dt className="text-stone-500">Acompte</dt><dd className="font-medium">{order.depositCents ? chf(order.depositCents) : "—"}{order.depositPaidAt ? ` · ${fmtDate(order.depositPaidAt)}` : ""}</dd></div>
+              <div className="flex justify-between"><dt className="text-stone-500">Solde</dt><dd className="font-medium">{order.balanceCents ? chf(order.balanceCents) : "—"}{order.balancePaidAt ? ` · ${fmtDate(order.balancePaidAt)}` : ""}</dd></div>
+            </dl>
+            <div className={`mt-3 flex items-center justify-between rounded-lg px-3 py-2 font-semibold ${pay.isPaid ? "bg-emerald-50 text-emerald-700" : pay.dueCents > 0 ? "bg-amber-50 text-amber-700" : "bg-stone-50 text-stone-500"}`}>
+              <span>{pay.isPaid ? "✅ Soldé" : "Reste à encaisser"}</span>
+              {!pay.isPaid && <span>{pay.hasTotal ? chf(pay.dueCents) : "—"}</span>}
+            </div>
+            <form action={recordPayment.bind(null, order.id)} className="mt-4 flex flex-wrap items-end gap-2">
+              <label className="min-w-24 flex-1">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-stone-500">Acompte CHF</span>
+                <input name="depositChf" type="number" step="0.05" min="0" defaultValue={order.depositCents ? order.depositCents / 100 : ""} className={input} />
+              </label>
+              <label className="min-w-24 flex-1">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-stone-500">Solde CHF</span>
+                <input name="balanceChf" type="number" step="0.05" min="0" defaultValue={order.balanceCents ? order.balanceCents / 100 : ""} className={input} />
+              </label>
+              <button className="rounded-lg bg-stone-900 px-3 py-2 text-sm font-semibold text-white hover:bg-stone-700">OK</button>
+            </form>
+            {order.priceQuoted && !pay.isPaid && (
+              <form action={markPaidInFull.bind(null, order.id)} className="mt-2">
+                <button className="w-full rounded-lg border border-stone-300 py-1.5 text-xs font-semibold text-stone-500 hover:border-stone-500">
+                  💯 Marquer payé en entier
+                </button>
+              </form>
             )}
           </div>
 

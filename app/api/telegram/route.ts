@@ -14,6 +14,7 @@ import { prisma, currentTenant } from "@/lib/db";
 import { say, sayInline, editMessage, answerCallback, downloadPhoto, tg } from "@/lib/telegram";
 import { analyzeReceipt } from "@/lib/gemini";
 import { chf, CATEGORIES, catLabel } from "@/lib/money";
+import { paymentState } from "@/lib/payments";
 import { normPhone } from "@/lib/normalize";
 import type { Source, ExpenseCategory } from "@prisma/client";
 
@@ -412,6 +413,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
               { text: "✅ Reçu", callback_data: `nu:dep:${orderId}` },
               { text: "✏️ Autre montant", callback_data: `nu:depother:${orderId}` },
             ],
+            [{ text: "💯 Payé en entier", callback_data: `nu:paidfull:${orderId}` }],
             [{ text: "⏳ Pas encore", callback_data: `nu:depnot:${orderId}` }],
           ]
         );
@@ -436,6 +438,27 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         await prisma.order.update({ where: { id: orderId }, data: { lastNudgeAt: new Date() } });
         await answerCallback(cb.id);
         await editMessage(chatId, mid, `⏳ Pas d'acompte encore pour <b>${name}</b> — je re-demanderai.`);
+      } else if (action === "paidfull") {
+        if (order.priceQuoted) {
+          const total = order.priceQuoted * 100;
+          await prisma.order.update({
+            where: { id: orderId },
+            data: {
+              status: "ACOMPTE_RECU",
+              depositPaidAt: new Date(),
+              balancePaidAt: new Date(),
+              depositCents: total,
+              balanceCents: 0,
+              activities: { create: { type: "STATUS", body: `Payé en entier (CHF ${order.priceQuoted}) — via le bot.` } },
+            },
+          });
+          await answerCallback(cb.id, "Payé ✓");
+          await editMessage(chatId, mid, `💯 <b>${name}</b> a tout réglé (CHF ${order.priceQuoted}) — plus rien à encaisser, date bloquée ✓`);
+        } else {
+          await answerCallback(cb.id);
+          await setStep(chatId, tenant.id, `full:${orderId}`, {});
+          await say(chatId, `💯 Quel <b>montant total</b> a réglé <b>${name}</b> ? (en CHF)`);
+        }
       } else if (action === "delivered") {
         await prisma.order.update({
           where: { id: orderId },
@@ -447,6 +470,39 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         });
         await answerCallback(cb.id, "Livré ✓");
         await editMessage(chatId, mid, `✅ Gâteau de <b>${name}</b> livré — la demande d'avis partira automatiquement à J+2. 🧁`);
+        const pay = paymentState(order);
+        if (pay.dueCents > 0) {
+          await sayInline(
+            chatId,
+            `💰 Le solde de <b>${name}</b> (reste <b>${chf(pay.dueCents)}</b>) est-il encaissé ?`,
+            [
+              [
+                { text: "✅ Oui, soldé", callback_data: `nu:bal:${orderId}` },
+                { text: "✏️ Autre montant", callback_data: `nu:balother:${orderId}` },
+              ],
+              [{ text: "⏳ Pas encore", callback_data: `nu:balnot:${orderId}` }],
+            ]
+          );
+        }
+      } else if (action === "bal") {
+        const pay = paymentState(order);
+        await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            balancePaidAt: new Date(),
+            balanceCents: (order.balanceCents ?? 0) + pay.dueCents,
+            activities: { create: { type: "STATUS", body: `Solde encaissé${pay.dueCents ? ` (${chf(pay.dueCents)})` : ""} — via le bot.` } },
+          },
+        });
+        await answerCallback(cb.id, "Soldé ✓");
+        await editMessage(chatId, mid, `✅ Solde de <b>${name}</b> encaissé — tout est réglé. 💛`);
+      } else if (action === "balother") {
+        await answerCallback(cb.id);
+        await setStep(chatId, tenant.id, `bal:${orderId}`, {});
+        await say(chatId, `✏️ Quel montant de solde a versé <b>${name}</b> ? (en CHF)`);
+      } else if (action === "balnot") {
+        await answerCallback(cb.id);
+        await editMessage(chatId, mid, `⏳ Solde de <b>${name}</b> pas encore encaissé — c'est noté.`);
       } else if (action === "drop") {
         await prisma.order.update({
           where: { id: orderId },
@@ -698,6 +754,63 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       return ok();
     }
     await say(chatId, `💰 Acompte de CHF ${n} enregistré pour <b>${order.contact.firstName}</b> — date bloquée ✓`);
+    return ok();
+  }
+
+  /* ---- paiement total réglé d'avance (prix inconnu) ---- */
+  if (session?.step?.startsWith("full:")) {
+    const orderId = session.step.slice(5);
+    const n = parseFloat(text.replace(",", ".").replace(/[^0-9.]/g, ""));
+    if (isNaN(n) || n <= 0) {
+      await say(chatId, "Un montant en CHF (ex. 180), s'il te plaît.");
+      return ok();
+    }
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: "ACOMPTE_RECU",
+        priceQuoted: Math.round(n),
+        depositPaidAt: new Date(),
+        balancePaidAt: new Date(),
+        depositCents: Math.round(n * 100),
+        balanceCents: 0,
+        activities: { create: { type: "STATUS", body: `Payé en entier (CHF ${n}) — via le bot.` } },
+      },
+      include: { contact: true },
+    }).catch(() => null);
+    await setStep(chatId, tenant.id, "idle", {});
+    if (!order) {
+      await say(chatId, "Fiche introuvable.");
+      return ok();
+    }
+    await say(chatId, `💯 CHF ${n} encaissés pour <b>${order.contact.firstName}</b> — tout est réglé, date bloquée ✓`);
+    return ok();
+  }
+
+  /* ---- solde encaissé personnalisé ---- */
+  if (session?.step?.startsWith("bal:")) {
+    const orderId = session.step.slice(4);
+    const n = parseFloat(text.replace(",", ".").replace(/[^0-9.]/g, ""));
+    if (isNaN(n) || n <= 0) {
+      await say(chatId, "Un montant en CHF (ex. 120), s'il te plaît.");
+      return ok();
+    }
+    const existing = await prisma.order.findUnique({ where: { id: orderId } });
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        balancePaidAt: new Date(),
+        balanceCents: (existing?.balanceCents ?? 0) + Math.round(n * 100),
+        activities: { create: { type: "STATUS", body: `Solde encaissé (CHF ${n}) — via le bot.` } },
+      },
+      include: { contact: true },
+    }).catch(() => null);
+    await setStep(chatId, tenant.id, "idle", {});
+    if (!order) {
+      await say(chatId, "Fiche introuvable.");
+      return ok();
+    }
+    await say(chatId, `💰 Solde de CHF ${n} enregistré pour <b>${order.contact.firstName}</b>.`);
     return ok();
   }
 
