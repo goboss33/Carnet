@@ -506,10 +506,35 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       } else if (action === "drop") {
         await prisma.order.update({
           where: { id: orderId },
-          data: { status: "ANNULE", activities: { create: { type: "STATUS", body: "Classée sans suite via le bot." } } },
+          data: { status: "ANNULE", cancelledAt: new Date(), activities: { create: { type: "STATUS", body: "Classée sans suite via le bot." } } },
         });
         await answerCallback(cb.id, "Classée");
         await editMessage(chatId, mid, `🗄 Fiche de <b>${name}</b> classée sans suite.`);
+        const pay = paymentState(order);
+        if (pay.paidCents > 0) {
+          await sayInline(
+            chatId,
+            `💰 Un acompte de <b>${chf(pay.paidCents)}</b> avait été versé — tu le gardes (compté en recette) ou tu l'as remboursé ?`,
+            [[
+              { text: "✅ Gardé", callback_data: `nu:cxkeep:${orderId}` },
+              { text: "↩️ Remboursé", callback_data: `nu:cxrefund:${orderId}` },
+            ]]
+          );
+        }
+      } else if (action === "cxkeep") {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { activities: { create: { type: "STATUS", body: "Acompte conservé (annulation) — compté en recette." } } },
+        });
+        await answerCallback(cb.id, "Gardé ✓");
+        await editMessage(chatId, mid, `✅ Acompte de <b>${name}</b> conservé — il apparaît dans les recettes du mois.`);
+      } else if (action === "cxrefund") {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { depositCents: null, balanceCents: null, activities: { create: { type: "STATUS", body: "Acompte remboursé (annulation)." } } },
+        });
+        await answerCallback(cb.id, "Remboursé ✓");
+        await editMessage(chatId, mid, `↩️ Acompte de <b>${name}</b> marqué remboursé — retiré des recettes.`);
       } else if (action === "later") {
         await prisma.order.update({ where: { id: orderId }, data: { lastNudgeAt: new Date() } });
         await answerCallback(cb.id);

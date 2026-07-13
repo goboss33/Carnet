@@ -115,10 +115,15 @@ export async function advanceStatus(orderId: string) {
 export async function setStatus(orderId: string, status: OrderStatus) {
   await prisma.order.update({
     where: { id: orderId },
-    data: { status, activities: { create: { type: "STATUS", body: `Statut → ${status}` } } },
+    data: {
+      status,
+      ...(status === "ANNULE" ? { cancelledAt: new Date() } : {}),
+      activities: { create: { type: "STATUS", body: `Statut → ${status}` } },
+    },
   });
   revalidatePath("/");
   revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/compta");
 }
 
 const orderPatch = z.object({
@@ -238,6 +243,21 @@ export async function markManyPaidInFull(formData: FormData) {
     )
   );
   revalidatePath("/commandes");
+  revalidatePath("/compta");
+  revalidatePath("/");
+}
+
+/** Annulation : marque l'acompte comme remboursé (le retire des recettes). */
+export async function refundDeposit(orderId: string) {
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      depositCents: null,
+      balanceCents: null,
+      activities: { create: { type: "STATUS", body: "Acompte remboursé (annulation)." } },
+    },
+  });
+  revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/compta");
   revalidatePath("/");
 }

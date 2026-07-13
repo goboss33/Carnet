@@ -90,8 +90,10 @@ model Order {
   balancePaidAt   DateTime?
   deliveredAt     DateTime?
 
-  reviewAskedAt    DateTime?
-  lastNudgeAt      DateTime?
+  reviewAskedAt       DateTime?
+  lastNudgeAt         DateTime?
+  anniversaryNudgedAt DateTime?
+  cancelledAt         DateTime?
   depositCents     Int?
   balanceCents     Int?
   partnerId        String?

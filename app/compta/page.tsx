@@ -25,14 +25,16 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
   const fmtM = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 
   const tenant = await currentTenant();
-  const [expenses, drafts, delivered] = await Promise.all([
+  const [expenses, drafts, delivered, cancelledKept] = await Promise.all([
     prisma.expense.findMany({ where: { tenantId: tenant.id, status: "CONFIRMED", date: { gte: start, lt: end } }, orderBy: { date: "desc" } }),
     prisma.expense.findMany({ where: { tenantId: tenant.id, status: "DRAFT" }, orderBy: { createdAt: "desc" } }),
     prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: start, lt: end } }, include: { contact: true } }),
+    prisma.order.findMany({ where: { tenantId: tenant.id, status: "ANNULE", cancelledAt: { gte: start, lt: end }, OR: [{ depositCents: { gt: 0 } }, { balanceCents: { gt: 0 } }] }, include: { contact: true }, orderBy: { cancelledAt: "desc" } }),
   ]);
 
   const totalExp = expenses.reduce((a, e) => a + e.totalCents, 0);
-  const totalRev = delivered.reduce((a, o) => a + (o.priceQuoted ?? 0) * 100, 0);
+  const keptRev = cancelledKept.reduce((a, o) => a + paymentState(o).paidCents, 0);
+  const totalRev = delivered.reduce((a, o) => a + (o.priceQuoted ?? 0) * 100, 0) + keptRev;
   const byCat = CATEGORIES.map((c) => ({ ...c, total: expenses.filter((e) => e.category === c.id).reduce((a, e) => a + e.totalCents, 0) })).filter((c) => c.total > 0);
   const label = start.toLocaleDateString("fr-CH", { month: "long", year: "numeric", timeZone: "UTC" });
 
@@ -84,8 +86,8 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
       {/* Recettes du mois */}
       <div className="mb-8">
         <div className="mb-2 flex items-center justify-between px-1">
-          <p className="text-sm font-bold text-stone-700">Recettes — commandes livrées</p>
-          <span className="text-xs text-stone-400">{delivered.length} · {chf(totalRev)}</span>
+          <p className="text-sm font-bold text-stone-700">Recettes du mois</p>
+          <span className="text-xs text-stone-400">{delivered.length + cancelledKept.length} · {chf(totalRev)}</span>
         </div>
         <div className="space-y-0.5 rounded-2xl border border-stone-200 bg-white p-3">
           {delivered.map((o) => {
@@ -106,8 +108,20 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
               </Link>
             );
           })}
-          {delivered.length === 0 && (
-            <p className="px-4 py-8 text-center text-stone-400">Aucune commande livrée ce mois-ci.</p>
+          {cancelledKept.map((o) => (
+            <Link
+              key={o.id}
+              href={`/commandes/${o.id}`}
+              className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-2 py-1.5 text-sm hover:bg-stone-50"
+            >
+              <span className="w-12 shrink-0 text-stone-400">{o.cancelledAt?.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</span>
+              <span className="font-semibold">{o.contact.firstName} {o.contact.lastName}</span>
+              <span className="italic text-stone-400">acompte conservé — annulation</span>
+              <span className="ml-auto font-semibold">{chf(paymentState(o).paidCents)}</span>
+            </Link>
+          ))}
+          {delivered.length === 0 && cancelledKept.length === 0 && (
+            <p className="px-4 py-8 text-center text-stone-400">Aucune recette ce mois-ci.</p>
           )}
         </div>
       </div>

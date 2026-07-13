@@ -22,9 +22,10 @@ export async function GET(req: NextRequest) {
   }
 
   const tenant = await currentTenant();
-  const [expenses, delivered] = await Promise.all([
+  const [expenses, delivered, cancelledKept] = await Promise.all([
     prisma.expense.findMany({ where: { tenantId: tenant.id, status: "CONFIRMED", date: { gte: start, lt: end } }, orderBy: { date: "asc" } }),
     prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: start, lt: end } }, include: { contact: true }, orderBy: { deliveredAt: "asc" } }),
+    prisma.order.findMany({ where: { tenantId: tenant.id, status: "ANNULE", cancelledAt: { gte: start, lt: end }, OR: [{ depositCents: { gt: 0 } }, { balanceCents: { gt: 0 } }] }, include: { contact: true }, orderBy: { cancelledAt: "asc" } }),
   ]);
 
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
@@ -36,6 +37,9 @@ export async function GET(req: NextRequest) {
     ["type", "date", "libelle", "categorie", "montant_chf", "tva", "note"].join(";"),
     ...delivered.map((o) =>
       ["recette", o.deliveredAt!.toISOString().slice(0, 10), esc(`Commande ${o.contact.firstName} ${o.contact.lastName} — ${o.occasion}`), "vente", ((o.priceQuoted ?? 0)).toFixed(2), "", ""].join(";")
+    ),
+    ...cancelledKept.map((o) =>
+      ["recette", o.cancelledAt!.toISOString().slice(0, 10), esc(`Acompte conservé — annulation ${o.contact.firstName} ${o.contact.lastName}`), "acompte conservé", (((o.depositCents ?? 0) + (o.balanceCents ?? 0)) / 100).toFixed(2), "", ""].join(";")
     ),
     ...expenses.map((e) =>
       ["depense", e.date.toISOString().slice(0, 10), esc(e.merchant || "—"), esc(catLabel(e.category)), (e.totalCents / 100).toFixed(2), esc(vatTxt(e.vat)), esc(e.notes)].join(";")

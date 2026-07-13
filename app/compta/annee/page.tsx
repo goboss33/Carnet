@@ -12,13 +12,16 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
   const end = new Date(Date.UTC(year + 1, 0, 1));
 
   const tenant = await currentTenant();
-  const [expenses, delivered] = await Promise.all([
+  const [expenses, delivered, cancelledKept] = await Promise.all([
     prisma.expense.findMany({ where: { tenantId: tenant.id, status: "CONFIRMED", date: { gte: start, lt: end } } }),
     prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: start, lt: end } } }),
+    prisma.order.findMany({ where: { tenantId: tenant.id, status: "ANNULE", cancelledAt: { gte: start, lt: end }, OR: [{ depositCents: { gt: 0 } }, { balanceCents: { gt: 0 } }] } }),
   ]);
 
   const months = Array.from({ length: 12 }, (_, i) => {
-    const rev = delivered.filter((o) => o.deliveredAt!.getUTCMonth() === i).reduce((a, o) => a + (o.priceQuoted ?? 0) * 100, 0);
+    const rev =
+      delivered.filter((o) => o.deliveredAt!.getUTCMonth() === i).reduce((a, o) => a + (o.priceQuoted ?? 0) * 100, 0) +
+      cancelledKept.filter((o) => o.cancelledAt!.getUTCMonth() === i).reduce((a, o) => a + (o.depositCents ?? 0) + (o.balanceCents ?? 0), 0);
     const exp = expenses.filter((e) => e.date.getUTCMonth() === i).reduce((a, e) => a + e.totalCents, 0);
     return { i, rev, exp };
   });

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { STATUTS, SOURCES, fmtCHF, fmtDate } from "@/lib/statuts";
 import { chf } from "@/lib/money";
 import { paymentState } from "@/lib/payments";
-import { updateOrder, setStatus, addNote, setOrderPartner, recordPayment, markPaidInFull } from "@/app/actions";
+import { updateOrder, setStatus, addNote, setOrderPartner, recordPayment, markPaidInFull, refundDeposit } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 import DeleteOrderButton from "./DeleteOrderButton";
 import type { OrderStatus } from "@prisma/client";
@@ -123,27 +123,44 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               <div className="flex justify-between"><dt className="text-stone-500">Acompte</dt><dd className="font-medium">{order.depositCents ? chf(order.depositCents) : "—"}{order.depositPaidAt ? ` · ${fmtDate(order.depositPaidAt)}` : ""}</dd></div>
               <div className="flex justify-between"><dt className="text-stone-500">Solde</dt><dd className="font-medium">{order.balanceCents ? chf(order.balanceCents) : "—"}{order.balancePaidAt ? ` · ${fmtDate(order.balancePaidAt)}` : ""}</dd></div>
             </dl>
-            <div className={`mt-3 flex items-center justify-between rounded-lg px-3 py-2 font-semibold ${pay.isPaid ? "bg-emerald-50 text-emerald-700" : pay.dueCents > 0 ? "bg-amber-50 text-amber-700" : "bg-stone-50 text-stone-500"}`}>
-              <span>{pay.isPaid ? "✅ Soldé" : "Reste à encaisser"}</span>
-              {!pay.isPaid && <span>{pay.hasTotal ? chf(pay.dueCents) : "—"}</span>}
-            </div>
-            <form action={recordPayment.bind(null, order.id)} className="mt-4 flex flex-wrap items-end gap-2">
-              <label className="min-w-24 flex-1">
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-stone-500">Acompte CHF</span>
-                <input name="depositChf" type="number" step="0.05" min="0" defaultValue={order.depositCents ? order.depositCents / 100 : ""} className={input} />
-              </label>
-              <label className="min-w-24 flex-1">
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-stone-500">Solde CHF</span>
-                <input name="balanceChf" type="number" step="0.05" min="0" defaultValue={order.balanceCents ? order.balanceCents / 100 : ""} className={input} />
-              </label>
-              <button className="rounded-lg bg-stone-900 px-3 py-2 text-sm font-semibold text-white hover:bg-stone-700">OK</button>
-            </form>
-            {order.priceQuoted && !pay.isPaid && (
-              <form action={markPaidInFull.bind(null, order.id)} className="mt-2">
-                <button className="w-full rounded-lg border border-stone-300 py-1.5 text-xs font-semibold text-stone-500 hover:border-stone-500">
-                  💯 Marquer payé en entier
-                </button>
-              </form>
+            {order.status === "ANNULE" ? (
+              pay.paidCents > 0 && (
+                <div className="mt-3 rounded-lg bg-stone-50 px-3 py-2">
+                  <p className="text-xs font-semibold text-stone-600">
+                    Acompte conservé (annulation) : {chf(pay.paidCents)} — compté en recette.
+                  </p>
+                  <form action={refundDeposit.bind(null, order.id)} className="mt-1.5">
+                    <button className="text-xs font-semibold text-amber-700 underline-offset-2 hover:underline">
+                      ↩️ Marquer remboursé (retirer des recettes)
+                    </button>
+                  </form>
+                </div>
+              )
+            ) : (
+              <>
+                <div className={`mt-3 flex items-center justify-between rounded-lg px-3 py-2 font-semibold ${pay.isPaid ? "bg-emerald-50 text-emerald-700" : pay.dueCents > 0 ? "bg-amber-50 text-amber-700" : "bg-stone-50 text-stone-500"}`}>
+                  <span>{pay.isPaid ? "✅ Soldé" : "Reste à encaisser"}</span>
+                  {!pay.isPaid && <span>{pay.hasTotal ? chf(pay.dueCents) : "—"}</span>}
+                </div>
+                <form action={recordPayment.bind(null, order.id)} className="mt-4 flex flex-wrap items-end gap-2">
+                  <label className="min-w-24 flex-1">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-stone-500">Acompte CHF</span>
+                    <input name="depositChf" type="number" step="0.05" min="0" defaultValue={order.depositCents ? order.depositCents / 100 : ""} className={input} />
+                  </label>
+                  <label className="min-w-24 flex-1">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-stone-500">Solde CHF</span>
+                    <input name="balanceChf" type="number" step="0.05" min="0" defaultValue={order.balanceCents ? order.balanceCents / 100 : ""} className={input} />
+                  </label>
+                  <button className="rounded-lg bg-stone-900 px-3 py-2 text-sm font-semibold text-white hover:bg-stone-700">OK</button>
+                </form>
+                {order.priceQuoted && !pay.isPaid && (
+                  <form action={markPaidInFull.bind(null, order.id)} className="mt-2">
+                    <button className="w-full rounded-lg border border-stone-300 py-1.5 text-xs font-semibold text-stone-500 hover:border-stone-500">
+                      💯 Marquer payé en entier
+                    </button>
+                  </form>
+                )}
+              </>
             )}
           </div>
 
