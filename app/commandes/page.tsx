@@ -4,6 +4,7 @@ import { fmtCHF, fmtDate, SOURCES } from "@/lib/statuts";
 import { chf } from "@/lib/money";
 import { paymentState } from "@/lib/payments";
 import Shell from "@/app/components/Shell";
+import OrdersTable, { type Row } from "./OrdersTable";
 import type { OrderStatus, Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,22 @@ export default async function Historique({
   const years: string[] = [];
   for (let yy = now.getFullYear(); yy >= 2023; yy--) years.push(String(yy));
 
+  const rows: Row[] = orders.map((o) => {
+    const pay = paymentState(o);
+    const st = STATUT[o.status] ?? STATUT.LEAD;
+    return {
+      id: o.id,
+      name: `${o.contact.firstName} ${o.contact.lastName}`.trim(),
+      occasion: o.occasion || "—",
+      date: o.eventDate ? fmtDate(o.eventDate) : "—",
+      statusLabel: st.label,
+      statusCls: st.cls,
+      source: SOURCES.find((s) => s.id === o.source)?.label ?? "",
+      amount: fmtCHF(o.priceQuoted),
+      due: o.status !== "ANNULE" && !pay.isPaid && pay.dueCents > 0 ? chf(pay.dueCents) : null,
+    };
+  });
+
   return (
     <Shell>
       <div className="mb-5 flex flex-wrap items-baseline justify-between gap-3">
@@ -63,7 +80,7 @@ export default async function Historique({
       </div>
 
       {/* Filtres */}
-      <form className="mb-5 flex flex-wrap items-center gap-2">
+      <form className="mb-4 flex flex-wrap items-center gap-2">
         <input name="q" defaultValue={q} placeholder="Rechercher un client…" className={`${input} min-w-40 flex-1`} />
         <input name="occasion" defaultValue={occasion} placeholder="Occasion" className={`${input} w-32`} />
         <select name="statut" defaultValue={statut} className={input}>
@@ -84,56 +101,11 @@ export default async function Historique({
         )}
       </form>
 
-      {/* Liste */}
-      <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="border-b border-stone-200 bg-stone-50 text-left text-[11px] uppercase tracking-wider text-stone-500">
-            <tr>
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Client</th>
-              <th className="px-4 py-3">Occasion</th>
-              <th className="px-4 py-3">Statut</th>
-              <th className="px-4 py-3 text-right">Montant</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((o) => {
-              const pay = paymentState(o);
-              const st = STATUT[o.status] ?? STATUT.LEAD;
-              return (
-                <tr key={o.id} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
-                  <td className="whitespace-nowrap px-4 py-2.5 text-stone-500">
-                    {o.eventDate ? fmtDate(o.eventDate) : <span className="text-stone-300">—</span>}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <Link href={`/commandes/${o.id}`} className="font-semibold hover:underline">
-                      {o.contact.firstName} {o.contact.lastName}
-                    </Link>
-                    <span className="ml-1.5 text-xs text-stone-400">{SOURCES.find((s) => s.id === o.source)?.label}</span>
-                  </td>
-                  <td className="px-4 py-2.5 text-stone-600">{o.occasion || "—"}</td>
-                  <td className="px-4 py-2.5">
-                    <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${st.cls}`}>{st.label}</span>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right">
-                    <span className="font-semibold">{fmtCHF(o.priceQuoted)}</span>
-                    {o.status !== "ANNULE" && !pay.isPaid && pay.dueCents > 0 && (
-                      <span className="ml-1.5 rounded bg-amber-50 px-1 py-0.5 text-[10px] font-semibold text-amber-700">
-                        reste {chf(pay.dueCents)}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {orders.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-stone-400">Aucune commande ne correspond.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <p className="mb-2 text-xs text-stone-400">
+        Astuce : coche des commandes (ou « tout sélectionner ») pour les marquer payées en entier — pratique pour solder l’historique importé.
+      </p>
+
+      <OrdersTable rows={rows} />
     </Shell>
   );
 }

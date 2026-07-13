@@ -216,6 +216,32 @@ export async function markPaidInFull(orderId: string) {
   revalidatePath("/");
 }
 
+/** Marque en lot plusieurs commandes comme payées en entier (ex. solder l'historique importé). */
+export async function markManyPaidInFull(formData: FormData) {
+  const ids = formData.getAll("ids").map(String).filter(Boolean);
+  if (!ids.length) return;
+  const tenant = await currentTenant();
+  const orders = await prisma.order.findMany({
+    where: { tenantId: tenant.id, id: { in: ids }, priceQuoted: { not: null } },
+  });
+  await Promise.all(
+    orders.map((o) =>
+      prisma.order.update({
+        where: { id: o.id },
+        data: {
+          depositCents: (o.priceQuoted ?? 0) * 100,
+          balanceCents: 0,
+          depositPaidAt: o.depositPaidAt ?? new Date(),
+          balancePaidAt: o.balancePaidAt ?? new Date(),
+        },
+      })
+    )
+  );
+  revalidatePath("/commandes");
+  revalidatePath("/compta");
+  revalidatePath("/");
+}
+
 /* ------------------------------------------------------------- compta */
 
 const expensePatch = z.object({
@@ -418,6 +444,13 @@ export async function importCsv(
         : "LIVRE";
       const deliveredAt = parseFrDate(get(idx.dateLivraison));
       const old = deliveredAt && deliveredAt.getTime() < Date.now() - 7 * 86400000;
+      const price = Math.round(parseFloat(get(idx.prix).replace(",", "."))) || null;
+      const deliveredAtVal = statut === "LIVRE" ? (deliveredAt ?? parseFrDate(get(idx.dateEvenement))) : null;
+      // Historique livré = considéré réglé (sinon toutes les commandes importées afficheraient « reste à encaisser »).
+      const paid =
+        statut === "LIVRE" && price
+          ? { depositCents: price * 100, balanceCents: 0, depositPaidAt: deliveredAtVal ?? new Date(), balancePaidAt: deliveredAtVal ?? new Date() }
+          : {};
       await prisma.order.create({
         data: {
           tenantId: tenant.id,
@@ -427,13 +460,14 @@ export async function importCsv(
           occasion: get(idx.occasion),
           eventDate: parseFrDate(get(idx.dateEvenement)),
           parts: parseInt(get(idx.parts)) || null,
-          priceQuoted: Math.round(parseFloat(get(idx.prix).replace(",", "."))) || null,
+          priceQuoted: price,
           deliveryMode: get(idx.adresse) ? "livraison" : "retrait",
           deliveryAddress: get(idx.adresse),
           deliveryKm: Math.round(parseFloat(get(idx.distance).replace(",", "."))) || null,
-          deliveredAt: statut === "LIVRE" ? (deliveredAt ?? parseFrDate(get(idx.dateEvenement))) : null,
+          deliveredAt: deliveredAtVal,
           reviewAskedAt: old ? new Date() : null, // pas d'avalanche d'avis rétroactive
           notes: get(idx.notes),
+          ...paid,
           activities: { create: { type: "SYSTEM", body: "Importée depuis l'historique (CSV)." } },
         },
       });
