@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     data: {
       tenantId: tenant.id,
       contactId: contact.id,
-      status: "DEVIS_ENVOYE", // le devis part par e-mail au moment du POST
+      status: "LEAD", // à traiter tant qu'Annie n'a pas répondu (l'e-mail auto n'est qu'une estimation)
       source: "CONFIGURATEUR",
       occasion: o.occasion,
       eventDate: o.eventDate ? new Date(o.eventDate) : null,

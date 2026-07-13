@@ -44,6 +44,17 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               </button>
             </form>
           ))}
+          <form action={setStatus.bind(null, order.id, "ANNULE" as OrderStatus)}>
+            <button
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                order.status === "ANNULE"
+                  ? "border-red-700 bg-red-700 text-white"
+                  : "border-red-200 text-red-400 hover:border-red-400 hover:text-red-600"
+              }`}
+            >
+              🗄 Annulé / sans suite
+            </button>
+          </form>
         </div>
       </div>
 

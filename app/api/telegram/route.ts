@@ -387,6 +387,100 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       return ok();
     }
 
+    if (ns === "nu") {
+      const orderId = rest[0];
+      const order = await prisma.order.findUnique({ where: { id: orderId }, include: { contact: true } });
+      if (!order) {
+        await answerCallback(cb.id, "Fiche introuvable");
+        return ok();
+      }
+      const name = `${order.contact.firstName} ${order.contact.lastName}`.trim();
+
+      if (action === "sent") {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { status: "DEVIS_ENVOYE", activities: { create: { type: "STATUS", body: "Devis envoyé (confirmé via le bot)." } } },
+        });
+        await answerCallback(cb.id, "Devis envoyé ✓");
+        const dep = order.priceQuoted ? Math.round(order.priceQuoted * 0.3) : null;
+        await editMessage(chatId, mid, `✅ Devis envoyé à <b>${name}</b>.`);
+        await sayInline(
+          chatId,
+          `💰 Et l'acompte${dep ? ` (attendu : <b>CHF ${dep}</b>, 30 %)` : ""} — déjà reçu ?`,
+          [
+            [
+              { text: "✅ Reçu", callback_data: `nu:dep:${orderId}` },
+              { text: "✏️ Autre montant", callback_data: `nu:depother:${orderId}` },
+            ],
+            [{ text: "⏳ Pas encore", callback_data: `nu:depnot:${orderId}` }],
+          ]
+        );
+      } else if (action === "dep") {
+        const cents = order.priceQuoted ? Math.round(order.priceQuoted * 0.3) * 100 : null;
+        await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            status: "ACOMPTE_RECU",
+            depositPaidAt: new Date(),
+            depositCents: cents,
+            activities: { create: { type: "STATUS", body: `Acompte reçu${cents ? ` (CHF ${cents / 100})` : ""} — via le bot.` } },
+          },
+        });
+        await answerCallback(cb.id, "Acompte ✓");
+        await editMessage(chatId, mid, `💰 Acompte de <b>${name}</b> enregistré${cents ? ` (CHF ${cents / 100})` : ""} — date bloquée ✓`);
+      } else if (action === "depother") {
+        await answerCallback(cb.id);
+        await setStep(chatId, tenant.id, `dep:${orderId}`, {});
+        await say(chatId, `✏️ Quel montant a versé <b>${name}</b> ? (en CHF)`);
+      } else if (action === "depnot") {
+        await prisma.order.update({ where: { id: orderId }, data: { lastNudgeAt: new Date() } });
+        await answerCallback(cb.id);
+        await editMessage(chatId, mid, `⏳ Pas d'acompte encore pour <b>${name}</b> — je re-demanderai.`);
+      } else if (action === "delivered") {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            status: "LIVRE",
+            deliveredAt: order.eventDate ?? new Date(),
+            activities: { create: { type: "STATUS", body: "Marquée livrée via le bot." } },
+          },
+        });
+        await answerCallback(cb.id, "Livré ✓");
+        await editMessage(chatId, mid, `✅ Gâteau de <b>${name}</b> livré — la demande d'avis partira automatiquement à J+2. 🧁`);
+      } else if (action === "drop") {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { status: "ANNULE", activities: { create: { type: "STATUS", body: "Classée sans suite via le bot." } } },
+        });
+        await answerCallback(cb.id, "Classée");
+        await editMessage(chatId, mid, `🗄 Fiche de <b>${name}</b> classée sans suite.`);
+      } else if (action === "later") {
+        await prisma.order.update({ where: { id: orderId }, data: { lastNudgeAt: new Date() } });
+        await answerCallback(cb.id);
+        await editMessage(chatId, mid, `⏰ OK — je te reparlerai de <b>${name}</b> dans deux jours.`);
+      } else if (action === "relance") {
+        await answerCallback(cb.id);
+        const msgClient = [
+          `Bonjour ${order.contact.firstName} ! C'est Annie de Maman Gâteau 🧁`,
+          `Je voulais juste m'assurer que vous aviez bien reçu mon devis pour ${order.occasion || "votre gâteau"}${order.eventDate ? ` (le ${order.eventDate.toLocaleDateString("fr-CH")})` : ""}.`,
+          `S'il vous reste des questions ou une envie à ajuster, je suis là ! Et si vous souhaitez bloquer la date, un petit acompte suffit — les week-ends partent vite.`,
+          `Belle journée !`,
+        ].join("\n");
+        await say(
+          chatId,
+          [
+            `✍️ <b>Relance prête pour ${name}</b>${order.contact.phone ? ` (${order.contact.phone})` : ""} :`,
+            "",
+            `<code>${msgClient}</code>`,
+            "",
+            "(appui long → copier, puis colle dans WhatsApp)",
+          ].join("\n")
+        );
+        await prisma.order.update({ where: { id: orderId }, data: { lastNudgeAt: new Date() } });
+      }
+      return ok();
+    }
+
     if (ns === "menu") {
       await answerCallback(cb.id);
       if (action === "scan") {
@@ -577,6 +671,33 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       return ok();
     }
     await advanceNc(chatId, tenant.id, key, draft);
+    return ok();
+  }
+
+  /* ---- montant d'acompte personnalisé ---- */
+  if (session?.step?.startsWith("dep:")) {
+    const orderId = session.step.slice(4);
+    const n = parseFloat(text.replace(",", ".").replace(/[^0-9.]/g, ""));
+    if (isNaN(n) || n <= 0) {
+      await say(chatId, "Un montant en CHF (ex. 54), s'il te plaît.");
+      return ok();
+    }
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: "ACOMPTE_RECU",
+        depositPaidAt: new Date(),
+        depositCents: Math.round(n * 100),
+        activities: { create: { type: "STATUS", body: `Acompte reçu (CHF ${n}) — via le bot.` } },
+      },
+      include: { contact: true },
+    }).catch(() => null);
+    await setStep(chatId, tenant.id, "idle", {});
+    if (!order) {
+      await say(chatId, "Fiche introuvable.");
+      return ok();
+    }
+    await say(chatId, `💰 Acompte de CHF ${n} enregistré pour <b>${order.contact.firstName}</b> — date bloquée ✓`);
     return ok();
   }
 

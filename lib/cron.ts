@@ -5,10 +5,11 @@
 --------------------------------------------------------------------------- */
 
 import { prisma } from "@/lib/db";
-import { notifyAll } from "@/lib/telegram";
+import { notifyAll, sayInline } from "@/lib/telegram";
 import { normPhone, normEmail } from "@/lib/normalize";
 
 let lastDigestDay = "";
+let lastNudgeDay = "";
 
 export function startCron() {
   console.log("Carnet cron : démarré (digest à", process.env.DIGEST_HOUR ?? "7", "h)");
@@ -33,12 +34,114 @@ async function normalizeExisting() {
 
 async function tick() {
   const now = new Date();
-  const hour = Number(process.env.DIGEST_HOUR ?? 7);
   const today = now.toISOString().slice(0, 10);
-  if (now.getHours() === hour && lastDigestDay !== today) {
+  if (now.getHours() === Number(process.env.DIGEST_HOUR ?? 7) && lastDigestDay !== today) {
     lastDigestDay = today;
     await morningDigest();
     await reviewNudges();
+  }
+  if (now.getHours() === Number(process.env.NUDGE_HOUR ?? 20) && lastNudgeDay !== today) {
+    lastNudgeDay = today;
+    await eveningNudges();
+  }
+}
+
+/* ------------------------------------------------ suivi du soir (20 h)
+   Max 3 questions, par urgence : livraison à confirmer > lead sans réponse
+   > devis sans nouvelles. Cooldown 2 jours par fiche (lastNudgeAt). */
+async function eveningNudges() {
+  const tenants = await prisma.tenant.findMany();
+  const now = Date.now();
+  const cooldown = new Date(now - 2 * 86400000);
+
+  for (const t of tenants) {
+    const picked: { kind: "delivered" | "lead" | "quote"; o: Awaited<ReturnType<typeof prisma.order.findFirst>> & object }[] = [];
+
+    const delivered = await prisma.order.findMany({
+      where: {
+        tenantId: t.id,
+        status: { in: ["ACOMPTE_RECU", "EN_PRODUCTION"] },
+        eventDate: { lt: new Date(now) },
+        OR: [{ lastNudgeAt: null }, { lastNudgeAt: { lt: cooldown } }],
+      },
+      include: { contact: true },
+      orderBy: { eventDate: "asc" },
+      take: 3,
+    });
+    for (const o of delivered) picked.push({ kind: "delivered", o });
+
+    if (picked.length < 3) {
+      const leads = await prisma.order.findMany({
+        where: {
+          tenantId: t.id,
+          status: "LEAD",
+          createdAt: { lt: new Date(now - 24 * 3600000) },
+          OR: [{ lastNudgeAt: null }, { lastNudgeAt: { lt: cooldown } }],
+        },
+        include: { contact: true },
+        orderBy: { createdAt: "asc" },
+        take: 3 - picked.length,
+      });
+      for (const o of leads) picked.push({ kind: "lead", o });
+    }
+
+    if (picked.length < 3) {
+      const quotes = await prisma.order.findMany({
+        where: {
+          tenantId: t.id,
+          status: "DEVIS_ENVOYE",
+          updatedAt: { lt: new Date(now - 4 * 86400000) },
+          OR: [{ lastNudgeAt: null }, { lastNudgeAt: { lt: cooldown } }],
+        },
+        include: { contact: true },
+        orderBy: { updatedAt: "asc" },
+        take: 3 - picked.length,
+      });
+      for (const o of quotes) picked.push({ kind: "quote", o });
+    }
+
+    if (!picked.length) continue;
+    const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+
+    for (const { kind, o } of picked) {
+      const order = o as typeof o & { contact: { firstName: string; lastName: string; phone: string } };
+      const name = `${order.contact.firstName} ${order.contact.lastName}`.trim();
+      const when = order.eventDate ? order.eventDate.toLocaleDateString("fr-CH") : "date ?";
+      let text = "";
+      let buttons: { text: string; callback_data: string }[][] = [];
+
+      if (kind === "delivered") {
+        text = `📦 Le gâteau de <b>${name}</b> (${order.occasion || "?"}, ${when}) a bien été livré ?`;
+        buttons = [
+          [
+            { text: "✅ Livré", callback_data: `nu:delivered:${order.id}` },
+            { text: "❌ Annulé", callback_data: `nu:drop:${order.id}` },
+          ],
+          [{ text: "⏰ Plus tard", callback_data: `nu:later:${order.id}` }],
+        ];
+      } else if (kind === "lead") {
+        text = `📝 As-tu répondu à la demande de <b>${name}</b> (${order.occasion || "?"}${order.eventDate ? `, ${when}` : ""}) ?`;
+        buttons = [
+          [{ text: "✅ Devis envoyé", callback_data: `nu:sent:${order.id}` }],
+          [
+            { text: "⏰ Plus tard", callback_data: `nu:later:${order.id}` },
+            { text: "🗄 Sans suite", callback_data: `nu:drop:${order.id}` },
+          ],
+        ];
+      } else {
+        text = `💬 Des nouvelles de <b>${name}</b> ? Devis envoyé${order.priceQuoted ? ` (CHF ${order.priceQuoted})` : ""}, sans réponse depuis quelques jours.`;
+        buttons = [
+          [{ text: "💰 Acompte reçu", callback_data: `nu:dep:${order.id}` }],
+          [{ text: "✍️ Préparer une relance", callback_data: `nu:relance:${order.id}` }],
+          [
+            { text: "⏰ Plus tard", callback_data: `nu:later:${order.id}` },
+            { text: "🗄 Sans suite", callback_data: `nu:drop:${order.id}` },
+          ],
+        ];
+      }
+      for (const id of ids) await sayInline(Number(id), text, buttons);
+      await prisma.order.update({ where: { id: order.id }, data: { lastNudgeAt: new Date() } });
+    }
   }
 }
 

@@ -27,6 +27,7 @@ services:
       RECEIPTS_DIR: /data/receipts
       TZ: ${TZ:-Europe/Zurich}
       DIGEST_HOUR: ${DIGEST_HOUR:-7}
+      NUDGE_HOUR: ${NUDGE_HOUR:-20}
       GOOGLE_REVIEW_URL: ${GOOGLE_REVIEW_URL:-}
     volumes:
       - carnet-receipts:/data/receipts
