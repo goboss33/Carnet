@@ -34,6 +34,7 @@ export default function Nouveau() {
           <label><span className={label}>Date de l'événement</span><input name="eventDate" type="date" className={input} /></label>
           <label><span className={label}>Parts (estimation)</span><input name="parts" type="number" min="1" className={input} /></label>
           <label><span className={label}>Prix annoncé (CHF)</span><input name="priceQuoted" type="number" min="0" className={input} /></label>
+          <label className="sm:col-span-2"><span className={label}>Adresse de livraison (si livraison)</span><input name="deliveryAddress" className={input} placeholder="Vide = retrait à l'atelier" /></label>
         </div>
         <label><span className={label}>Notes</span><textarea name="notes" rows={3} className={input} placeholder="Thème, contraintes, contexte de la demande…" /></label>
         {state?.error && <p className="text-sm font-medium text-red-600">{state.error}</p>}

@@ -6,7 +6,8 @@ const API = () => `https://api.telegram.org/bot${TOKEN}`;
 export const MAIN_KEYBOARD = {
   keyboard: [
     [{ text: "📸 Scanner un ticket" }, { text: "✍️ Nouveau lead" }],
-    [{ text: "📅 Cette semaine" }, { text: "💰 Dépenses du mois" }],
+    [{ text: "🔁 Client existant" }, { text: "📅 Cette semaine" }],
+    [{ text: "💰 Dépenses du mois" }],
   ],
   resize_keyboard: true,
   is_persistent: true,

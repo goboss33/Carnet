@@ -9,8 +9,7 @@ export const dynamic = "force-dynamic";
 
 const COLS = [
   { id: "nom", label: "Nom" },
-  { id: "canal", label: "Canal" },
-  { id: "commande", label: "Dernier événement" },
+  { id: "commande", label: "Date" },
 ] as const;
 
 export default async function Contacts({ searchParams }: { searchParams: Promise<{ tri?: string; dir?: string }> }) {
@@ -55,21 +54,18 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
-        <table className="w-full min-w-[980px] text-sm">
+        <table className="w-full min-w-[720px] text-sm">
           <thead className="border-b border-stone-200 bg-stone-50 text-left text-[11px] uppercase tracking-wider text-stone-500">
             <tr>
-              {COLS.map((c) => (
-                <th key={c.id} className="px-4 py-3">
-                  <Link href={`/contacts?tri=${c.id}&dir=${flip(c.id)}`} className="hover:text-stone-800">
-                    {c.label}{arrow(c.id)}
-                  </Link>
-                </th>
-              ))}
-              <th className="px-4 py-3">Prix</th>
-              <th className="px-4 py-3">Adresse (dernière)</th>
+              <th className="px-4 py-3">
+                <Link href={`/contacts?tri=nom&dir=${flip("nom")}`} className="hover:text-stone-800">Nom{arrow("nom")}</Link>
+              </th>
               <th className="px-4 py-3">Mobile</th>
-              <th className="px-4 py-3">E-mail</th>
-              <th className="px-4 py-3">Instagram</th>
+              <th className="px-4 py-3">Occasion</th>
+              <th className="px-4 py-3">
+                <Link href={`/contacts?tri=commande&dir=${flip("commande")}`} className="hover:text-stone-800">Date{arrow("commande")}</Link>
+              </th>
+              <th className="px-4 py-3 text-right">Prix</th>
             </tr>
           </thead>
           <tbody>
@@ -85,28 +81,22 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
                         {av.initials}
                       </span>
                       {c.firstName} {c.lastName}
+                      <span className="text-xs opacity-70" title={src.label} aria-label={src.label}>{src.emoji}</span>
                     </Link>
                   </td>
-                  <td className="px-4 py-2.5 text-stone-500">{src.emoji} {src.label}</td>
-                  <td className="px-4 py-2.5 text-stone-500">
+                  <td className="px-4 py-2.5 whitespace-nowrap">{c.phone || "—"}</td>
+                  <td className="max-w-[260px] truncate px-4 py-2.5 text-stone-600" title={o?.occasion || ""}>
                     {o ? (
-                      <Link href={`/commandes/${o.id}`} className="hover:underline">
-                        {o.occasion || "—"} · {fmtDate(o.eventDate)}
-                      </Link>
+                      <Link href={`/commandes/${o.id}`} className="hover:underline">{o.occasion || "—"}</Link>
                     ) : "—"}
                   </td>
-                  <td className="px-4 py-2.5 font-semibold">{o?.priceQuoted ? `CHF ${o.priceQuoted}` : "—"}</td>
-                  <td className="max-w-[220px] truncate px-4 py-2.5 text-stone-500" title={o?.deliveryAddress || ""}>
-                    {o?.deliveryAddress || "—"}
-                  </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap">{c.phone || "—"}</td>
-                  <td className="px-4 py-2.5 text-stone-500">{c.email || "—"}</td>
-                  <td className="px-4 py-2.5 text-stone-500">{c.instagram || "—"}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap text-stone-500">{o ? fmtDate(o.eventDate) : "—"}</td>
+                  <td className="px-4 py-2.5 text-right font-semibold">{o?.priceQuoted ? `CHF ${o.priceQuoted}` : "—"}</td>
                 </tr>
               );
             })}
             {contacts.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-stone-400">Aucun contact — crée ta première fiche.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-stone-400">Aucun contact — crée ta première fiche.</td></tr>
             )}
           </tbody>
         </table>

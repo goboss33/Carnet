@@ -5,6 +5,7 @@ import { fmtDate, fmtCHF, STATUTS } from "@/lib/statuts";
 import { avatar } from "@/lib/ui";
 import Shell from "@/app/components/Shell";
 import ContactForm from "./ContactForm";
+import NewOrderForm from "./NewOrderForm";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,10 @@ export default async function ContactFiche({ params }: { params: Promise<{ id: s
         />
 
         <div className="rounded-2xl border border-stone-200 bg-white p-5">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Historique</p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Historique</p>
+            <NewOrderForm contactId={contact.id} />
+          </div>
           <ul className="space-y-2">
             {contact.orders.map((o) => {
               const st = STATUTS.find((s) => s.id === o.status);

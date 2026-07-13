@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma, currentTenant } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
 import { NEXT_STATUS } from "@/lib/statuts";
+import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
 import type { OrderStatus, Source } from "@prisma/client";
 
 /* ------------------------------------------------------------ auth */
@@ -37,6 +38,7 @@ const leadSchema = z.object({
   eventDate: z.string().default(""),
   parts: z.coerce.number().int().positive().optional(),
   priceQuoted: z.coerce.number().int().positive().optional(),
+  deliveryAddress: z.string().default(""),
   notes: z.string().default(""),
 });
 
@@ -44,13 +46,13 @@ export async function createLead(_prev: { error?: string } | undefined, formData
   const parsed = leadSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide" };
   const d = parsed.data;
+  d.phone = normPhone(d.phone);
+  d.email = normEmail(d.email);
   const tenant = await currentTenant();
 
-  // Réutilise le contact si tél ou e-mail déjà connus
-  let contact =
-    (d.phone && (await prisma.contact.findFirst({ where: { tenantId: tenant.id, phone: d.phone } }))) ||
-    (d.email && (await prisma.contact.findFirst({ where: { tenantId: tenant.id, email: d.email } }))) ||
-    null;
+  // Réutilise le contact si tél ou e-mail déjà connus (valeurs normalisées)
+  const where = contactWhere(tenant.id, d.phone, d.email);
+  let contact = where ? await prisma.contact.findFirst({ where }) : null;
 
   if (!contact) {
     contact = await prisma.contact.create({
@@ -75,6 +77,8 @@ export async function createLead(_prev: { error?: string } | undefined, formData
       eventDate: d.eventDate ? new Date(d.eventDate) : null,
       parts: d.parts,
       priceQuoted: d.priceQuoted,
+      deliveryMode: d.deliveryAddress ? "livraison" : "retrait",
+      deliveryAddress: d.deliveryAddress,
       notes: d.notes,
       activities: { create: { type: "SYSTEM", body: "Fiche créée depuis le back-office." } },
     },
@@ -346,12 +350,10 @@ export async function importCsv(
     if (!firstName) { errors.push(`ligne ${i + 1} : prénom manquant`); continue; }
 
     try {
-      const phone = get(idx.telephone);
-      const email = get(idx.email);
-      let contact =
-        (phone && (await prisma.contact.findFirst({ where: { tenantId: tenant.id, phone } }))) ||
-        (email && (await prisma.contact.findFirst({ where: { tenantId: tenant.id, email } }))) ||
-        null;
+      const phone = normPhone(get(idx.telephone));
+      const email = normEmail(get(idx.email));
+      const where = contactWhere(tenant.id, phone, email);
+      let contact = where ? await prisma.contact.findFirst({ where }) : null;
       if (!contact) {
         contact = await prisma.contact.create({
           data: { tenantId: tenant.id, firstName, lastName: get(idx.nom), phone, email, source: "AUTRE" },
@@ -408,7 +410,8 @@ const contactPatch = z.object({
 export async function updateContact(id: string, _prev: { error?: string; ok?: boolean } | undefined, formData: FormData) {
   const parsed = contactPatch.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide" };
-  await prisma.contact.update({ where: { id }, data: { ...parsed.data, consentNewsletter: formData.get("consentNewsletter") === "on" } });
+  const data = { ...parsed.data, phone: normPhone(parsed.data.phone), email: normEmail(parsed.data.email) };
+  await prisma.contact.update({ where: { id }, data: { ...data, consentNewsletter: formData.get("consentNewsletter") === "on" } });
   revalidatePath(`/contacts/${id}`);
   revalidatePath("/contacts");
   return { ok: true };
@@ -426,4 +429,41 @@ export async function deleteOrder(orderId: string) {
   await prisma.order.delete({ where: { id: orderId } }).catch(() => null);
   revalidatePath("/");
   redirect("/");
+}
+
+
+/* --------------------------------------- commande pour contact existant */
+
+const orderForContact = z.object({
+  occasion: z.string().min(1, "Occasion requise"),
+  eventDate: z.string().default(""),
+  parts: z.coerce.number().int().positive().optional(),
+  priceQuoted: z.coerce.number().int().positive().optional(),
+  deliveryAddress: z.string().default(""),
+  notes: z.string().default(""),
+});
+
+export async function createOrderForContact(contactId: string, _prev: { error?: string } | undefined, formData: FormData) {
+  const parsed = orderForContact.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide" };
+  const d = parsed.data;
+  const contact = await prisma.contact.findUnique({ where: { id: contactId } });
+  if (!contact) return { error: "Contact introuvable." };
+  const order = await prisma.order.create({
+    data: {
+      tenantId: contact.tenantId,
+      contactId,
+      source: contact.source,
+      occasion: d.occasion,
+      eventDate: d.eventDate ? new Date(d.eventDate) : null,
+      parts: d.parts,
+      priceQuoted: d.priceQuoted,
+      deliveryMode: d.deliveryAddress ? "livraison" : "retrait",
+      deliveryAddress: d.deliveryAddress,
+      notes: d.notes,
+      activities: { create: { type: "SYSTEM", body: "Nouvelle commande (client existant)." } },
+    },
+  });
+  revalidatePath("/");
+  redirect(`/commandes/${order.id}`);
 }

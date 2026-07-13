@@ -6,12 +6,29 @@
 
 import { prisma } from "@/lib/db";
 import { notifyAll } from "@/lib/telegram";
+import { normPhone, normEmail } from "@/lib/normalize";
 
 let lastDigestDay = "";
 
 export function startCron() {
   console.log("Carnet cron : démarré (digest à", process.env.DIGEST_HOUR ?? "7", "h)");
+  normalizeExisting().catch((e) => console.error("normalisation:", e));
   setInterval(() => tick().catch((e) => console.error("cron error:", e)), 60_000);
+}
+
+/** Passe idempotente : normalise les téléphones/e-mails hérités (import, anciennes saisies). */
+async function normalizeExisting() {
+  const contacts = await prisma.contact.findMany({ select: { id: true, phone: true, email: true } });
+  let fixed = 0;
+  for (const c of contacts) {
+    const phone = normPhone(c.phone);
+    const email = normEmail(c.email);
+    if (phone !== c.phone || email !== c.email) {
+      await prisma.contact.update({ where: { id: c.id }, data: { phone, email } });
+      fixed++;
+    }
+  }
+  if (fixed) console.log(`Carnet : ${fixed} contact(s) normalisé(s).`);
 }
 
 async function tick() {

@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma, currentTenant } from "@/lib/db";
 import { notifyAll } from "@/lib/telegram";
+import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
 
 export const dynamic = "force-dynamic";
 
@@ -45,12 +46,12 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ ok: false, error: "payload" }, { status: 400 });
 
   const { contact: c, order: o } = parsed.data;
+  c.phone = normPhone(c.phone);
+  c.email = normEmail(c.email);
   const tenant = await currentTenant();
 
-  let contact =
-    (c.email && (await prisma.contact.findFirst({ where: { tenantId: tenant.id, email: c.email } }))) ||
-    (c.phone && (await prisma.contact.findFirst({ where: { tenantId: tenant.id, phone: c.phone } }))) ||
-    null;
+  const where = contactWhere(tenant.id, c.phone, c.email);
+  let contact = where ? await prisma.contact.findFirst({ where }) : null;
   if (!contact) {
     contact = await prisma.contact.create({
       data: {
