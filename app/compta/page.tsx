@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
 import { chf, CATEGORIES, catLabel } from "@/lib/money";
+import { fmtCHF } from "@/lib/statuts";
+import { paymentState } from "@/lib/payments";
 import { updateExpense, createExpense, deleteExpense, purgeEmptyDrafts } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 
@@ -76,6 +78,37 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
           <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">Résultat du mois</p>
           <p className={`mt-1 text-2xl font-bold ${totalRev - totalExp >= 0 ? "text-stone-900" : "text-red-700"}`}>{chf(totalRev - totalExp)}</p>
           <p className="mt-0.5 text-xs text-stone-400">{byCat.map((c) => `${c.emoji} ${chf(c.total)}`).join(" · ") || "—"}</p>
+        </div>
+      </div>
+
+      {/* Recettes du mois */}
+      <div className="mb-8">
+        <div className="mb-2 flex items-center justify-between px-1">
+          <p className="text-sm font-bold text-stone-700">Recettes — commandes livrées</p>
+          <span className="text-xs text-stone-400">{delivered.length} · {chf(totalRev)}</span>
+        </div>
+        <div className="space-y-0.5 rounded-2xl border border-stone-200 bg-white p-3">
+          {delivered.map((o) => {
+            const pay = paymentState(o);
+            return (
+              <Link
+                key={o.id}
+                href={`/commandes/${o.id}`}
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-2 py-1.5 text-sm hover:bg-stone-50"
+              >
+                <span className="w-12 shrink-0 text-stone-400">{o.deliveredAt?.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</span>
+                <span className="font-semibold">{o.contact.firstName} {o.contact.lastName}</span>
+                <span className="text-stone-500">{o.occasion || "—"}</span>
+                {!pay.isPaid && pay.dueCents > 0 && (
+                  <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">reste {chf(pay.dueCents)}</span>
+                )}
+                <span className="ml-auto font-semibold">{fmtCHF(o.priceQuoted)}</span>
+              </Link>
+            );
+          })}
+          {delivered.length === 0 && (
+            <p className="px-4 py-8 text-center text-stone-400">Aucune commande livrée ce mois-ci.</p>
+          )}
         </div>
       </div>
 

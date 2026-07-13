@@ -11,6 +11,7 @@ import { logout } from "@/app/actions";
 
 const NAV = [
   { href: "/", label: "Pipeline", emoji: "📋" },
+  { href: "/commandes", label: "Historique", emoji: "🗂" },
   { href: "/contacts", label: "Contacts", emoji: "👥" },
   { href: "/agenda", label: "Agenda", emoji: "📅" },
   { href: "/compta", label: "Compta", emoji: "💰" },
