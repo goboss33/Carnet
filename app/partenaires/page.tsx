@@ -28,8 +28,11 @@ export default async function Partenaires() {
 
   return (
     <Shell>
-      <div className="mb-2 flex items-baseline justify-between">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Partenaires</h1>
+        <a href="/api/flyer" className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-600 hover:border-stone-500">
+          🖨 Flyer générique
+        </a>
       </div>
       <p className="mb-6 max-w-2xl text-sm text-stone-500">
         Chaque partenaire a son lien (QR/flyers) : les demandes arrivées par ce lien lui sont
@@ -52,6 +55,9 @@ export default async function Partenaires() {
                 <h2 className="text-lg font-bold">{p.name}</h2>
                 <span className="text-sm text-stone-500">{TYPES[p.type]} · {p.ratePct} %</span>
                 <code className="rounded bg-stone-100 px-2 py-0.5 text-xs font-bold text-stone-600">{p.code}</code>
+                <a href={`/api/partenaires/${p.id}/flyer`} className="rounded-md border border-stone-300 px-2.5 py-1 text-xs font-semibold text-stone-600 hover:border-stone-500" title="Flyer A6 avec son QR">
+                  🖨 Flyer
+                </a>
                 <span className="ml-auto text-sm text-stone-500">
                   {p.orders.length} demande{p.orders.length > 1 ? "s" : ""} · {chf(totalBrought)} apportés ·{" "}
                   <b className={dueCents > 0 ? "text-amber-700" : "text-stone-700"}>{chf(dueCents)} à verser</b>
