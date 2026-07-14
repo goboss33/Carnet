@@ -16,6 +16,7 @@ import { analyzeReceipt } from "@/lib/gemini";
 import { chf, CATEGORIES, catLabel } from "@/lib/money";
 import { paymentState } from "@/lib/payments";
 import { waLink } from "@/lib/wa";
+import { getSettings } from "@/lib/settings";
 import { normPhone } from "@/lib/normalize";
 import type { Source, ExpenseCategory } from "@prisma/client";
 
@@ -342,6 +343,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
   }
 
   const tenant = await currentTenant();
+  const settings = await getSettings(tenant.id);
 
   /* ---------- boutons inline ---------- */
   if (cb) {
@@ -404,11 +406,11 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
           data: { status: "DEVIS_ENVOYE", activities: { create: { type: "STATUS", body: "Devis envoyé (confirmé via le bot)." } } },
         });
         await answerCallback(cb.id, "Devis envoyé ✓");
-        const dep = order.priceQuoted ? Math.round(order.priceQuoted * 0.3) : null;
+        const dep = order.priceQuoted ? Math.round((order.priceQuoted * settings.depositPct) / 100) : null;
         await editMessage(chatId, mid, `✅ Devis envoyé à <b>${name}</b>.`);
         await sayInline(
           chatId,
-          `💰 Et l'acompte${dep ? ` (attendu : <b>CHF ${dep}</b>, 30 %)` : ""} — déjà reçu ?`,
+          `💰 Et l'acompte${dep ? ` (attendu : <b>CHF ${dep}</b>, ${settings.depositPct} %)` : ""} — déjà reçu ?`,
           [
             [
               { text: "✅ Reçu", callback_data: `nu:dep:${orderId}` },
@@ -419,7 +421,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
           ]
         );
       } else if (action === "dep") {
-        const cents = order.priceQuoted ? Math.round(order.priceQuoted * 0.3) * 100 : null;
+        const cents = order.priceQuoted ? Math.round((order.priceQuoted * settings.depositPct) / 100) * 100 : null;
         await prisma.order.update({
           where: { id: orderId },
           data: {

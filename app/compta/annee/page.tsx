@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
-import { chf, mileageCents, KM_RATE } from "@/lib/money";
+import { chf, mileageCents } from "@/lib/money";
+import { getSettings } from "@/lib/settings";
 import Shell from "@/app/components/Shell";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,8 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
   });
   const totRev = months.reduce((a, m) => a + m.rev, 0);
   const totExp = months.reduce((a, m) => a + m.exp, 0);
-  const mileageYear = delivered.reduce((a, o) => a + (o.deliveryMode === "livraison" ? mileageCents(o.deliveryKm) : 0), 0);
+  const s = await getSettings(tenant.id);
+  const mileageYear = delivered.reduce((a, o) => a + (o.deliveryMode === "livraison" ? mileageCents(o.deliveryKm, s.kmRate) : 0), 0);
   const vatYear = expenses.reduce(
     (a, e) => a + (Array.isArray(e.vat) ? (e.vat as { amountCents?: number }[]).reduce((s, v) => s + (v.amountCents ?? 0), 0) : 0),
     0
@@ -96,7 +98,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
         <div className="rounded-2xl border border-stone-200 bg-white px-5 py-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">Frais de déplacement</p>
           <p className="mt-1 text-xl font-bold text-stone-700">{chf(mileageYear)}</p>
-          <p className="mt-0.5 text-xs text-stone-400">forfait {KM_RATE} CHF/km, aller-retour</p>
+          <p className="mt-0.5 text-xs text-stone-400">forfait {s.kmRate} CHF/km, aller-retour</p>
         </div>
         <div className="rounded-2xl border border-stone-300 bg-stone-50 px-5 py-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">Résultat imposable estimé</p>

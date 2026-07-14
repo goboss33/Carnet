@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, currentTenant } from "@/lib/db";
-import { catLabel, mileageCents, KM_RATE } from "@/lib/money";
+import { catLabel, mileageCents } from "@/lib/money";
+import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,8 @@ export async function GET(req: NextRequest) {
     prisma.order.findMany({ where: { tenantId: tenant.id, status: "ANNULE", cancelledAt: { gte: start, lt: end }, OR: [{ depositCents: { gt: 0 } }, { balanceCents: { gt: 0 } }] }, include: { contact: true }, orderBy: { cancelledAt: "asc" } }),
   ]);
 
-  const mileage = delivered.reduce((a, o) => a + (o.deliveryMode === "livraison" ? mileageCents(o.deliveryKm) : 0), 0);
+  const s = await getSettings(tenant.id);
+  const mileage = delivered.reduce((a, o) => a + (o.deliveryMode === "livraison" ? mileageCents(o.deliveryKm, s.kmRate) : 0), 0);
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
   const vatTxt = (v: unknown) =>
     Array.isArray(v)
@@ -46,7 +48,7 @@ export async function GET(req: NextRequest) {
       ["depense", e.date.toISOString().slice(0, 10), esc(e.merchant || "—"), esc(catLabel(e.category)), (e.totalCents / 100).toFixed(2), esc(vatTxt(e.vat)), esc(e.notes)].join(";")
     ),
     ...(mileage > 0
-      ? [["deduction", start.toISOString().slice(0, 10), esc(`Frais de déplacement déductibles (forfait ${KM_RATE} CHF/km, aller-retour)`), "deplacement", (mileage / 100).toFixed(2), "", ""].join(";")]
+      ? [["deduction", start.toISOString().slice(0, 10), esc(`Frais de déplacement déductibles (forfait ${s.kmRate} CHF/km, aller-retour)`), "deplacement", (mileage / 100).toFixed(2), "", ""].join(";")]
       : []),
   ];
   return new NextResponse("﻿" + rows.join("\n"), {

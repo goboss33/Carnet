@@ -16,6 +16,7 @@ const NAV = [
   { href: "/agenda", label: "Agenda", emoji: "📅" },
   { href: "/compta", label: "Compta", emoji: "💰" },
   { href: "/partenaires", label: "Partenaires", emoji: "🤝" },
+  { href: "/reglages", label: "Réglages", emoji: "⚙️" },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {

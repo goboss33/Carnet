@@ -7,6 +7,7 @@ import { prisma, currentTenant } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
 import { NEXT_STATUS } from "@/lib/statuts";
 import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
+import { getSettings } from "@/lib/settings";
 import type { OrderStatus, Source } from "@prisma/client";
 
 /* ------------------------------------------------------------ auth */
@@ -93,6 +94,7 @@ export async function advanceStatus(orderId: string) {
   if (!order) return;
   const next = NEXT_STATUS[order.status];
   if (!next) return;
+  const s = await getSettings(order.tenantId);
   await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -100,8 +102,8 @@ export async function advanceStatus(orderId: string) {
       ...(next === "ACOMPTE_RECU"
         ? {
             depositPaidAt: new Date(),
-            // acompte 30 % par défaut si aucun montant n'a encore été saisi (cohérent avec le bot)
-            ...(order.depositCents || !order.priceQuoted ? {} : { depositCents: Math.round(order.priceQuoted * 0.3) * 100 }),
+            // acompte par défaut (réglage) si aucun montant n'a encore été saisi (cohérent avec le bot)
+            ...(order.depositCents || !order.priceQuoted ? {} : { depositCents: Math.round((order.priceQuoted * s.depositPct) / 100) * 100 }),
           }
         : {}),
       ...(next === "LIVRE" ? { deliveredAt: new Date() } : {}),
@@ -590,4 +592,34 @@ export async function createOrderForContact(contactId: string, _prev: { error?: 
   });
   revalidatePath("/");
   redirect(`/commandes/${order.id}`);
+}
+
+/* ------------------------------------------------------------- réglages */
+
+export async function saveSettings(formData: FormData) {
+  const tenant = await currentTenant();
+  const num = (k: string) => {
+    const v = String(formData.get(k) ?? "").trim();
+    return v === "" ? null : Number(v);
+  };
+  const clampInt = (n: number | null, lo: number, hi: number) =>
+    n == null || isNaN(n) ? null : Math.min(hi, Math.max(lo, Math.round(n)));
+  const kmRate = num("kmRate");
+  const data = {
+    kmRate: kmRate == null || isNaN(kmRate) ? null : Math.min(10, Math.max(0, kmRate)),
+    depositPct: clampInt(num("depositPct"), 0, 100),
+    digestHour: clampInt(num("digestHour"), 0, 23),
+    nudgeHour: clampInt(num("nudgeHour"), 0, 23),
+    reviewUrl: String(formData.get("reviewUrl") ?? "").trim(),
+    cronDigest: formData.get("cronDigest") === "on",
+    cronEveningNudges: formData.get("cronEveningNudges") === "on",
+    cronReviews: formData.get("cronReviews") === "on",
+    cronBirthday: formData.get("cronBirthday") === "on",
+  };
+  await prisma.settings.upsert({
+    where: { tenantId: tenant.id },
+    update: data,
+    create: { tenantId: tenant.id, ...data },
+  });
+  revalidatePath("/reglages");
 }

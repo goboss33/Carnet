@@ -20,6 +20,24 @@ model Tenant {
   sessions  BotSession[]
   expenses  Expense[]
   partners  Partner[]
+  settings  Settings?
+}
+
+/// Réglages par tenant — les valeurs nulles retombent sur l'env / les défauts.
+model Settings {
+  id                String   @id @default(cuid())
+  tenantId          String   @unique
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  kmRate            Float?   // forfait km déductible (CHF/km, aller simple)
+  depositPct        Int?     // acompte par défaut (%)
+  digestHour        Int?     // heure du digest matin (0-23)
+  nudgeHour         Int?     // heure des relances du soir (0-23)
+  cronDigest        Boolean  @default(true)
+  cronEveningNudges Boolean  @default(true)
+  cronReviews       Boolean  @default(true)
+  cronBirthday      Boolean  @default(true)
+  reviewUrl         String   @default("")
+  updatedAt         DateTime @updatedAt
 }
 
 enum Source {
