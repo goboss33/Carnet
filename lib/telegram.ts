@@ -69,6 +69,12 @@ export async function notifyAll(text: string) {
   await Promise.allSettled(ids.map((id) => say(Number(id), text)));
 }
 
+/** Message avec boutons inline à tous les utilisateurs autorisés. */
+export async function notifyAllInline(text: string, inline: { text: string; callback_data: string }[][]) {
+  const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  await Promise.allSettled(ids.map((id) => sayInline(Number(id), text, inline)));
+}
+
 /** Envoie une photo (bytes) à un chat (légende en HTML). */
 export async function sendPhotoTo(chatId: number | bigint, buf: Buffer, filename: string, caption?: string) {
   const fd = new FormData();

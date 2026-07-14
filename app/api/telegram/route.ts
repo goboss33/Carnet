@@ -311,6 +311,40 @@ async function showMenu(chatId: number) {
   ]);
 }
 
+/* ------------------------------------------------ assistant de rédaction */
+
+const escHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** Génère un brouillon et l'envoie avec les actions (Utiliser / Affiner / Régénérer / paiement). */
+async function aiGenerate(
+  chatId: number,
+  orderId: string,
+  opts: { userMessage?: string; method?: "twint" | "virement"; regenerate?: boolean } = {}
+) {
+  await tg("sendChatAction", { chat_id: chatId, action: "typing" });
+  const { generateDraft } = await import("@/lib/assistant");
+  const r = await generateDraft(orderId, opts);
+  if (!r.ok) {
+    await say(chatId, "Commande introuvable.");
+    return;
+  }
+  await sayInline(
+    chatId,
+    `✍️ <b>Proposition</b>${r.usedAI ? "" : " (IA indispo — message de base)"} :\n\n${escHtml(r.text)}`,
+    [
+      [{ text: "✅ Utiliser → WhatsApp", callback_data: `ai:use:${orderId}` }],
+      [
+        { text: "💬 Affiner", callback_data: `ai:refine:${orderId}` },
+        { text: "↻ Autre version", callback_data: `ai:regen:${orderId}` },
+      ],
+      [
+        { text: "💳 Twint", callback_data: `ai:pay:${orderId}:twint` },
+        { text: "💳 Virement", callback_data: `ai:pay:${orderId}:virement` },
+      ],
+    ]
+  );
+}
+
 /* --------------------------------------------------------------- POST */
 
 export async function POST(req: NextRequest) {
@@ -629,6 +663,65 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       return ok();
     }
 
+    if (ns === "ai") {
+      const orderId = rest[0];
+      const order = await prisma.order.findUnique({ where: { id: orderId }, include: { contact: true } });
+      if (!order) {
+        await answerCallback(cb.id, "Commande introuvable");
+        return ok();
+      }
+      const oname = `${order.contact.firstName} ${order.contact.lastName}`.trim();
+
+      if (action === "start") {
+        await answerCallback(cb.id);
+        if (order.priceQuoted) {
+          await editMessage(chatId, mid, `✍️ <b>Réponse à ${oname}</b>`);
+          await sayInline(chatId, `Prix final ? (estimation configurateur : <b>CHF ${order.priceQuoted}</b>)`, [
+            [{ text: `✅ Garder CHF ${order.priceQuoted}`, callback_data: `ai:keepprice:${orderId}` }],
+            [{ text: "✏️ Autre montant", callback_data: `ai:editprice:${orderId}` }],
+          ]);
+        } else {
+          await setStep(chatId, tenant.id, `ai:setprice:${orderId}`, {});
+          await say(chatId, `✍️ <b>Réponse à ${oname}</b>\nQuel est le prix final ? (en CHF)`);
+        }
+      } else if (action === "keepprice") {
+        await answerCallback(cb.id);
+        await editMessage(chatId, mid, `Prix : <b>CHF ${order.priceQuoted}</b> ✓`);
+        await aiGenerate(chatId, orderId);
+      } else if (action === "editprice") {
+        await answerCallback(cb.id);
+        await setStep(chatId, tenant.id, `ai:setprice:${orderId}`, {});
+        await say(chatId, "Quel est le prix final ? (en CHF)");
+      } else if (action === "refine") {
+        await answerCallback(cb.id);
+        await setStep(chatId, tenant.id, `ai:chat:${orderId}`, {});
+        await say(chatId, "💬 Dis-moi ce qu'il faut changer, ou pose ta question. (<i>/annule</i> pour sortir)");
+      } else if (action === "regen") {
+        await answerCallback(cb.id, "Nouvelle version…");
+        await aiGenerate(chatId, orderId, { regenerate: true });
+      } else if (action === "pay") {
+        const method = rest[1] === "virement" ? "virement" : "twint";
+        await answerCallback(cb.id, method === "virement" ? "Virement" : "Twint");
+        await aiGenerate(chatId, orderId, { method });
+      } else if (action === "use") {
+        await answerCallback(cb.id);
+        const last = await prisma.aiMessage.findFirst({ where: { orderId, role: "assistant" }, orderBy: { createdAt: "desc" } });
+        if (!last) {
+          await say(chatId, "Aucun message à utiliser — régénère d'abord.");
+          return ok();
+        }
+        const link = order.contact.phone ? waLink(order.contact.phone, last.content) : null;
+        await sayInline(
+          chatId,
+          link
+            ? `✅ <a href="${link}">📲 Ouvrir WhatsApp avec le message</a>\n\n(ou appui long sur la proposition ci-dessus → copier)`
+            : "✅ Appui long sur la proposition ci-dessus → copier (pas de numéro pour un lien WhatsApp).",
+          [[{ text: "✅ Marquer devis envoyé", callback_data: `nu:sent:${orderId}` }]]
+        );
+      }
+      return ok();
+    }
+
     // callbacks d'anciennes versions (lead:/rc:) : session périmée
     await answerCallback(cb.id, "Session expirée — relance depuis le menu 👇");
     return ok();
@@ -841,6 +934,27 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
     }
     await say(chatId, `💰 Solde de CHF ${n} enregistré pour <b>${order.contact.firstName}</b>.`);
     return ok();
+  }
+
+  /* ---- assistant : saisie du prix final ---- */
+  if (session?.step?.startsWith("ai:setprice:")) {
+    const orderId = session.step.slice("ai:setprice:".length);
+    const n = parseFloat(text.replace(",", ".").replace(/[^0-9.]/g, ""));
+    if (isNaN(n) || n <= 0) {
+      await say(chatId, "Un prix en CHF (ex. 180), s'il te plaît.");
+      return ok();
+    }
+    await prisma.order.update({ where: { id: orderId }, data: { priceQuoted: Math.round(n) } }).catch(() => null);
+    await setStep(chatId, tenant.id, "idle", {});
+    await aiGenerate(chatId, orderId);
+    return ok();
+  }
+
+  /* ---- assistant : mode chat (affiner / question) ---- */
+  if (session?.step?.startsWith("ai:chat:")) {
+    const orderId = session.step.slice("ai:chat:".length);
+    await aiGenerate(chatId, orderId, { userMessage: text });
+    return ok(); // reste en mode chat jusqu'à /annule
   }
 
   /* ---- correction d'un justificatif ---- */

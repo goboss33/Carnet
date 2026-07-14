@@ -8,7 +8,7 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { z } from "zod";
 import { prisma, currentTenant } from "@/lib/db";
-import { notifyAll, sendPhotosAll, sendAlbumAll } from "@/lib/telegram";
+import { notifyAll, notifyAllInline, sendPhotosAll, sendAlbumAll } from "@/lib/telegram";
 import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
 
 export const dynamic = "force-dynamic";
@@ -146,6 +146,11 @@ export async function POST(req: NextRequest) {
   } else {
     notifyAll(notifText).catch((e) => console.error("notify error", e));
   }
+
+  /* Bouton d'action (un album n'accepte pas de bouton → message séparé, uniforme). */
+  notifyAllInline(`✍️ <b>Répondre à ${c.firstName} ${c.lastName}</b>`.trim(), [
+    [{ text: "✍️ Rédiger la réponse", callback_data: `ai:start:${order.id}` }],
+  ]).catch((e) => console.error("notify actions error", e));
 
   return NextResponse.json({ ok: true, orderId: order.id });
 }
