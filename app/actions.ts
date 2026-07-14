@@ -7,8 +7,6 @@ import { prisma, currentTenant } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
 import { NEXT_STATUS } from "@/lib/statuts";
 import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
-import { draftQuoteReply } from "@/lib/gemini";
-import { waLink } from "@/lib/wa";
 import type { OrderStatus, Source } from "@prisma/client";
 
 /* ------------------------------------------------------------ auth */
@@ -262,32 +260,6 @@ export async function refundDeposit(orderId: string) {
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/compta");
   revalidatePath("/");
-}
-
-/** Brouillon de réponse au client (devis) rédigé par l'IA — renvoyé au composant client. */
-export async function generateDraft(
-  orderId: string
-): Promise<{ ok: boolean; text?: string; waHref?: string | null; error?: string }> {
-  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { contact: true } });
-  if (!order) return { ok: false, error: "Commande introuvable." };
-  const text = await draftQuoteReply({
-    firstName: order.contact.firstName,
-    occasion: order.occasion,
-    eventDate: order.eventDate,
-    celebrant: order.celebrant,
-    celebrantAge: order.celebrantAge,
-    parts: order.parts,
-    tiers: order.tiers,
-    biscuit: order.biscuit,
-    fourrages: order.fourrages,
-    style: order.style,
-    themeNote: order.themeNote,
-    priceQuoted: order.priceQuoted,
-    deliveryMode: order.deliveryMode,
-    deliveryAddress: order.deliveryAddress,
-  });
-  if (!text) return { ok: false, error: "IA indisponible (clé Gemini manquante ou service en erreur)." };
-  return { ok: true, text, waHref: order.contact.phone ? waLink(order.contact.phone, text) : null };
 }
 
 /* ------------------------------------------------------------- compta */

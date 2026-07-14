@@ -6,7 +6,6 @@ import { paymentState } from "@/lib/payments";
 import { updateOrder, setStatus, addNote, setOrderPartner, recordPayment, markPaidInFull, refundDeposit } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 import DeleteOrderButton from "./DeleteOrderButton";
-import DraftReply from "./DraftReply";
 import type { OrderStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -115,8 +114,6 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               </a>
             )}
           </div>
-
-          <DraftReply orderId={order.id} />
 
           {/* -------- paiement -------- */}
           <div className="rounded-2xl border border-stone-200 bg-white p-5 text-sm">
