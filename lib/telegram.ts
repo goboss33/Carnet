@@ -69,11 +69,14 @@ export async function notifyAll(text: string) {
   await Promise.allSettled(ids.map((id) => say(Number(id), text)));
 }
 
-/** Envoie une photo (bytes) à un chat. */
+/** Envoie une photo (bytes) à un chat (légende en HTML). */
 export async function sendPhotoTo(chatId: number | bigint, buf: Buffer, filename: string, caption?: string) {
   const fd = new FormData();
   fd.append("chat_id", String(Number(chatId)));
-  if (caption) fd.append("caption", caption);
+  if (caption) {
+    fd.append("caption", caption);
+    fd.append("parse_mode", "HTML");
+  }
   fd.append("photo", new Blob([new Uint8Array(buf)]), filename);
   await fetch(`${API()}/sendPhoto`, { method: "POST", body: fd });
 }
@@ -88,4 +91,34 @@ export async function sendPhotosAll(buffers: Buffer[], caption?: string) {
       );
     }
   }
+}
+
+/** Envoie un album (2-10 photos) à un chat ; la légende va sur la première = légende de l'album. */
+export async function sendMediaGroupTo(chatId: number | bigint, buffers: Buffer[], caption?: string): Promise<boolean> {
+  const fd = new FormData();
+  fd.append("chat_id", String(Number(chatId)));
+  const media = buffers.map((_, i) => ({
+    type: "photo",
+    media: `attach://p${i}`,
+    ...(i === 0 && caption ? { caption, parse_mode: "HTML" } : {}),
+  }));
+  fd.append("media", JSON.stringify(media));
+  buffers.forEach((buf, i) => fd.append(`p${i}`, new Blob([new Uint8Array(buf)]), `inspiration-${i + 1}.jpg`));
+  const res = await fetch(`${API()}/sendMediaGroup`, { method: "POST", body: fd });
+  const j = await res.json().catch(() => null);
+  return !!j?.ok;
+}
+
+/** Album envoyé à tous les utilisateurs autorisés. Renvoie true si au moins un envoi a réussi. */
+export async function sendAlbumAll(buffers: Buffer[], caption?: string): Promise<boolean> {
+  const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  let anyOk = false;
+  for (const id of ids) {
+    try {
+      if (await sendMediaGroupTo(Number(id), buffers, caption)) anyOk = true;
+    } catch (e) {
+      console.error("sendMediaGroup", e);
+    }
+  }
+  return anyOk;
 }

@@ -8,7 +8,7 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { z } from "zod";
 import { prisma, currentTenant } from "@/lib/db";
-import { notifyAll, sendPhotosAll } from "@/lib/telegram";
+import { notifyAll, sendPhotosAll, sendAlbumAll } from "@/lib/telegram";
 import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
 
 export const dynamic = "force-dynamic";
@@ -128,20 +128,23 @@ export async function POST(req: NextRequest) {
     if (rels.length) await prisma.order.update({ where: { id: order.id }, data: { inspirationPhotos: rels } });
   }
 
-  notifyAll(
-    [
-      "🎂 <b>Nouvelle demande de devis !</b>",
-      `${c.firstName} ${c.lastName} — ${o.occasion || "occasion ?"}`,
-      o.eventDate ? `📅 ${new Date(o.eventDate).toLocaleDateString("fr-CH")}` : "",
-      `${o.parts ?? "?"} parts · ${o.deliveryMode}${o.priceQuoted ? ` · dès CHF ${o.priceQuoted}` : ""}`,
-      partner ? `🤝 Apportée par ${partner.name}` : "",
-      photoBuffers.length ? `🖼 ${photoBuffers.length} photo(s) d'inspiration` : "",
-      `${process.env.APP_URL ?? ""}/commandes/${order.id}`,
-    ].filter(Boolean).join("\n")
-  ).catch((e) => console.error("notify error", e));
+  const notifText = [
+    "🎂 <b>Nouvelle demande de devis !</b>",
+    `${c.firstName} ${c.lastName} — ${o.occasion || "occasion ?"}`,
+    o.eventDate ? `📅 ${new Date(o.eventDate).toLocaleDateString("fr-CH")}` : "",
+    `${o.parts ?? "?"} parts · ${o.deliveryMode}${o.priceQuoted ? ` · dès CHF ${o.priceQuoted}` : ""}`,
+    partner ? `🤝 Apportée par ${partner.name}` : "",
+    `${process.env.APP_URL ?? ""}/commandes/${order.id}`,
+  ].filter(Boolean).join("\n");
 
-  if (photoBuffers.length) {
-    sendPhotosAll(photoBuffers, `🖼 Inspiration — ${c.firstName} ${c.lastName}`).catch((e) => console.error("send photos", e));
+  /* Un seul message : album (≥2 photos) ou photo (1) avec le devis en légende ; sinon texte seul. */
+  if (photoBuffers.length >= 2) {
+    const ok = await sendAlbumAll(photoBuffers, notifText).catch(() => false);
+    if (!ok) await notifyAll(notifText).catch((e) => console.error("notify error", e)); // repli si l'album échoue
+  } else if (photoBuffers.length === 1) {
+    await sendPhotosAll(photoBuffers, notifText).catch((e) => console.error("send photo", e));
+  } else {
+    notifyAll(notifText).catch((e) => console.error("notify error", e));
   }
 
   return NextResponse.json({ ok: true, orderId: order.id });
