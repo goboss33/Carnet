@@ -160,7 +160,9 @@ export async function geminiGenerate(opts: {
         body: JSON.stringify({
           ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
           contents: opts.contents,
-          generationConfig: { temperature: opts.temperature ?? 0.7, maxOutputTokens: opts.maxOutputTokens ?? 1200 },
+          // Plafond large : les modèles « thinking » consomment des tokens de sortie
+          // pour raisonner avant d'écrire → sinon la réponse est tronquée.
+          generationConfig: { temperature: opts.temperature ?? 0.7, maxOutputTokens: opts.maxOutputTokens ?? 8192 },
         }),
       }
     );
@@ -169,7 +171,11 @@ export async function geminiGenerate(opts: {
       return null;
     }
     const data = await res.json();
-    const text: string = (data?.candidates?.[0]?.content?.parts ?? [])
+    const cand = data?.candidates?.[0];
+    if (cand?.finishReason && cand.finishReason !== "STOP") {
+      console.warn("gemini gen finishReason:", cand.finishReason); // MAX_TOKENS = réponse coupée
+    }
+    const text: string = (cand?.content?.parts ?? [])
       .map((p: { text?: string }) => p.text ?? "")
       .join("")
       .trim();
