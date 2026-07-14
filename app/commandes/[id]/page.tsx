@@ -89,6 +89,25 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           {order.fourrages.length > 0 && (
             <p className="text-sm text-stone-500">Fourrages demandés : <span className="font-medium text-stone-700">{order.fourrages.join(" + ")}</span></p>
           )}
+          {order.inspirationPhotos.length > 0 && (
+            <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Photos d’inspiration</p>
+              <div className="flex flex-wrap gap-2">
+                {order.inspirationPhotos.map((src, i) => (
+                  <a
+                    key={i}
+                    href={`/api/receipts/${src}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block h-24 w-24 overflow-hidden rounded-lg border border-stone-200 hover:border-stone-400"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/api/receipts/${src}`} alt={`Inspiration ${i + 1}`} className="h-full w-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
           <button className="rounded-lg bg-stone-900 px-5 py-2 text-sm font-semibold text-white hover:bg-stone-700">
             Enregistrer
           </button>

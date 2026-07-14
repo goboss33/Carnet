@@ -4,9 +4,11 @@
 --------------------------------------------------------------------------- */
 
 import { NextRequest, NextResponse } from "next/server";
+import { mkdir, writeFile } from "fs/promises";
+import path from "path";
 import { z } from "zod";
 import { prisma, currentTenant } from "@/lib/db";
-import { notifyAll } from "@/lib/telegram";
+import { notifyAll, sendPhotosAll } from "@/lib/telegram";
 import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +38,7 @@ const payload = z.object({
     extras: z.unknown().nullish(),
     partnerCode: z.string().nullish(),
   }),
+  photos: z.array(z.object({ name: z.string().default("photo.jpg"), data: z.string() })).max(3).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -104,6 +107,27 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  /* Photos d'inspiration : stockées sous RECEIPTS_DIR/inspirations et envoyées à Annie. */
+  const photoBuffers: Buffer[] = [];
+  if (parsed.data.photos?.length) {
+    const rels: string[] = [];
+    const dir = path.resolve(process.env.RECEIPTS_DIR ?? "./data/receipts");
+    for (let i = 0; i < parsed.data.photos.length; i++) {
+      try {
+        const buf = Buffer.from(parsed.data.photos[i].data, "base64");
+        if (!buf.length || buf.length > 5_000_000) continue;
+        const abs = path.join(dir, "inspirations", tenant.slug, order.id, `${i + 1}.jpg`);
+        await mkdir(path.dirname(abs), { recursive: true });
+        await writeFile(abs, buf);
+        rels.push(`inspirations/${tenant.slug}/${order.id}/${i + 1}.jpg`);
+        photoBuffers.push(buf);
+      } catch (e) {
+        console.error("inspiration photo error", e);
+      }
+    }
+    if (rels.length) await prisma.order.update({ where: { id: order.id }, data: { inspirationPhotos: rels } });
+  }
+
   notifyAll(
     [
       "🎂 <b>Nouvelle demande de devis !</b>",
@@ -111,9 +135,14 @@ export async function POST(req: NextRequest) {
       o.eventDate ? `📅 ${new Date(o.eventDate).toLocaleDateString("fr-CH")}` : "",
       `${o.parts ?? "?"} parts · ${o.deliveryMode}${o.priceQuoted ? ` · dès CHF ${o.priceQuoted}` : ""}`,
       partner ? `🤝 Apportée par ${partner.name}` : "",
+      photoBuffers.length ? `🖼 ${photoBuffers.length} photo(s) d'inspiration` : "",
       `${process.env.APP_URL ?? ""}/commandes/${order.id}`,
     ].filter(Boolean).join("\n")
   ).catch((e) => console.error("notify error", e));
+
+  if (photoBuffers.length) {
+    sendPhotosAll(photoBuffers, `🖼 Inspiration — ${c.firstName} ${c.lastName}`).catch((e) => console.error("send photos", e));
+  }
 
   return NextResponse.json({ ok: true, orderId: order.id });
 }

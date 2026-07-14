@@ -80,6 +80,7 @@ model Order {
   style           String      @default("")
   themeNote       String      @default("")
   extras          Json?
+  inspirationPhotos String[]  @default([])
 
   deliveryMode    String      @default("retrait") // retrait | livraison
   deliveryAddress String      @default("")

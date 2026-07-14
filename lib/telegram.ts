@@ -68,3 +68,24 @@ export async function notifyAll(text: string) {
   const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   await Promise.allSettled(ids.map((id) => say(Number(id), text)));
 }
+
+/** Envoie une photo (bytes) à un chat. */
+export async function sendPhotoTo(chatId: number | bigint, buf: Buffer, filename: string, caption?: string) {
+  const fd = new FormData();
+  fd.append("chat_id", String(Number(chatId)));
+  if (caption) fd.append("caption", caption);
+  fd.append("photo", new Blob([new Uint8Array(buf)]), filename);
+  await fetch(`${API()}/sendPhoto`, { method: "POST", body: fd });
+}
+
+/** Envoie une série de photos à tous les utilisateurs autorisés (légende sur la première). */
+export async function sendPhotosAll(buffers: Buffer[], caption?: string) {
+  const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  for (const id of ids) {
+    for (let i = 0; i < buffers.length; i++) {
+      await sendPhotoTo(Number(id), buffers[i], `inspiration-${i + 1}.jpg`, i === 0 ? caption : undefined).catch((e) =>
+        console.error("sendPhoto", e)
+      );
+    }
+  }
+}
