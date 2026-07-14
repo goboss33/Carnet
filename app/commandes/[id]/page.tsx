@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { STATUTS, SOURCES, fmtCHF, fmtDate } from "@/lib/statuts";
@@ -17,7 +18,11 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const order = await prisma.order.findUnique({
     where: { id },
-    include: { contact: true, partner: true, activities: { orderBy: { createdAt: "desc" }, take: 30 } },
+    include: {
+      contact: { include: { _count: { select: { orders: true } } } },
+      partner: true,
+      activities: { orderBy: { createdAt: "desc" }, take: 30 },
+    },
   });
   if (!order) notFound();
   const partners = await prisma.partner.findMany({ where: { tenantId: order.tenantId, active: true }, orderBy: { name: "asc" } });
@@ -116,12 +121,27 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
         {/* -------- contact + journal -------- */}
         <div className="space-y-5">
           <div className="rounded-2xl border border-stone-200 bg-white p-5 text-sm">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Contact</p>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Contact</p>
+              <Link href={`/contacts/${c.id}`} className="text-xs font-semibold text-stone-500 hover:text-stone-800">Fiche complète →</Link>
+            </div>
+            <Link href={`/contacts/${c.id}`} className="block text-[15px] font-bold text-stone-900 hover:underline">
+              {c.firstName} {c.lastName}
+            </Link>
+            <p className="mb-3 mt-0.5 text-xs text-stone-400">
+              {SOURCES.find((s) => s.id === c.source)?.label}
+              {" · "}
+              {c._count.orders > 1 ? `${c._count.orders} commandes` : "1re commande"}
+              {" · client depuis "}
+              {c.createdAt.getFullYear()}
+            </p>
             <dl className="space-y-1.5">
               {c.phone && <div className="flex justify-between"><dt className="text-stone-500">Mobile</dt><dd><a className="font-medium hover:underline" href={`tel:${c.phone}`}>{c.phone}</a></dd></div>}
               {c.email && <div className="flex justify-between"><dt className="text-stone-500">E-mail</dt><dd><a className="font-medium hover:underline" href={`mailto:${c.email}`}>{c.email}</a></dd></div>}
               {c.instagram && <div className="flex justify-between"><dt className="text-stone-500">Instagram</dt><dd className="font-medium">{c.instagram}</dd></div>}
             </dl>
+            {c.notes && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-stone-600">📝 {c.notes}</p>}
+            {c.consentNewsletter && <p className="mt-2 text-[11px] font-semibold text-emerald-600">✓ Accepte la newsletter</p>}
             {c.phone && (
               <a
                 href={`https://wa.me/${c.phone.replace(/[^0-9]/g, "")}`}
