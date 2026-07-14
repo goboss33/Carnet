@@ -7,6 +7,7 @@ import { paymentState } from "@/lib/payments";
 import { updateOrder, setStatus, addNote, setOrderPartner, recordPayment, markPaidInFull, refundDeposit } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 import DeleteOrderButton from "./DeleteOrderButton";
+import MediaViewer from "@/app/components/MediaViewer";
 import type { OrderStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -99,16 +100,16 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Photos d’inspiration</p>
               <div className="flex flex-wrap gap-2">
                 {order.inspirationPhotos.map((src, i) => (
-                  <a
+                  <MediaViewer
                     key={i}
-                    href={`/api/receipts/${src}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    src={`/api/receipts/${src}`}
+                    kind="image"
+                    title={`Inspiration ${i + 1}`}
                     className="block h-24 w-24 overflow-hidden rounded-lg border border-stone-200 hover:border-stone-400"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={`/api/receipts/${src}`} alt={`Inspiration ${i + 1}`} className="h-full w-full object-cover" />
-                  </a>
+                  </MediaViewer>
                 ))}
               </div>
             </div>

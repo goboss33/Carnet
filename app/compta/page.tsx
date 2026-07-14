@@ -5,6 +5,7 @@ import { fmtCHF } from "@/lib/statuts";
 import { paymentState } from "@/lib/payments";
 import { updateExpense, createExpense, deleteExpense, purgeEmptyDrafts } from "@/app/actions";
 import Shell from "@/app/components/Shell";
+import MediaViewer from "@/app/components/MediaViewer";
 
 export const dynamic = "force-dynamic";
 
@@ -141,7 +142,9 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
             {drafts.map((e) => (
               <form key={e.id} action={updateExpense.bind(null, e.id)} className="flex flex-wrap items-center gap-2">
                 {e.receiptPath && (
-                  <a href={`/api/receipts/${e.receiptPath}`} target="_blank" className="text-lg" title="Voir la photo">📷</a>
+                  <MediaViewer src={`/api/receipts/${e.receiptPath}`} kind={e.receiptPath.endsWith(".pdf") ? "pdf" : "image"} className="text-lg" title="Voir le justificatif">
+                    {e.receiptPath.endsWith(".pdf") ? "📄" : "📷"}
+                  </MediaViewer>
                 )}
                 <input name="date" type="date" defaultValue={e.date.toISOString().slice(0, 10)} className={input} />
                 <input name="merchant" placeholder="Commerçant" defaultValue={e.merchant} className={input} />
@@ -173,7 +176,9 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
             <div className="ml-auto flex items-center gap-2">
               <input name="totalChf" type="number" step="0.05" min="0" defaultValue={(e.totalCents / 100).toFixed(2)} className={`${input} w-24 border-transparent bg-transparent text-right font-semibold group-hover:border-stone-300`} />
               {e.receiptPath ? (
-                <a href={`/api/receipts/${e.receiptPath}`} target="_blank" title="Voir le justificatif">{e.receiptPath.endsWith(".pdf") ? "📄" : "📷"}</a>
+                <MediaViewer src={`/api/receipts/${e.receiptPath}`} kind={e.receiptPath.endsWith(".pdf") ? "pdf" : "image"} title="Voir le justificatif">
+                  {e.receiptPath.endsWith(".pdf") ? "📄" : "📷"}
+                </MediaViewer>
               ) : (
                 <span className="w-5 text-center text-stone-300">—</span>
               )}
