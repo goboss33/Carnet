@@ -39,7 +39,7 @@ async function normalizeExisting() {
 async function tick() {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
-  const hour = now.getHours();
+  const hour = zurichHour(now); // heure de Zurich, quel que soit le fuseau du conteneur
   const tenants = await prisma.tenant.findMany();
   for (const t of tenants) {
     const s = await getSettings(t.id);
@@ -260,4 +260,45 @@ function nextAnniversary(eventDate: Date, now: Date): Date {
   let candidate = new Date(Date.UTC(now.getUTCFullYear(), m, d));
   if (candidate.getTime() < now.getTime()) candidate = new Date(Date.UTC(now.getUTCFullYear() + 1, m, d));
   return candidate;
+}
+
+/** Heure locale (Europe/Zurich) quel que soit le fuseau du serveur/conteneur. */
+function zurichHour(d: Date): number {
+  return Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Zurich", hour: "2-digit", hour12: false }).format(d)) % 24;
+}
+
+/* ------------------------------------------------ test manuel du cron
+   Envoie un message Telegram tout de suite et résume ce que voient les crons.
+   Aucune écriture en base (pas de cooldown consommé). */
+export async function cronSelfTest(tenantId: string): Promise<{ ok: boolean; message: string }> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  if (!token) return { ok: false, message: "⚠️ TELEGRAM_BOT_TOKEN manquant — le bot ne peut rien envoyer." };
+  if (!ids.length) return { ok: false, message: "⚠️ Aucun destinataire : la variable TELEGRAM_ALLOWED_CHAT_IDS est vide." };
+
+  const now = Date.now();
+  const s = await getSettings(tenantId);
+  const [production, leads, quotes, reviews, birthdays] = await Promise.all([
+    prisma.order.count({ where: { tenantId, status: { in: ["ACOMPTE_RECU", "EN_PRODUCTION"] }, eventDate: { gte: new Date(now - 86400000), lte: new Date(now + 3 * 86400000) } } }),
+    prisma.order.count({ where: { tenantId, status: "LEAD" } }),
+    prisma.order.count({ where: { tenantId, status: "DEVIS_ENVOYE" } }),
+    prisma.order.count({ where: { tenantId, status: "LIVRE", reviewAskedAt: null, deliveredAt: { lte: new Date(now - 2 * 86400000), gte: new Date(now - 14 * 86400000) } } }),
+    prisma.order.count({ where: { tenantId, occasion: { contains: "anniversaire", mode: "insensitive" }, eventDate: { lt: new Date(now - 60 * 86400000) } } }),
+  ]);
+  const serverHour = new Date().getHours();
+  const zh = zurichHour(new Date());
+  await notifyAll(
+    [
+      "🔔 <b>Test des relances — Carnet</b>",
+      "Si tu lis ce message, le bot t'atteint bien. 👍",
+      "",
+      `☀️ Digest ${s.digestHour} h${s.cronDigest ? "" : " (désactivé)"} : ${production} à produire sous 3 j · ${leads} lead(s).`,
+      `🌙 Relances ${s.nudgeHour} h${s.cronEveningNudges ? "" : " (désactivé)"} : ${production} livraison(s) · ${leads} lead(s) · ${quotes} devis.`,
+      `💬 Avis${s.cronReviews ? "" : " (désactivé)"} : ${reviews} · 🎂 Anniversaire${s.cronBirthday ? "" : " (désactivé)"} : ${birthdays}.`,
+    ].join("\n")
+  );
+  return {
+    ok: true,
+    message: `Test envoyé à ${ids.length} destinataire(s) — regarde Telegram. Le bot voit : ${production} à produire, ${leads} lead(s), ${quotes} devis, ${reviews} avis, ${birthdays} anniversaire(s). Heure serveur ${serverHour} h / heure de Zurich ${zh} h.`,
+  };
 }

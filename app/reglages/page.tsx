@@ -2,6 +2,7 @@ import { prisma, currentTenant } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { saveSettings } from "@/app/actions";
 import Shell from "@/app/components/Shell";
+import TestCronButton from "./TestCronButton";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,10 @@ export default async function Reglages() {
           Enregistrer les réglages
         </button>
       </form>
+
+      <div className="mt-6 max-w-2xl">
+        <TestCronButton />
+      </div>
     </Shell>
   );
 }

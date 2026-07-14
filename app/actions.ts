@@ -623,3 +623,10 @@ export async function saveSettings(formData: FormData) {
   });
   revalidatePath("/reglages");
 }
+
+/** Test manuel : envoie tout de suite un message Telegram et résume l'état des crons. */
+export async function testCron(): Promise<{ ok: boolean; message: string }> {
+  const tenant = await currentTenant();
+  const { cronSelfTest } = await import("@/lib/cron");
+  return cronSelfTest(tenant.id);
+}
