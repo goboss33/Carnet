@@ -623,6 +623,12 @@ export async function saveSettings(formData: FormData) {
     assistantActive: formData.get("assistantActive") === "on",
     assistantSignature: String(formData.get("assistantSignature") ?? "").trim(),
     assistantInstructions: String(formData.get("assistantInstructions") ?? "").trim(),
+    goalCaMensuel: clampInt(num("goalCaMensuel"), 0, 100000),
+    goalPanierMoyen: clampInt(num("goalPanierMoyen"), 0, 10000),
+    goalAvisGoogle: clampInt(num("goalAvisGoogle"), 0, 10000),
+    goalPartMariage: clampInt(num("goalPartMariage"), 0, 100),
+    goalPartDecouple: clampInt(num("goalPartDecouple"), 0, 100),
+    goalInstagram: clampInt(num("goalInstagram"), 0, 10000000),
   };
   await prisma.settings.upsert({
     where: { tenantId: tenant.id },
@@ -651,4 +657,29 @@ export async function assistantSend(orderId: string, formData: FormData) {
   const { generateDraft } = await import("@/lib/assistant");
   await generateDraft(orderId, { userMessage: message || undefined });
   revalidatePath(`/commandes/${orderId}`);
+}
+
+/* ------------------------------------------------------------------ cap */
+
+export async function toggleMilestone(key: string, value: boolean) {
+  const tenant = await currentTenant();
+  const s = await prisma.settings.findUnique({ where: { tenantId: tenant.id } });
+  const milestones = { ...((s?.milestones as Record<string, boolean>) ?? {}), [key]: value };
+  await prisma.settings.upsert({
+    where: { tenantId: tenant.id },
+    update: { milestones },
+    create: { tenantId: tenant.id, milestones },
+  });
+  revalidatePath("/cap");
+}
+
+export async function setRevenueCategory(orderId: string, formData: FormData) {
+  const v = String(formData.get("revenueCategory") ?? "SUR_MESURE");
+  const ok = ["SUR_MESURE", "COLLECTION", "ATELIER", "BON_CADEAU", "DECORS", "B2B"];
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { revenueCategory: (ok.includes(v) ? v : "SUR_MESURE") as never },
+  });
+  revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/cap");
 }

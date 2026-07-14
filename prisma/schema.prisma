@@ -18,6 +18,7 @@ model Tenant {
   contacts  Contact[]
   orders    Order[]
   sessions  BotSession[]
+  metrics   MetricSnapshot[]
   expenses  Expense[]
   partners  Partner[]
   settings  Settings?
@@ -47,7 +48,37 @@ model Settings {
   assistantActive       Boolean @default(true)
   assistantSignature    String  @default("")
   assistantInstructions String  @default("")
+  // objectifs (page Cap)
+  goalCaMensuel      Int?
+  goalPanierMoyen    Int?
+  goalAvisGoogle     Int?
+  goalPartMariage    Int? // % du CA
+  goalPartDecouple   Int? // % du CA hors sur-mesure
+  goalInstagram      Int?
+  milestones         Json? // jalons manuels cochés { cle: true }
   updatedAt         DateTime @updatedAt
+}
+
+/// Série de mesures mensuelles saisies (followers, avis…)
+model MetricSnapshot {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  key       String   // instagram_followers | google_reviews
+  month     String   // "2026-07"
+  value     Int
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, key, month])
+}
+
+enum RevenueCategory {
+  SUR_MESURE
+  COLLECTION
+  ATELIER
+  BON_CADEAU
+  DECORS
+  B2B
 }
 
 enum Source {
@@ -119,6 +150,7 @@ model Order {
   balancePaidAt   DateTime?
   deliveredAt     DateTime?
 
+  revenueCategory RevenueCategory @default(SUR_MESURE)
   reviewAskedAt       DateTime?
   lastNudgeAt         DateTime?
   anniversaryNudgedAt DateTime?

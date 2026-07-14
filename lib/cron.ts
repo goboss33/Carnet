@@ -18,6 +18,7 @@ const lastRun = new Map<string, string>(); // `${tenantId}:${job}` -> yyyy-mm-dd
 export function startCron() {
   console.log("Carnet cron : démarré (horaires par tenant, réglables dans /reglages)");
   normalizeExisting().catch((e) => console.error("normalisation:", e));
+  retroTagRevenue().catch((e) => console.error("retro-tag:", e));
   setInterval(() => tick().catch((e) => console.error("cron error:", e)), 60_000);
 }
 
@@ -34,6 +35,19 @@ async function normalizeExisting() {
     }
   }
   if (fixed) console.log(`Carnet : ${fixed} contact(s) normalisé(s).`);
+}
+
+/** Rétro-tag idempotent : catégorie de revenu devinée depuis l'occasion. */
+async function retroTagRevenue() {
+  const cup = await prisma.order.updateMany({
+    where: { revenueCategory: "SUR_MESURE", occasion: { contains: "cupcake", mode: "insensitive" } },
+    data: { revenueCategory: "COLLECTION" },
+  });
+  const b2b = await prisma.order.updateMany({
+    where: { revenueCategory: "SUR_MESURE", occasion: { contains: "entreprise", mode: "insensitive" } },
+    data: { revenueCategory: "B2B" },
+  });
+  if (cup.count || b2b.count) console.log(`Carnet : rétro-tag revenu — ${cup.count} collection, ${b2b.count} B2B.`);
 }
 
 async function tick() {
@@ -53,6 +67,44 @@ async function tick() {
       lastRun.set(`${t.id}:nudge`, today);
       if (s.cronEveningNudges) await eveningNudges(t).catch((e) => console.error("evening:", e));
     }
+    if (now.getDate() === 1 && hour === s.digestHour + 1 && lastRun.get(`${t.id}:monthly`) !== today) {
+      lastRun.set(`${t.id}:monthly`, today);
+      await monthlyReport(t).catch((e) => console.error("monthly:", e));
+    }
+  }
+}
+
+/* ------------------------------------------------ bilan du 1er du mois */
+async function monthlyReport(t: Tenant) {
+  const { computeCap } = await import("@/lib/cap");
+  const c = await computeCap(t.id);
+  const prev = c.caParMois[c.caParMois.length - 2]; // mois qui vient de se terminer
+  const prev2 = c.caParMois[c.caParMois.length - 3];
+  const delta = prev2 && prev2.ca > 0 ? Math.round(((prev.ca - prev2.ca) / prev2.ca) * 100) : null;
+  const phase = c.phases[c.phaseCourante];
+  const done = phase.jalons.filter((j) => j.done).length;
+  await notifyAll(
+    [
+      `📈 <b>Bilan de ${prev.month}</b>`,
+      `CA livré : <b>CHF ${prev.ca}</b>${delta != null ? ` (${delta >= 0 ? "+" : ""}${delta} %)` : ""} · net : CHF ${prev.net}`,
+      `Panier moyen : CHF ${c.panierMoyen} · mariages : ${c.partMariagePct} % · hors sur-mesure : ${c.partDecouplePct} %`,
+      `Week-ends à venir remplis : ${c.weekendsPleins}/4 · clientes fidèles : ${c.retentionPct} %`,
+      `${phase.name} : <b>${done}/${phase.jalons.length}</b> jalons ✓`,
+      `${process.env.APP_URL ?? ""}/cap`,
+    ].join("\n")
+  );
+  // saisie éclair des métriques manuelles
+  const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  if (ids.length) {
+    await prisma.botSession.upsert({
+      where: { chatId: BigInt(ids[0]) },
+      update: { step: "metric:instagram_followers" },
+      create: { chatId: BigInt(ids[0]), tenantId: t.id, step: "metric:instagram_followers" },
+    });
+    const { sayInline: si } = await import("@/lib/telegram");
+    await si(Number(ids[0]), "📸 Combien d'abonnés Instagram aujourd'hui ? (un nombre)", [
+      [{ text: "⏭ Passer", callback_data: "metric:skip" }],
+    ]);
   }
 }
 

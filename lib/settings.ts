@@ -23,6 +23,13 @@ export type EffectiveSettings = {
   assistantActive: boolean;
   assistantSignature: string;
   assistantInstructions: string;
+  goalCaMensuel: number;
+  goalPanierMoyen: number;
+  goalAvisGoogle: number;
+  goalPartMariage: number;
+  goalPartDecouple: number;
+  goalInstagram: number;
+  milestones: Record<string, boolean>;
 };
 
 export async function getSettings(tenantId: string): Promise<EffectiveSettings> {
@@ -45,5 +52,12 @@ export async function getSettings(tenantId: string): Promise<EffectiveSettings> 
     assistantActive: s?.assistantActive ?? true,
     assistantSignature: s?.assistantSignature ?? "",
     assistantInstructions: s?.assistantInstructions ?? "",
+    goalCaMensuel: s?.goalCaMensuel ?? 2500,
+    goalPanierMoyen: s?.goalPanierMoyen ?? 140,
+    goalAvisGoogle: s?.goalAvisGoogle ?? 25,
+    goalPartMariage: s?.goalPartMariage ?? 30,
+    goalPartDecouple: s?.goalPartDecouple ?? 25,
+    goalInstagram: s?.goalInstagram ?? 1000,
+    milestones: (s?.milestones as Record<string, boolean>) ?? {},
   };
 }

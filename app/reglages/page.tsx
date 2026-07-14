@@ -42,6 +42,37 @@ export default async function Reglages() {
           </label>
         </section>
 
+        {/* Objectifs (Cap) */}
+        <section className="rounded-2xl border border-stone-200 bg-white p-6">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Objectifs (Cap)</h2>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <label className="block">
+              <span className={label}>CA mensuel (CHF)</span>
+              <input name="goalCaMensuel" type="number" min="0" defaultValue={raw?.goalCaMensuel ?? ""} placeholder={String(eff.goalCaMensuel)} className={input} />
+            </label>
+            <label className="block">
+              <span className={label}>Panier moyen (CHF)</span>
+              <input name="goalPanierMoyen" type="number" min="0" defaultValue={raw?.goalPanierMoyen ?? ""} placeholder={String(eff.goalPanierMoyen)} className={input} />
+            </label>
+            <label className="block">
+              <span className={label}>Avis Google</span>
+              <input name="goalAvisGoogle" type="number" min="0" defaultValue={raw?.goalAvisGoogle ?? ""} placeholder={String(eff.goalAvisGoogle)} className={input} />
+            </label>
+            <label className="block">
+              <span className={label}>Part mariage (% du CA)</span>
+              <input name="goalPartMariage" type="number" min="0" max="100" defaultValue={raw?.goalPartMariage ?? ""} placeholder={String(eff.goalPartMariage)} className={input} />
+            </label>
+            <label className="block">
+              <span className={label}>CA hors sur-mesure (%)</span>
+              <input name="goalPartDecouple" type="number" min="0" max="100" defaultValue={raw?.goalPartDecouple ?? ""} placeholder={String(eff.goalPartDecouple)} className={input} />
+            </label>
+            <label className="block">
+              <span className={label}>Abonnés Instagram</span>
+              <input name="goalInstagram" type="number" min="0" defaultValue={raw?.goalInstagram ?? ""} placeholder={String(eff.goalInstagram)} className={input} />
+            </label>
+          </div>
+        </section>
+
         {/* Paiement */}
         <section className="rounded-2xl border border-stone-200 bg-white p-6">
           <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Paiement</h2>

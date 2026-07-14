@@ -305,6 +305,7 @@ async function monthExpenses(chatId: number, tenantId: string) {
 
 async function showMenu(chatId: number) {
   await sayInline(chatId, "☰ <b>Menu</b>", [
+    [{ text: "📈 Mon cap", callback_data: "menu:cap" }],
     [{ text: "📸 Scanner un ticket / une facture", callback_data: "menu:scan" }],
     [{ text: "🔗 Ouvrir Carnet", url: `${process.env.APP_URL ?? "https://carnet.mamangateau.ch"}` } as never],
     [{ text: "❓ Aide", callback_data: "menu:aide" }],
@@ -593,8 +594,37 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       return ok();
     }
 
+    if (ns === "metric") {
+      await answerCallback(cb.id);
+      const step = session?.step ?? "";
+      if (step === "metric:instagram_followers") {
+        await setStep(chatId, tenant.id, "metric:google_reviews", {});
+        await editMessage(chatId, mid, "⏭ Passé");
+        await sayInline(chatId, "⭐ Et combien d'avis Google au compteur ?", [[{ text: "⏭ Passer", callback_data: "metric:skip" }]]);
+      } else {
+        await setStep(chatId, tenant.id, "idle", {});
+        await editMessage(chatId, mid, "✅ Bilan bouclé — bon mois ! 🧁");
+      }
+      return ok();
+    }
+
     if (ns === "menu") {
       await answerCallback(cb.id);
+      if (action === "cap") {
+        const { computeCap } = await import("@/lib/cap");
+        const c = await computeCap(tenant.id);
+        const phase = c.phases[c.phaseCourante];
+        const done = phase.jalons.filter((j) => j.done).length;
+        await say(chatId, [
+          `📈 <b>Le cap — ${new Date().toLocaleDateString("fr-CH", { month: "long" })}</b>`,
+          `CA du mois : <b>CHF ${c.caMois}</b> / ${c.s.goalCaMensuel} · net CHF ${c.netMois}`,
+          `Panier moyen : CHF ${c.panierMoyen} · week-ends remplis : ${c.weekendsPleins}/4`,
+          `Mariages : ${c.partMariagePct} % · hors sur-mesure : ${c.partDecouplePct} %`,
+          `${phase.name} : <b>${done}/${phase.jalons.length}</b> jalons ✓`,
+          `${process.env.APP_URL ?? ""}/cap`,
+        ].join("\n"));
+        return ok();
+      }
       if (action === "scan") {
         await say(chatId, "📸 Envoie-moi simplement la <b>photo d'un ticket</b> ou un <b>PDF de facture</b> — n'importe quand, sans bouton. Je lis le montant, la date et la TVA, tu valides d'un tap.");
       } else if (action === "aide") {
@@ -835,6 +865,30 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       return ok();
     }
     await advanceNc(chatId, tenant.id, key, draft);
+    return ok();
+  }
+
+  /* ---- métriques mensuelles (followers, avis) ---- */
+  if (session?.step?.startsWith("metric:")) {
+    const key = session.step.slice(7);
+    const n = parseInt(text.replace(/[^0-9]/g, ""));
+    if (isNaN(n)) {
+      await say(chatId, "Un nombre, ou ⏭ Passer.");
+      return ok();
+    }
+    const month = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+    await prisma.metricSnapshot.upsert({
+      where: { tenantId_key_month: { tenantId: tenant.id, key, month } },
+      update: { value: n },
+      create: { tenantId: tenant.id, key, month, value: n },
+    });
+    if (key === "instagram_followers") {
+      await setStep(chatId, tenant.id, "metric:google_reviews", {});
+      await sayInline(chatId, `📸 ${n} abonnés, noté ! ⭐ Et combien d'avis Google ?`, [[{ text: "⏭ Passer", callback_data: "metric:skip" }]]);
+    } else {
+      await setStep(chatId, tenant.id, "idle", {});
+      await say(chatId, `⭐ ${n} avis, noté. ✅ Bilan bouclé — bon mois ! 🧁\n${process.env.APP_URL ?? ""}/cap`);
+    }
     return ok();
   }
 
