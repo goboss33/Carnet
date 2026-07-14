@@ -644,3 +644,20 @@ export async function proposeConsignes(): Promise<string | null> {
   const { generateConsignes } = await import("@/lib/assistant");
   return generateConsignes();
 }
+
+/** Assistant (web) : génère un 1er jet ou affine avec une consigne. */
+export async function assistantSend(orderId: string, formData: FormData) {
+  const message = String(formData.get("message") ?? "").trim();
+  const method = formData.get("method") === "virement" ? "virement" : "twint";
+  const { generateDraft } = await import("@/lib/assistant");
+  await generateDraft(orderId, { userMessage: message || undefined, method });
+  revalidatePath(`/commandes/${orderId}`);
+}
+
+/** Assistant (web) : propose une autre version. */
+export async function assistantRegenerate(orderId: string, formData: FormData) {
+  const method = formData.get("method") === "virement" ? "virement" : "twint";
+  const { generateDraft } = await import("@/lib/assistant");
+  await generateDraft(orderId, { regenerate: true, method });
+  revalidatePath(`/commandes/${orderId}`);
+}

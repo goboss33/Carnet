@@ -4,10 +4,13 @@ import { prisma } from "@/lib/db";
 import { STATUTS, SOURCES, fmtCHF, fmtDate } from "@/lib/statuts";
 import { chf } from "@/lib/money";
 import { paymentState } from "@/lib/payments";
-import { updateOrder, setStatus, addNote, setOrderPartner, recordPayment, markPaidInFull, refundDeposit } from "@/app/actions";
+import { waLink } from "@/lib/wa";
+import { getSettings } from "@/lib/settings";
+import { updateOrder, setStatus, addNote, setOrderPartner, recordPayment, markPaidInFull, refundDeposit, assistantSend, assistantRegenerate } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 import DeleteOrderButton from "./DeleteOrderButton";
 import MediaViewer from "@/app/components/MediaViewer";
+import CopyButton from "./CopyButton";
 import type { OrderStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -23,12 +26,15 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
       contact: { include: { _count: { select: { orders: true } } } },
       partner: true,
       activities: { orderBy: { createdAt: "desc" }, take: 30 },
+      aiMessages: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!order) notFound();
   const partners = await prisma.partner.findMany({ where: { tenantId: order.tenantId, active: true }, orderBy: { name: "asc" } });
   const c = order.contact;
   const pay = paymentState(order);
+  const eff = await getSettings(order.tenantId);
+  const lastAssistant = order.aiMessages.filter((m) => m.role === "assistant").at(-1);
   const d = (x?: Date | null) => (x ? x.toISOString().slice(0, 10) : "");
 
   return (
@@ -153,6 +159,57 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                 Ouvrir WhatsApp
               </a>
             )}
+          </div>
+
+          {/* -------- assistant IA -------- */}
+          <div className="rounded-2xl border border-stone-200 bg-white p-5 text-sm">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Assistant — réponse au client</p>
+
+            {order.aiMessages.length > 0 && (
+              <div className="mb-3 max-h-80 space-y-2 overflow-y-auto">
+                {order.aiMessages.map((m) => (
+                  <div key={m.id} className={`rounded-lg p-2.5 ${m.role === "assistant" ? "bg-stone-50" : "bg-amber-50"}`}>
+                    <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400">{m.role === "assistant" ? "Assistant" : "Toi"}</p>
+                    <p className="whitespace-pre-wrap text-stone-700">{m.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {lastAssistant && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {c.phone && (
+                  <a href={waLink(c.phone, lastAssistant.content)} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-emerald-600/30 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                    📲 WhatsApp
+                  </a>
+                )}
+                <CopyButton text={lastAssistant.content} />
+              </div>
+            )}
+
+            <form action={assistantSend.bind(null, order.id)} className="space-y-2">
+              <textarea
+                name="message"
+                rows={2}
+                placeholder={order.aiMessages.length ? "Dis ce qu'il faut changer, ou pose une question…" : "(optionnel) une consigne pour le 1er jet…"}
+                className={input}
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <select name="method" defaultValue={eff.paymentDefault} className="rounded-lg border border-stone-300 px-2 py-1.5 text-xs outline-none focus:border-amber-600">
+                  <option value="twint">Twint</option>
+                  <option value="virement">Virement</option>
+                </select>
+                <button className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-stone-700">
+                  {order.aiMessages.length ? "Envoyer" : "✍️ Générer"}
+                </button>
+                {order.aiMessages.length > 0 && (
+                  <button formAction={assistantRegenerate.bind(null, order.id)} className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs font-semibold text-stone-600 hover:border-stone-500">
+                    ↻ Autre version
+                  </button>
+                )}
+              </div>
+            </form>
+            {!eff.assistantActive && <p className="mt-2 text-[11px] text-amber-600">Assistant désactivé dans les réglages — message de base uniquement.</p>}
           </div>
 
           {/* -------- paiement -------- */}
