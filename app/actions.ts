@@ -615,6 +615,14 @@ export async function saveSettings(formData: FormData) {
     cronEveningNudges: formData.get("cronEveningNudges") === "on",
     cronReviews: formData.get("cronReviews") === "on",
     cronBirthday: formData.get("cronBirthday") === "on",
+    paymentDefault: formData.get("paymentDefault") === "virement" ? "virement" : "twint",
+    twintNumber: String(formData.get("twintNumber") ?? "").trim(),
+    accountHolder: String(formData.get("accountHolder") ?? "").trim(),
+    iban: String(formData.get("iban") ?? "").trim(),
+    bankName: String(formData.get("bankName") ?? "").trim(),
+    assistantActive: formData.get("assistantActive") === "on",
+    assistantSignature: String(formData.get("assistantSignature") ?? "").trim(),
+    assistantInstructions: String(formData.get("assistantInstructions") ?? "").trim(),
   };
   await prisma.settings.upsert({
     where: { tenantId: tenant.id },
@@ -629,4 +637,10 @@ export async function testCron(): Promise<{ ok: boolean; message: string }> {
   const tenant = await currentTenant();
   const { cronSelfTest } = await import("@/lib/cron");
   return cronSelfTest(tenant.id);
+}
+
+/** Bouton « Proposer des consignes » dans les réglages (pré-remplissage IA, éditable ensuite). */
+export async function proposeConsignes(): Promise<string | null> {
+  const { generateConsignes } = await import("@/lib/assistant");
+  return generateConsignes();
 }

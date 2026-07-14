@@ -3,6 +3,7 @@ import { getSettings } from "@/lib/settings";
 import { saveSettings } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 import TestCronButton from "./TestCronButton";
+import ConsignesField from "./ConsignesField";
 
 export const dynamic = "force-dynamic";
 
@@ -34,17 +35,59 @@ export default async function Reglages() {
         {/* Compta */}
         <section className="rounded-2xl border border-stone-200 bg-white p-6">
           <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Compta</h2>
+          <label className="block max-w-xs">
+            <span className={label}>Forfait déplacement (CHF/km)</span>
+            <input name="kmRate" type="number" step="0.05" min="0" defaultValue={raw?.kmRate ?? ""} placeholder={String(eff.kmRate)} className={input} />
+            <span className="mt-1 block text-[11px] text-stone-400">Aller-retour compté ×2. À confirmer avec ta fiduciaire.</span>
+          </label>
+        </section>
+
+        {/* Paiement */}
+        <section className="rounded-2xl border border-stone-200 bg-white p-6">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Paiement</h2>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label>
-              <span className={label}>Forfait déplacement (CHF/km)</span>
-              <input name="kmRate" type="number" step="0.05" min="0" defaultValue={raw?.kmRate ?? ""} placeholder={String(eff.kmRate)} className={input} />
-              <span className="mt-1 block text-[11px] text-stone-400">Aller-retour compté ×2. À confirmer avec ta fiduciaire.</span>
-            </label>
             <label>
               <span className={label}>Acompte par défaut (%)</span>
               <input name="depositPct" type="number" min="0" max="100" defaultValue={raw?.depositPct ?? ""} placeholder={String(eff.depositPct)} className={input} />
             </label>
+            <label>
+              <span className={label}>Moyen de paiement par défaut</span>
+              <select name="paymentDefault" defaultValue={eff.paymentDefault} className={input}>
+                <option value="twint">Twint</option>
+                <option value="virement">Virement</option>
+              </select>
+            </label>
+            <label>
+              <span className={label}>Numéro Twint</span>
+              <input name="twintNumber" defaultValue={raw?.twintNumber ?? ""} placeholder="+41 77 440 18 29" className={input} />
+            </label>
+            <label>
+              <span className={label}>Titulaire du compte</span>
+              <input name="accountHolder" defaultValue={raw?.accountHolder ?? ""} placeholder="Annie …" className={input} />
+            </label>
+            <label>
+              <span className={label}>IBAN</span>
+              <input name="iban" defaultValue={raw?.iban ?? ""} placeholder="CH.. …." className={input} />
+            </label>
+            <label>
+              <span className={label}>Banque</span>
+              <input name="bankName" defaultValue={raw?.bankName ?? ""} placeholder="Nom de la banque" className={input} />
+            </label>
           </div>
+        </section>
+
+        {/* Assistant IA */}
+        <section className="rounded-2xl border border-stone-200 bg-white p-6">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Assistant IA</h2>
+          <label className="mb-4 flex items-center gap-3 text-sm text-stone-700">
+            <input type="checkbox" name="assistantActive" defaultChecked={eff.assistantActive} className="h-4 w-4 accent-stone-900" />
+            Assistant actif (rédaction des messages par IA)
+          </label>
+          <label className="mb-4 block">
+            <span className={label}>Signature</span>
+            <input name="assistantSignature" defaultValue={raw?.assistantSignature ?? ""} placeholder="À très vite, Annie — Maman Gâteau" className={input} />
+          </label>
+          <ConsignesField defaultValue={raw?.assistantInstructions ?? ""} />
         </section>
 
         {/* Bot & crons */}

@@ -37,6 +37,16 @@ model Settings {
   cronReviews       Boolean  @default(true)
   cronBirthday      Boolean  @default(true)
   reviewUrl         String   @default("")
+  // paiement
+  paymentDefault    String   @default("twint") // twint | virement
+  twintNumber       String   @default("")
+  accountHolder     String   @default("")
+  iban              String   @default("")
+  bankName          String   @default("")
+  // assistant IA
+  assistantActive       Boolean @default(true)
+  assistantSignature    String  @default("")
+  assistantInstructions String  @default("")
   updatedAt         DateTime @updatedAt
 }
 
@@ -123,10 +133,23 @@ model Order {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   activities      Activity[]
+  aiMessages      AiMessage[]
 
   @@index([tenantId, status])
   @@index([tenantId, eventDate])
   @@index([tenantId, partnerId])
+}
+
+/// Fil de conversation de l'assistant IA, partagé bot ↔ Carnet, par commande.
+model AiMessage {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  role      String   @default("user") // user | assistant
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
 }
 
 model Activity {

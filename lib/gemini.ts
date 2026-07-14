@@ -134,3 +134,48 @@ async function callGemini(key: string, model: string, image: Buffer, mime: strin
     return null;
   }
 }
+
+/* ------------------------------------------------------------------------
+   Générateur générique (multimodal, multi-tours) — pour l'assistant de rédaction.
+------------------------------------------------------------------------- */
+
+export type GeminiPart = { text: string } | { inline_data: { mime_type: string; data: string } };
+
+export async function geminiGenerate(opts: {
+  system?: string;
+  contents: { role: "user" | "model"; parts: GeminiPart[] }[];
+  temperature?: number;
+  maxOutputTokens?: number;
+}): Promise<string | null> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  const model = process.env.GEMINI_MODEL || FALLBACK_MODEL;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(40000),
+        body: JSON.stringify({
+          ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
+          contents: opts.contents,
+          generationConfig: { temperature: opts.temperature ?? 0.7, maxOutputTokens: opts.maxOutputTokens ?? 1200 },
+        }),
+      }
+    );
+    if (!res.ok) {
+      console.error("gemini gen http", res.status, await res.text().catch(() => ""));
+      return null;
+    }
+    const data = await res.json();
+    const text: string = (data?.candidates?.[0]?.content?.parts ?? [])
+      .map((p: { text?: string }) => p.text ?? "")
+      .join("")
+      .trim();
+    return text || null;
+  } catch (e) {
+    console.error("gemini gen error", e);
+    return null;
+  }
+}

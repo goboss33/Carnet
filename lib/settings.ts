@@ -15,6 +15,14 @@ export type EffectiveSettings = {
   cronReviews: boolean;
   cronBirthday: boolean;
   reviewUrl: string;
+  paymentDefault: "twint" | "virement";
+  twintNumber: string;
+  accountHolder: string;
+  iban: string;
+  bankName: string;
+  assistantActive: boolean;
+  assistantSignature: string;
+  assistantInstructions: string;
 };
 
 export async function getSettings(tenantId: string): Promise<EffectiveSettings> {
@@ -29,5 +37,13 @@ export async function getSettings(tenantId: string): Promise<EffectiveSettings> 
     cronReviews: s?.cronReviews ?? true,
     cronBirthday: s?.cronBirthday ?? true,
     reviewUrl: s?.reviewUrl || process.env.GOOGLE_REVIEW_URL || "",
+    paymentDefault: s?.paymentDefault === "virement" ? "virement" : "twint",
+    twintNumber: s?.twintNumber ?? "",
+    accountHolder: s?.accountHolder ?? "",
+    iban: s?.iban ?? "",
+    bankName: s?.bankName ?? "",
+    assistantActive: s?.assistantActive ?? true,
+    assistantSignature: s?.assistantSignature ?? "",
+    assistantInstructions: s?.assistantInstructions ?? "",
   };
 }
