@@ -8,7 +8,7 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { z } from "zod";
 import { prisma, currentTenant } from "@/lib/db";
-import { notifyAll, notifyAllInline, sendPhotosAll, sendAlbumAll } from "@/lib/telegram";
+import { notifyAllInline, sendPhotosAll, sendAlbumAll } from "@/lib/telegram";
 import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
 
 export const dynamic = "force-dynamic";
@@ -128,29 +128,36 @@ export async function POST(req: NextRequest) {
     if (rels.length) await prisma.order.update({ where: { id: order.id }, data: { inspirationPhotos: rels } });
   }
 
+  const esc = (t: string) => (t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const gouts = [o.biscuit, ...(o.fourrages ?? [])].filter(Boolean);
   const notifText = [
     "🎂 <b>Nouvelle demande de devis !</b>",
-    `${c.firstName} ${c.lastName} — ${o.occasion || "occasion ?"}`,
+    `${esc(c.firstName)} ${esc(c.lastName)} — ${o.occasion || "occasion ?"}`,
     o.eventDate ? `📅 ${new Date(o.eventDate).toLocaleDateString("fr-CH")}` : "",
-    `${o.parts ?? "?"} parts · ${o.deliveryMode}${o.priceQuoted ? ` · dès CHF ${o.priceQuoted}` : ""}`,
-    partner ? `🤝 Apportée par ${partner.name}` : "",
+    `🔢 ${o.parts ?? "?"} parts${o.tiers ? ` · ${o.tiers} étage${o.tiers > 1 ? "s" : ""}` : ""}${o.priceQuoted ? ` · dès CHF ${o.priceQuoted}` : ""}`,
+    gouts.length ? `🍰 ${esc(gouts.join(" · "))}` : "",
+    o.style || o.themeNote ? `🎨 ${esc([o.style, o.themeNote].filter(Boolean).join(" — "))}` : "",
+    o.deliveryMode === "livraison"
+      ? `📍 Livraison — ${esc(o.deliveryAddress || "adresse ?")}${o.deliveryKm ? ` (${o.deliveryKm} km)` : ""}`
+      : "📍 Retrait à l'atelier",
+    partner ? `🤝 Apportée par ${esc(partner.name)}` : "",
     `${process.env.APP_URL ?? ""}/commandes/${order.id}`,
   ].filter(Boolean).join("\n");
 
-  /* Un seul message : album (≥2 photos) ou photo (1) avec le devis en légende ; sinon texte seul. */
+  const rediger: { text: string; callback_data: string }[][] = [
+    [{ text: "✍️ Rédiger la réponse", callback_data: `ai:start:${order.id}` }],
+  ];
+
+  /* Un seul message porte le bouton (0 ou 1 photo). L'album n'accepte pas de bouton
+     → album + un mini-message « · » discret qui porte le bouton. */
   if (photoBuffers.length >= 2) {
     const ok = await sendAlbumAll(photoBuffers, notifText).catch(() => false);
-    if (!ok) await notifyAll(notifText).catch((e) => console.error("notify error", e)); // repli si l'album échoue
+    await notifyAllInline(ok ? "·" : notifText, rediger).catch((e) => console.error("notify error", e));
   } else if (photoBuffers.length === 1) {
-    await sendPhotosAll(photoBuffers, notifText).catch((e) => console.error("send photo", e));
+    await sendPhotosAll(photoBuffers, notifText, rediger).catch((e) => console.error("send photo", e));
   } else {
-    notifyAll(notifText).catch((e) => console.error("notify error", e));
+    await notifyAllInline(notifText, rediger).catch((e) => console.error("notify error", e));
   }
-
-  /* Bouton d'action (un album n'accepte pas de bouton → message séparé, uniforme). */
-  notifyAllInline(`✍️ <b>Répondre à ${c.firstName} ${c.lastName}</b>`.trim(), [
-    [{ text: "✍️ Rédiger la réponse", callback_data: `ai:start:${order.id}` }],
-  ]).catch((e) => console.error("notify actions error", e));
 
   return NextResponse.json({ ok: true, orderId: order.id });
 }

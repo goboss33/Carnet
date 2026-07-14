@@ -319,7 +319,7 @@ const escHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").re
 async function aiGenerate(
   chatId: number,
   orderId: string,
-  opts: { userMessage?: string; method?: "twint" | "virement"; regenerate?: boolean } = {}
+  opts: { userMessage?: string; regenerate?: boolean } = {}
 ) {
   await tg("sendChatAction", { chat_id: chatId, action: "typing" });
   const { generateDraft } = await import("@/lib/assistant");
@@ -333,14 +333,7 @@ async function aiGenerate(
     `✍️ <b>Proposition</b>${r.usedAI ? "" : " (IA indispo — message de base)"} :\n\n${escHtml(r.text)}`,
     [
       [{ text: "✅ Utiliser → WhatsApp", callback_data: `ai:use:${orderId}` }],
-      [
-        { text: "💬 Affiner", callback_data: `ai:refine:${orderId}` },
-        { text: "↻ Autre version", callback_data: `ai:regen:${orderId}` },
-      ],
-      [
-        { text: "💳 Twint", callback_data: `ai:pay:${orderId}:twint` },
-        { text: "💳 Virement", callback_data: `ai:pay:${orderId}:virement` },
-      ],
+      [{ text: "💬 Affiner", callback_data: `ai:refine:${orderId}` }],
     ]
   );
 }
@@ -696,13 +689,6 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         await answerCallback(cb.id);
         await setStep(chatId, tenant.id, `ai:chat:${orderId}`, {});
         await say(chatId, "💬 Dis-moi ce qu'il faut changer, ou pose ta question. (<i>/annule</i> pour sortir)");
-      } else if (action === "regen") {
-        await answerCallback(cb.id, "Nouvelle version…");
-        await aiGenerate(chatId, orderId, { regenerate: true });
-      } else if (action === "pay") {
-        const method = rest[1] === "virement" ? "virement" : "twint";
-        await answerCallback(cb.id, method === "virement" ? "Virement" : "Twint");
-        await aiGenerate(chatId, orderId, { method });
       } else if (action === "use") {
         await answerCallback(cb.id);
         const last = await prisma.aiMessage.findFirst({ where: { orderId, role: "assistant" }, orderBy: { createdAt: "desc" } });

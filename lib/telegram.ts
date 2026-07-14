@@ -75,24 +75,27 @@ export async function notifyAllInline(text: string, inline: { text: string; call
   await Promise.allSettled(ids.map((id) => sayInline(Number(id), text, inline)));
 }
 
-/** Envoie une photo (bytes) à un chat (légende en HTML). */
-export async function sendPhotoTo(chatId: number | bigint, buf: Buffer, filename: string, caption?: string) {
+type Inline = { text: string; callback_data: string }[][];
+
+/** Envoie une photo (bytes) à un chat (légende en HTML, boutons inline optionnels). */
+export async function sendPhotoTo(chatId: number | bigint, buf: Buffer, filename: string, caption?: string, inline?: Inline) {
   const fd = new FormData();
   fd.append("chat_id", String(Number(chatId)));
   if (caption) {
     fd.append("caption", caption);
     fd.append("parse_mode", "HTML");
   }
+  if (inline) fd.append("reply_markup", JSON.stringify({ inline_keyboard: inline }));
   fd.append("photo", new Blob([new Uint8Array(buf)]), filename);
   await fetch(`${API()}/sendPhoto`, { method: "POST", body: fd });
 }
 
-/** Envoie une série de photos à tous les utilisateurs autorisés (légende sur la première). */
-export async function sendPhotosAll(buffers: Buffer[], caption?: string) {
+/** Envoie une série de photos à tous les utilisateurs autorisés (légende + boutons sur la première). */
+export async function sendPhotosAll(buffers: Buffer[], caption?: string, inline?: Inline) {
   const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   for (const id of ids) {
     for (let i = 0; i < buffers.length; i++) {
-      await sendPhotoTo(Number(id), buffers[i], `inspiration-${i + 1}.jpg`, i === 0 ? caption : undefined).catch((e) =>
+      await sendPhotoTo(Number(id), buffers[i], `inspiration-${i + 1}.jpg`, i === 0 ? caption : undefined, i === 0 ? inline : undefined).catch((e) =>
         console.error("sendPhoto", e)
       );
     }

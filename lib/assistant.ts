@@ -1,27 +1,19 @@
 /* ---------------------------------------------------------------------------
    Assistant de rédaction (devis & réponses clients) — brique partagée bot ↔ web.
-   Gemini multimodal (voit les photos d'inspiration), conversation persistée
-   par commande (AiMessage), fallback template si l'IA n'est pas dispo.
+   Récap des détails déterministe (recopié tel quel) + enrobage IA (Gemini
+   multimodal : voit les photos d'inspiration). Conversation persistée par
+   commande (AiMessage), fallback template si l'IA n'est pas dispo.
    L'assistant ne produit QUE du texte : aucune action, aucun envoi.
+   Paiement : Twint uniquement (le virement reste un cas particulier géré à la main).
 --------------------------------------------------------------------------- */
 
 import { readFile } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/db";
-import { getSettings, type EffectiveSettings } from "@/lib/settings";
+import { getSettings } from "@/lib/settings";
 import { geminiGenerate, type GeminiPart } from "@/lib/gemini";
 
 const RECEIPTS = () => path.resolve(process.env.RECEIPTS_DIR ?? "./data/receipts");
-
-export type PayMethod = "twint" | "virement";
-
-function paymentBlock(s: EffectiveSettings, method: PayMethod): string {
-  if (method === "virement") {
-    const parts = [s.accountHolder, s.iban, s.bankName].filter(Boolean).join(" · ");
-    return parts ? `virement bancaire (${parts})` : "virement bancaire (coordonnées à préciser)";
-  }
-  return s.twintNumber ? `Twint au ${s.twintNumber}` : "Twint (numéro à préciser)";
-}
 
 async function loadPhotos(rels: string[]): Promise<GeminiPart[]> {
   const parts: GeminiPart[] = [];
@@ -40,7 +32,7 @@ async function loadPhotos(rels: string[]): Promise<GeminiPart[]> {
 /** Génère (ou affine) le brouillon. Persiste l'instruction d'Annie et la réponse. */
 export async function generateDraft(
   orderId: string,
-  opts: { userMessage?: string; method?: PayMethod; regenerate?: boolean } = {}
+  opts: { userMessage?: string; regenerate?: boolean } = {}
 ): Promise<{ ok: boolean; text: string; usedAI: boolean }> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -48,31 +40,46 @@ export async function generateDraft(
   });
   if (!order) return { ok: false, text: "", usedAI: false };
   const s = await getSettings(order.tenantId);
-  const method: PayMethod = opts.method ?? s.paymentDefault;
   const deposit = order.priceQuoted ? Math.round((order.priceQuoted * s.depositPct) / 100) : null;
+  const twint = s.twintNumber ? `Twint au ${s.twintNumber}` : "Twint";
 
   if (opts.userMessage?.trim()) {
     await prisma.aiMessage.create({ data: { orderId, role: "user", content: opts.userMessage.trim() } });
   }
 
-  const context = [
-    "Détails de la demande de devis (à confirmer à la cliente) :",
-    `- Cliente : ${`${order.contact.firstName} ${order.contact.lastName}`.trim()}`,
-    `- Occasion : ${order.occasion || "?"}`,
-    order.eventDate ? `- Date : ${order.eventDate.toLocaleDateString("fr-CH")}` : "",
-    order.celebrant ? `- Pour : ${order.celebrant}${order.celebrantAge ? ` (${order.celebrantAge} ans)` : ""}` : "",
-    order.parts ? `- Format : ${order.parts} parts${order.tiers ? `, ${order.tiers} étage(s)` : ""}` : "",
-    order.biscuit ? `- Biscuit : ${order.biscuit}` : "",
-    order.fourrages?.length ? `- Fourrage : ${order.fourrages.join(" + ")}` : "",
-    order.style ? `- Style : ${order.style}${order.themeNote ? ` (thème : ${order.themeNote})` : ""}` : "",
-    order.deliveryMode === "livraison" ? `- Livraison : ${order.deliveryAddress || "à préciser"}` : "- Retrait à l'atelier (Pully)",
-    order.priceQuoted ? `- Prix : CHF ${order.priceQuoted}` : "- Prix : à préciser",
-    deposit ? `- Acompte à demander : CHF ${deposit} (${s.depositPct} %) par ${paymentBlock(s, method)}` : "",
+  // Récapitulatif déterministe — recopié tel quel dans le message (zéro risque d'erreur).
+  const gouts = [order.biscuit, ...(order.fourrages ?? [])].filter(Boolean);
+  const recap = [
+    `• Occasion : ${order.occasion || "?"}${order.eventDate ? ` — ${order.eventDate.toLocaleDateString("fr-CH")}` : ""}`,
+    order.celebrant ? `• Pour : ${order.celebrant}${order.celebrantAge ? ` (${order.celebrantAge} ans)` : ""}` : "",
+    `• ${order.parts ?? "?"} parts${order.tiers ? ` · ${order.tiers} étage${order.tiers > 1 ? "s" : ""}` : ""}`,
+    gouts.length ? `• ${gouts.join(" · ")}` : "",
+    order.style || order.themeNote ? `• ${[order.style, order.themeNote].filter(Boolean).join(" — ")}` : "",
+    order.deliveryMode === "livraison"
+      ? `• Livraison : ${order.deliveryAddress || "à préciser"}${order.deliveryKm ? ` (${order.deliveryKm} km)` : ""}`
+      : "• Retrait à l'atelier (Pully)",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const briefing = [
+    "Contexte (pour toi, à ne pas recopier) :",
+    `- Cliente : ${order.contact.firstName}`,
     order.inspirationPhotos.length
-      ? `- ${order.inspirationPhotos.length} photo(s) d'inspiration jointe(s) : analyse-les pour juger la complexité du décor.`
+      ? `- ${order.inspirationPhotos.length} photo(s) d'inspiration jointe(s) : regarde-les pour juger la complexité du décor et justifier le prix si besoin.`
       : "",
+    deposit
+      ? `- Acompte à demander : CHF ${deposit} (${s.depositPct} %) par ${twint}.`
+      : "- Prix pas encore fixé : n'annonce ni prix ni acompte, propose plutôt d'en discuter.",
     "",
-    `Rédige le message de confirmation de devis à envoyer à ${order.contact.firstName}, prêt à copier-coller.`,
+    "Rédige le message de confirmation de devis à envoyer à la cliente, prêt à copier-coller, structuré ainsi :",
+    "1) une accroche chaleureuse et personnelle ;",
+    "2) le récapitulatif ci-dessous RECOPIÉ EXACTEMENT (mêmes lignes, ne reformule pas, ne change aucun détail) :",
+    recap,
+    deposit
+      ? `3) le prix (CHF ${order.priceQuoted}, avec une justification bienveillante si le décor le mérite), puis l'invitation à confirmer par l'acompte via ${twint} ;`
+      : "3) une invitation chaleureuse à échanger pour finaliser le devis ;",
+    "4) la signature.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -81,8 +88,7 @@ export async function generateDraft(
     "Tu es l'assistante de rédaction d'Annie, créatrice de « Maman Gâteau » (cake designer à Pully, Suisse romande).",
     "Tu rédiges des messages qu'Annie relira et enverra elle-même (WhatsApp). Tu ne prétends jamais avoir envoyé quoi que ce soit, tu n'inventes jamais de prix (utilise celui fourni), tu ne décides rien à sa place.",
     "Ton : vouvoiement, première personne (je = Annie), chaleureux et gourmand, sans jargon technique.",
-    "Un devis contient : salutation, récap de ce qui est demandé, le prix (avec une justification bienveillante si Annie l'indique), puis l'invitation à confirmer par un acompte via le moyen de paiement fourni.",
-    s.assistantSignature ? `Termine par la signature : « ${s.assistantSignature} ».` : "",
+    s.assistantSignature ? `Signature à utiliser : « ${s.assistantSignature} ».` : "",
     s.assistantInstructions ? `Consignes d'Annie (à respecter absolument) :\n${s.assistantInstructions}` : "",
     "Réponds UNIQUEMENT avec le message prêt à envoyer — sauf si Annie te pose une question, alors réponds-lui brièvement puis propose le message.",
   ]
@@ -91,7 +97,7 @@ export async function generateDraft(
 
   const photos = await loadPhotos(order.inspirationPhotos);
   const contents: { role: "user" | "model"; parts: GeminiPart[] }[] = [
-    { role: "user", parts: [{ text: context }, ...photos] },
+    { role: "user", parts: [{ text: briefing }, ...photos] },
   ];
   for (const m of order.aiMessages) {
     contents.push({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] });
@@ -109,9 +115,10 @@ export async function generateDraft(
     text = [
       `Bonjour ${order.contact.firstName},`,
       "",
-      `Merci beaucoup pour votre demande ! J'ai bien noté votre projet${order.occasion ? ` pour ${order.occasion.toLowerCase()}` : ""}${order.eventDate ? ` du ${order.eventDate.toLocaleDateString("fr-CH")}` : ""}.`,
-      order.priceQuoted ? `Je vous propose un devis à CHF ${order.priceQuoted}.` : "",
-      deposit ? `Pour confirmer et bloquer la date, il suffit d'un acompte de CHF ${deposit} par ${paymentBlock(s, method)}.` : "",
+      "Merci beaucoup pour votre demande ! Voici le récapitulatif :",
+      recap,
+      order.priceQuoted ? `\nJe vous propose un devis à CHF ${order.priceQuoted}.` : "",
+      deposit ? `Pour confirmer et bloquer la date, il suffit d'un acompte de CHF ${deposit} par ${twint}.` : "",
       "",
       s.assistantSignature || "À très vite,\nAnnie — Maman Gâteau",
     ]

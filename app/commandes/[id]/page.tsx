@@ -6,7 +6,7 @@ import { chf } from "@/lib/money";
 import { paymentState } from "@/lib/payments";
 import { waLink } from "@/lib/wa";
 import { getSettings } from "@/lib/settings";
-import { updateOrder, setStatus, addNote, setOrderPartner, recordPayment, markPaidInFull, refundDeposit, assistantSend, assistantRegenerate } from "@/app/actions";
+import { updateOrder, setStatus, addNote, setOrderPartner, recordPayment, markPaidInFull, refundDeposit, assistantSend } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 import DeleteOrderButton from "./DeleteOrderButton";
 import MediaViewer from "@/app/components/MediaViewer";
@@ -194,20 +194,9 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                 placeholder={order.aiMessages.length ? "Dis ce qu'il faut changer, ou pose une question…" : "(optionnel) une consigne pour le 1er jet…"}
                 className={input}
               />
-              <div className="flex flex-wrap items-center gap-2">
-                <select name="method" defaultValue={eff.paymentDefault} className="rounded-lg border border-stone-300 px-2 py-1.5 text-xs outline-none focus:border-amber-600">
-                  <option value="twint">Twint</option>
-                  <option value="virement">Virement</option>
-                </select>
-                <button className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-stone-700">
-                  {order.aiMessages.length ? "Envoyer" : "✍️ Générer"}
-                </button>
-                {order.aiMessages.length > 0 && (
-                  <button formAction={assistantRegenerate.bind(null, order.id)} className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs font-semibold text-stone-600 hover:border-stone-500">
-                    ↻ Autre version
-                  </button>
-                )}
-              </div>
+              <button className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-stone-700">
+                {order.aiMessages.length ? "Envoyer" : "✍️ Générer"}
+              </button>
             </form>
             {!eff.assistantActive && <p className="mt-2 text-[11px] text-amber-600">Assistant désactivé dans les réglages — message de base uniquement.</p>}
           </div>
