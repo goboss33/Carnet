@@ -381,7 +381,7 @@ async function birthdayNudges(t: Tenant, s: Awaited<ReturnType<typeof getSetting
 }
 
 /** Prochain anniversaire (même jour/mois) à venir à partir de `now`. */
-function nextAnniversary(eventDate: Date, now: Date): Date {
+export function nextAnniversary(eventDate: Date, now: Date): Date {
   const m = eventDate.getUTCMonth();
   const d = eventDate.getUTCDate();
   let candidate = new Date(Date.UTC(now.getUTCFullYear(), m, d));

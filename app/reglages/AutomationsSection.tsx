@@ -14,6 +14,8 @@ type Props = {
   raw: Record<string, number | null>;
   /** valeurs effectives, servent de placeholder */
   eff: Record<string, number>;
+  /** état live par automatisme (id → lignes), calculé côté serveur */
+  live?: Record<string, string[]>;
 };
 
 /* ---------------------------------------------------- frise cycle de vie */
@@ -59,6 +61,7 @@ function CronCard({
   pending,
   result,
   onTest,
+  liveLines,
 }: {
   a: Automation;
   toggles: Record<string, boolean>;
@@ -67,6 +70,7 @@ function CronCard({
   pending: boolean;
   result: { kind: string; ok: boolean; message: string } | null;
   onTest: (kind: string) => void;
+  liveLines?: string[];
 }) {
   return (
     <div className="rounded-xl border border-stone-200 px-4 py-3">
@@ -95,6 +99,15 @@ function CronCard({
           </button>
         )}
       </div>
+
+      {liveLines && liveLines.length > 0 && (
+        <div className="mt-2.5 rounded-lg bg-stone-50 px-3 py-2">
+          <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wider text-stone-400">En ce moment</p>
+          {liveLines.map((l, i) => (
+            <p key={i} className="text-[11px] leading-relaxed text-stone-500">{l}</p>
+          ))}
+        </div>
+      )}
 
       {result && result.kind === a.testKind && (
         <p className={`mt-2 text-xs font-medium ${result.ok ? "text-emerald-700" : "text-red-600"}`}>
@@ -138,7 +151,7 @@ function CronCard({
 }
 
 /* ------------------------------------------------------------- section */
-export default function AutomationsSection({ toggles, raw, eff }: Props) {
+export default function AutomationsSection({ toggles, raw, eff, live }: Props) {
   const [pending, start] = useTransition();
   const [result, setResult] = useState<{ kind: string; ok: boolean; message: string } | null>(null);
 
@@ -173,7 +186,7 @@ export default function AutomationsSection({ toggles, raw, eff }: Props) {
         </div>
         <div className="space-y-2.5">
           {crons.map((a) => (
-            <CronCard key={a.id} a={a} toggles={toggles} raw={raw} eff={eff} pending={pending} result={result} onTest={onTest} />
+            <CronCard key={a.id} a={a} toggles={toggles} raw={raw} eff={eff} pending={pending} result={result} onTest={onTest} liveLines={live?.[a.id]} />
           ))}
         </div>
         <p className="mt-2 text-[11px] text-stone-400">

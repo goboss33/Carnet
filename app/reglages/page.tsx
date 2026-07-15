@@ -1,5 +1,6 @@
 import { prisma, currentTenant } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
+import { automationsLive } from "@/lib/livestate";
 import { saveSettings } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 import AutomationsSection from "./AutomationsSection";
@@ -12,9 +13,10 @@ const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider tex
 
 export default async function Reglages() {
   const tenant = await currentTenant();
-  const [raw, eff] = await Promise.all([
+  const [raw, eff, live] = await Promise.all([
     prisma.settings.findUnique({ where: { tenantId: tenant.id } }),
     getSettings(tenant.id),
+    automationsLive(tenant.id).catch(() => ({}) as Record<string, string[]>),
   ]);
 
   return (
@@ -121,6 +123,7 @@ export default async function Reglages() {
             Tout ce que le bot fait pour toi, au fil de la vie d'une commande. Active, règle les délais, teste.
           </p>
           <AutomationsSection
+            live={live}
             toggles={{
               cronDigest: eff.cronDigest,
               cronEveningNudges: eff.cronEveningNudges,
