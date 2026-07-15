@@ -62,7 +62,9 @@ async function tick() {
     const s = await getSettings(t.id);
     if (hour === s.digestHour && lastRun.get(`${t.id}:digest`) !== today) {
       lastRun.set(`${t.id}:digest`, today);
-      if (s.cronDigest) await morningDigest(t).catch((e) => console.error("digest:", e));
+      let switched: string[] = [];
+      if (s.cronProduction) switched = (await autoProduction(t, s).catch((e) => { console.error("production:", e); return []; })) ?? [];
+      if (s.cronDigest) await morningDigest(t, false, switched).catch((e) => console.error("digest:", e));
       if (s.cronReviews) await reviewNudges(t, s).catch((e) => console.error("reviews:", e));
       if (s.cronBirthday) await birthdayNudges(t, s).catch((e) => console.error("birthday:", e));
     }
@@ -263,7 +265,33 @@ async function fieldNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings>>
   }
 }
 
-async function morningDigest(t: Tenant, dryRun = false) {
+/* 🥣 Bascule automatique acompte reçu → production à J-x (pilotée par la date). */
+async function autoProduction(t: Tenant, s: Awaited<ReturnType<typeof getSettings>>, dryRun = false): Promise<string[]> {
+  const horizon = new Date(Date.now() + s.productionLeadDays * 86400000);
+  const due = await prisma.order.findMany({
+    where: { tenantId: t.id, status: "ACOMPTE_RECU", eventDate: { not: null, lte: horizon } },
+    include: { contact: true },
+    orderBy: { eventDate: "asc" },
+  });
+  const names = due.map((o) => `${o.contact.firstName}${o.eventDate ? ` (${o.eventDate.toLocaleDateString("fr-CH", { weekday: "long" })})` : ""}`);
+  if (dryRun) {
+    await notifyAll(
+      due.length
+        ? `🧪 Passage en production : ${names.join(" · ")} basculerai${due.length > 1 ? "ent" : "t"} en production (événement dans ≤ ${s.productionLeadDays} j). Rien n'a été modifié.`
+        : `🧪 Passage en production : aucun cas éligible.\nRègle : commande « acompte reçu » dont l'événement est dans ${s.productionLeadDays} jours ou moins.`
+    );
+    return [];
+  }
+  for (const o of due) {
+    await prisma.order.update({
+      where: { id: o.id },
+      data: { status: "EN_PRODUCTION", activities: { create: { type: "SYSTEM", body: `Passée en production automatiquement (événement dans ≤ ${s.productionLeadDays} j).` } } },
+    });
+  }
+  return names;
+}
+
+async function morningDigest(t: Tenant, dryRun = false, switched: string[] = []) {
   const soon = await prisma.order.findMany({
     where: {
       tenantId: t.id,
@@ -277,12 +305,13 @@ async function morningDigest(t: Tenant, dryRun = false) {
   const staleIncomplete = new Set(
     (await pendingFields(t.id, 50)).filter((p) => p.order.createdAt.getTime() < Date.now() - 7 * 86400000).map((p) => p.order.id)
   ).size;
-  if (!soon.length && !pendingLeads && !staleIncomplete) {
+  if (!soon.length && !pendingLeads && !staleIncomplete && !switched.length) {
     if (dryRun) await notifyAll("🧪 Digest : rien à annoncer aujourd'hui — aucune sortie d'atelier sous 3 jours, aucun lead en attente, aucune fiche incomplète ancienne.");
     return;
   }
   const lines = [
     "☀️ <b>Bonjour ! Le programme :</b>",
+    ...(switched.length ? [`🥣 Entre en production : ${switched.join(" · ")}`] : []),
     ...soon.map((o) => {
       const days = o.eventDate ? Math.ceil((o.eventDate.getTime() - Date.now()) / 86400000) : 0;
       const when = days <= 0 ? "AUJOURD'HUI" : days === 1 ? "demain" : `J-${days}`;
@@ -446,6 +475,7 @@ export async function testTrigger(tenantId: string, kind: string): Promise<{ ok:
       case "reviews": await reviewNudges(t, s, true); break;
       case "birthday": await birthdayNudges(t, s, true); break;
       case "fields": await fieldNudges(t, s, 99, true); break;
+      case "production": await autoProduction(t, s, true); break;
       case "monthly": await monthlyReport(t, true); break;
       default: return { ok: false, message: `Déclencheur inconnu : ${kind}` };
     }

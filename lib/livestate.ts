@@ -122,6 +122,24 @@ export async function automationsLive(tenantId: string): Promise<Record<string, 
     ...(next3.length ? [`⏳ Prochaines : ${names(next3.map((x) => `${x.o.celebrant || x.o.contact.firstName} (dans ${x.days} j)`))}`] : []),
   ];
 
+  /* ------------------------------------------------------ 🥣 production */
+  const acompte = await prisma.order.findMany({
+    where: { tenantId, status: "ACOMPTE_RECU", eventDate: { not: null } },
+    include: { contact: true },
+    orderBy: { eventDate: "asc" },
+    take: 12,
+  });
+  const dueNow = acompte.filter((o) => o.eventDate!.getTime() <= now + s.productionLeadDays * 86400000);
+  const later = acompte.filter((o) => o.eventDate!.getTime() > now + s.productionLeadDays * 86400000).slice(0, 3);
+  out.production = [
+    dueNow.length
+      ? `🔜 Au prochain digest : ${names(dueNow.map((o) => o.contact.firstName))}`
+      : "Rien à basculer pour l'instant.",
+    ...(later.length
+      ? [`⏳ Ensuite : ${names(later.map((o) => `${o.contact.firstName} (dans ${Math.max(1, Math.ceil((o.eventDate!.getTime() - s.productionLeadDays * 86400000 - now) / 86400000))} j)`))}`]
+      : []),
+  ];
+
   /* -------------------------------------------------------- 📈 mensuel */
   const zNow = new Date();
   const nextFirst = new Date(zNow.getFullYear(), zNow.getMonth() + 1, 1);

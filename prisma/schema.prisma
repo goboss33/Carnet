@@ -47,6 +47,8 @@ model Settings {
   nudgeMaxPerEvening Int?
   cronFieldNudges    Boolean @default(true)
   fieldFollowupDays  Int?
+  cronProduction     Boolean @default(true)
+  productionLeadDays Int?
   reviewUrl         String   @default("")
   // paiement
   paymentDefault    String   @default("twint") // twint | virement
