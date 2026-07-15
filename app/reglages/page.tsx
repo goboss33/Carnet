@@ -127,6 +127,7 @@ export default async function Reglages() {
               cronReviews: eff.cronReviews,
               cronBirthday: eff.cronBirthday,
               cronMonthly: eff.cronMonthly,
+              cronFieldNudges: eff.cronFieldNudges,
             }}
             raw={{
               digestHour: raw?.digestHour ?? null,
@@ -137,6 +138,7 @@ export default async function Reglages() {
               birthdayLeadDays: raw?.birthdayLeadDays ?? null,
               nudgeCooldownDays: raw?.nudgeCooldownDays ?? null,
               nudgeMaxPerEvening: raw?.nudgeMaxPerEvening ?? null,
+              fieldFollowupDays: raw?.fieldFollowupDays ?? null,
             }}
             eff={{
               digestHour: eff.digestHour,
@@ -147,6 +149,7 @@ export default async function Reglages() {
               birthdayLeadDays: eff.birthdayLeadDays,
               nudgeCooldownDays: eff.nudgeCooldownDays,
               nudgeMaxPerEvening: eff.nudgeMaxPerEvening,
+              fieldFollowupDays: eff.fieldFollowupDays,
             }}
           />
           <p className="mt-4 text-[11px] text-stone-400">

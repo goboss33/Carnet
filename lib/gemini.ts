@@ -185,3 +185,115 @@ export async function geminiGenerate(opts: {
     return null;
   }
 }
+
+/* ------------------------------------------------------------------------
+   Capture de conversation (WhatsApp / Instagram / FB) → demande structurée.
+------------------------------------------------------------------------- */
+
+export type ConversationData = {
+  isRequest: boolean;
+  channel: "whatsapp" | "instagram" | "facebook" | "sms" | "autre";
+  contactName: string | null;
+  contactPhone: string | null;
+  instagram: string | null;
+  celebrant: string | null;
+  celebrantAge: number | null;
+  occasion: string | null;
+  eventDate: string | null; // YYYY-MM-DD
+  eventTime: string | null;
+  eventPlace: string | null;
+  parts: number | null;
+  flavors: string | null;
+  theme: string | null;
+  deliveryMode: "retrait" | "livraison" | null;
+  deliveryAddress: string | null;
+  priceQuoted: number | null; // CHF
+  depositMentioned: boolean;
+  referredBy: string | null;
+  summary: string;
+};
+
+/** Première image → RECU (justificatif), CONV (capture de messagerie) ou AUTRE. */
+export async function classifyInbound(image: Buffer, mime: string): Promise<"receipt" | "conversation" | "autre"> {
+  const out = await geminiGenerate({
+    contents: [{
+      role: "user",
+      parts: [
+        { text: "Classifie cette image. Réponds par UN SEUL mot :\nRECU — ticket de caisse, facture, justificatif d'achat (papier ou en ligne)\nCONV — capture d'écran d'une conversation de messagerie (WhatsApp, Instagram, Messenger, SMS) ou export de discussion\nAUTRE — tout le reste" },
+        { inline_data: { mime_type: mime, data: image.toString("base64") } },
+      ],
+    }],
+    temperature: 0,
+    maxOutputTokens: 2048,
+  });
+  const w = (out ?? "").toUpperCase();
+  if (w.includes("CONV")) return "conversation";
+  if (w.includes("RECU") || w.includes("REÇU")) return "receipt";
+  return "autre";
+}
+
+const CONV_PROMPT = (today: string) => `Tu assistes une pâtissière artisanale suisse (cake design, région Lausanne).
+On te donne une conversation avec une cliente : captures d'écran de messagerie (dans l'ordre) ou export texte.
+Les messages de la pâtissière sont ceux alignés à droite (WhatsApp : bulles vertes) ou signés « Annie / Maman Gâteau ».
+Extrais la demande de gâteau. Nous sommes le ${today}. Réponds UNIQUEMENT avec cet objet JSON :
+{
+  "is_request": true si la conversation contient une demande/commande de gâteau ou cupcakes, sinon false,
+  "channel": "whatsapp" | "instagram" | "facebook" | "sms" | "autre" (déduis de l'interface visible),
+  "contact_name": "nom de la cliente (souvent dans l'en-tête ou sa signature)" | null,
+  "contact_phone": "numéro au format international visible dans l'en-tête ou le texte" | null,
+  "instagram": "pseudo instagram si visible" | null,
+  "celebrant": "prénom de la personne fêtée" | null,
+  "celebrant_age": âge fêté (nombre) | null,
+  "occasion": "anniversaire" | "mariage" | "baptême" | autre texte court | null,
+  "event_date": "YYYY-MM-DD (résous les dates relatives par rapport à aujourd'hui ; année suivante si la date est passée)" | null,
+  "event_time": "HH:MM ou plage (ex. 15-18h)" | null,
+  "event_place": "lieu de la fête" | null,
+  "parts": nombre de parts/invités | null,
+  "flavors": "saveurs/fourrages évoqués, texte court" | null,
+  "theme": "thème + couleurs (ex. axolotl, vert canard)" | null,
+  "delivery_mode": "retrait" si la cliente vient chercher, "livraison" si livraison demandée, sinon null,
+  "delivery_address": "adresse de livraison" | null,
+  "price_quoted": prix annoncé par la pâtissière en CHF (nombre) | null,
+  "deposit_mentioned": true si un acompte versé/confirmé est mentionné,
+  "referred_by": "qui a recommandé (ex. « Daniela »)" | null,
+  "summary": "résumé de 1-2 phrases : où en est la discussion, prochaines étapes"
+}
+N'invente RIEN : null quand l'information n'apparaît pas.`;
+
+export async function analyzeConversation(parts: GeminiPart[]): Promise<ConversationData | null> {
+  const today = new Date().toLocaleDateString("fr-CH", { timeZone: "Europe/Zurich", year: "numeric", month: "long", day: "numeric" });
+  const out = await geminiGenerate({
+    system: CONV_PROMPT(today),
+    contents: [{ role: "user", parts }],
+    temperature: 0,
+    maxOutputTokens: 4096,
+  });
+  if (!out) return null;
+  const j = extractJson(out);
+  if (!j) { console.error("gemini conv bad json:", out.slice(0, 300)); return null; }
+  const str = (v: unknown, max = 120) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+  const num = (v: unknown) => (typeof v === "number" && isFinite(v) && v > 0 ? Math.round(v) : null);
+  const channels = ["whatsapp", "instagram", "facebook", "sms"];
+  return {
+    isRequest: j.is_request === true,
+    channel: (channels.includes(String(j.channel)) ? String(j.channel) : "autre") as ConversationData["channel"],
+    contactName: str(j.contact_name, 80),
+    contactPhone: str(j.contact_phone, 30),
+    instagram: str(j.instagram, 60),
+    celebrant: str(j.celebrant, 60),
+    celebrantAge: num(j.celebrant_age),
+    occasion: str(j.occasion, 60),
+    eventDate: typeof j.event_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(j.event_date) ? j.event_date : null,
+    eventTime: str(j.event_time, 30),
+    eventPlace: str(j.event_place, 120),
+    parts: num(j.parts),
+    flavors: str(j.flavors, 160),
+    theme: str(j.theme, 160),
+    deliveryMode: j.delivery_mode === "retrait" || j.delivery_mode === "livraison" ? j.delivery_mode : null,
+    deliveryAddress: str(j.delivery_address, 200),
+    priceQuoted: num(j.price_quoted),
+    depositMentioned: j.deposit_mentioned === true,
+    referredBy: str(j.referred_by, 80),
+    summary: str(j.summary, 400) ?? "",
+  };
+}

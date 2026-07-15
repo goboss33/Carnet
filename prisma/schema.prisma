@@ -45,6 +45,8 @@ model Settings {
   birthdayLeadDays   Int?
   nudgeCooldownDays  Int?
   nudgeMaxPerEvening Int?
+  cronFieldNudges    Boolean @default(true)
+  fieldFollowupDays  Int?
   reviewUrl         String   @default("")
   // paiement
   paymentDefault    String   @default("twint") // twint | virement
@@ -93,7 +95,9 @@ enum Source {
   CONFIGURATEUR
   WHATSAPP
   INSTAGRAM
+  FACEBOOK
   TELEPHONE
+  BOUCHE_A_OREILLE
   AUTRE
 }
 
@@ -135,6 +139,7 @@ model Order {
   contact         Contact     @relation(fields: [contactId], references: [id])
   status          OrderStatus @default(LEAD)
   source          Source      @default(AUTRE)
+  sourceDetail    String      @default("") // ex. « recommandée par Daniela »
 
   occasion        String      @default("")
   eventDate       DateTime?
@@ -204,6 +209,20 @@ model Activity {
 }
 
 /// État de conversation du bot Telegram (webhook stateless)
+/* Donnée manquante « snoozée » ou abandonnée (dette de fiche). */
+model FieldSnooze {
+  id        String    @id @default(cuid())
+  tenantId  String
+  orderId   String
+  field     String
+  remindAt  DateTime?
+  dismissed Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  @@unique([tenantId, orderId, field])
+  @@index([tenantId, remindAt])
+}
+
 model BotSession {
   chatId    BigInt   @id
   tenantId  String

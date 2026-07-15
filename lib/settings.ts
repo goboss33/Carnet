@@ -21,6 +21,8 @@ export type EffectiveSettings = {
   birthdayLeadDays: number;
   nudgeCooldownDays: number;
   nudgeMaxPerEvening: number;
+  cronFieldNudges: boolean;
+  fieldFollowupDays: number;
   reviewUrl: string;
   paymentDefault: "twint" | "virement";
   twintNumber: string;
@@ -57,6 +59,8 @@ export async function getSettings(tenantId: string): Promise<EffectiveSettings> 
     birthdayLeadDays: s?.birthdayLeadDays ?? 21,
     nudgeCooldownDays: s?.nudgeCooldownDays ?? 2,
     nudgeMaxPerEvening: s?.nudgeMaxPerEvening ?? 3,
+    cronFieldNudges: s?.cronFieldNudges ?? true,
+    fieldFollowupDays: s?.fieldFollowupDays ?? 2,
     reviewUrl: s?.reviewUrl || process.env.GOOGLE_REVIEW_URL || "",
     paymentDefault: s?.paymentDefault === "virement" ? "virement" : "twint",
     twintNumber: s?.twintNumber ?? "",

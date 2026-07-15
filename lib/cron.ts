@@ -11,6 +11,7 @@ import { notifyAll, sayInline } from "@/lib/telegram";
 import { waLink } from "@/lib/wa";
 import { normPhone, normEmail } from "@/lib/normalize";
 import { getSettings } from "@/lib/settings";
+import { pendingFields } from "@/lib/completeness";
 import type { Tenant } from "@prisma/client";
 
 const lastRun = new Map<string, string>(); // `${tenantId}:${job}` -> yyyy-mm-dd
@@ -67,7 +68,10 @@ async function tick() {
     }
     if (hour === s.nudgeHour && lastRun.get(`${t.id}:nudge`) !== today) {
       lastRun.set(`${t.id}:nudge`, today);
-      if (s.cronEveningNudges) await eveningNudges(t, s).catch((e) => console.error("evening:", e));
+      let sent = 0;
+      if (s.cronEveningNudges) sent = (await eveningNudges(t, s).catch((e) => { console.error("evening:", e); return 0; })) ?? 0;
+      if (s.cronFieldNudges && sent < s.nudgeMaxPerEvening)
+        await fieldNudges(t, s, s.nudgeMaxPerEvening - sent).catch((e) => console.error("fields:", e));
     }
     if (now.getDate() === 1 && hour === s.digestHour + 1 && lastRun.get(`${t.id}:monthly`) !== today) {
       lastRun.set(`${t.id}:monthly`, today);
@@ -177,7 +181,7 @@ async function eveningNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings
 
   if (!picked.length) {
     if (dryRun) await notifyAll(`🧪 Relances du soir : rien à suivre aujourd'hui.\nRègles : livraison confirmée à date passée · lead sans réponse depuis ${s.leadFollowupHours} h · devis sans nouvelles depuis ${s.quoteFollowupDays} jours — cooldown ${s.nudgeCooldownDays} j par fiche, max ${s.nudgeMaxPerEvening}/soir.`);
-    return;
+    return 0;
   }
   const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -221,6 +225,42 @@ async function eveningNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings
     for (const id of ids) await sayInline(Number(id), text, finalButtons);
     await prisma.order.update({ where: { id: order.id }, data: { lastNudgeAt: new Date() } });
   }
+  return picked.length;
+}
+
+/* 🧩 Données manquantes — fondu dans le créneau du soir, quota partagé. */
+async function fieldNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings>>, quota: number, dryRun = false) {
+  const cooldown = Date.now() - s.nudgeCooldownDays * 86400000;
+  const pend = await pendingFields(t.id, 30);
+  const fresh = pend.filter((p) => !p.order.lastNudgeAt || p.order.lastNudgeAt.getTime() < cooldown);
+  // une seule question par fiche et par soir
+  const seen = new Set<string>();
+  const picked: typeof fresh = [];
+  for (const p of fresh) {
+    if (seen.has(p.order.id)) continue;
+    seen.add(p.order.id);
+    picked.push(p);
+    if (picked.length >= quota) break;
+  }
+  if (!picked.length) {
+    if (dryRun) await notifyAll(`🧪 Données manquantes : aucun cas éligible.\nRègle : fiche active (devis envoyé ou plus) à laquelle il manque date, parts, prix, occasion — puis téléphone/adresse dès l'acompte. « Plus tard » = rappel après ${s.fieldFollowupDays} j.`);
+    return;
+  }
+  const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  for (const { order, miss } of picked) {
+    const name = `${order.contact.firstName} ${order.contact.lastName}`.trim();
+    const text = `${dryRun ? "🧪 " : ""}🧩 ${miss.ask.replace("{name}", `<b>${name}</b>`)}\n<i>(${order.occasion || "occasion ?"}${order.eventDate ? ` · ${order.eventDate.toLocaleDateString("fr-CH")}` : ""})</i>`;
+    const buttons = [
+      [{ text: "✍️ Renseigner", callback_data: `fd:fill:${order.id}:${miss.field}` }],
+      [
+        { text: "⏰ Plus tard", callback_data: `fd:later:${order.id}:${miss.field}` },
+        { text: "❌ N'existe pas", callback_data: `fd:never:${order.id}:${miss.field}` },
+      ],
+    ];
+    const finalButtons = dryRun ? buttons.map((row) => row.map((b) => ({ ...b, callback_data: "noop" }))) : buttons;
+    for (const id of ids) await sayInline(Number(id), text, finalButtons);
+    if (!dryRun) await prisma.order.update({ where: { id: order.id }, data: { lastNudgeAt: new Date() } });
+  }
 }
 
 async function morningDigest(t: Tenant, dryRun = false) {
@@ -234,8 +274,11 @@ async function morningDigest(t: Tenant, dryRun = false) {
     orderBy: { eventDate: "asc" },
   });
   const pendingLeads = await prisma.order.count({ where: { tenantId: t.id, status: "LEAD" } });
-  if (!soon.length && !pendingLeads) {
-    if (dryRun) await notifyAll("🧪 Digest : rien à annoncer aujourd'hui — aucune sortie d'atelier sous 3 jours et aucun lead en attente.");
+  const staleIncomplete = new Set(
+    (await pendingFields(t.id, 50)).filter((p) => p.order.createdAt.getTime() < Date.now() - 7 * 86400000).map((p) => p.order.id)
+  ).size;
+  if (!soon.length && !pendingLeads && !staleIncomplete) {
+    if (dryRun) await notifyAll("🧪 Digest : rien à annoncer aujourd'hui — aucune sortie d'atelier sous 3 jours, aucun lead en attente, aucune fiche incomplète ancienne.");
     return;
   }
   const lines = [
@@ -247,6 +290,7 @@ async function morningDigest(t: Tenant, dryRun = false) {
     }),
     ...(soon.length === 0 ? ["Rien à produire sous 3 jours. 🌤"] : []),
     ...(pendingLeads > 0 ? [`\n📥 ${pendingLeads} lead${pendingLeads > 1 ? "s" : ""} en attente de devis.`] : []),
+    ...(staleIncomplete > 0 ? [`🧩 ${staleIncomplete} fiche${staleIncomplete > 1 ? "s" : ""} incomplète${staleIncomplete > 1 ? "s" : ""} depuis 7 j+ — je te demanderai les infos ce soir.`] : []),
   ];
   await notifyAll(lines.join("\n"));
 }
@@ -401,6 +445,7 @@ export async function testTrigger(tenantId: string, kind: string): Promise<{ ok:
       case "nudges": await eveningNudges(t, s, true); break;
       case "reviews": await reviewNudges(t, s, true); break;
       case "birthday": await birthdayNudges(t, s, true); break;
+      case "fields": await fieldNudges(t, s, 99, true); break;
       case "monthly": await monthlyReport(t, true); break;
       default: return { ok: false, message: `Déclencheur inconnu : ${kind}` };
     }

@@ -12,7 +12,8 @@ import path from "path";
 import sharp from "sharp";
 import { prisma, currentTenant } from "@/lib/db";
 import { say, sayInline, editMessage, answerCallback, downloadPhoto, tg } from "@/lib/telegram";
-import { analyzeReceipt } from "@/lib/gemini";
+import { analyzeReceipt, classifyInbound, analyzeConversation, type ConversationData, type GeminiPart } from "@/lib/gemini";
+import { missingFor, fillField, snoozeField, dismissField } from "@/lib/completeness";
 import { chf, CATEGORIES, catLabel } from "@/lib/money";
 import { paymentState } from "@/lib/payments";
 import { waLink } from "@/lib/wa";
@@ -47,7 +48,8 @@ type TgUpdate = {
   message?: {
     chat?: { id: number };
     photo?: { file_id: string }[];
-    document?: { file_id: string; mime_type?: string; file_size?: number };
+    media_group_id?: string;
+    document?: { file_id: string; mime_type?: string; file_size?: number; file_name?: string };
     text?: string;
   };
   callback_query?: { id: string; data?: string; message: { chat: { id: number }; message_id: number } };
@@ -66,6 +68,7 @@ type Draft = {
   eventDate?: string;
   parts?: number;
   priceQuoted?: number;
+  conv?: ConversationData;
 };
 
 const QUESTIONS: Record<string, { q: string; skippable: boolean }> = {
@@ -104,6 +107,10 @@ async function askNc(chatId: number, key: string) {
       [
         { text: "WhatsApp", callback_data: "nc:src:WHATSAPP" },
         { text: "Instagram", callback_data: "nc:src:INSTAGRAM" },
+      ],
+      [
+        { text: "Facebook", callback_data: "nc:src:FACEBOOK" },
+        { text: "Bouche-à-oreille", callback_data: "nc:src:BOUCHE_A_OREILLE" },
       ],
       [
         { text: "Téléphone", callback_data: "nc:src:TELEPHONE" },
@@ -191,6 +198,237 @@ async function finishNc(chatId: number, tenantId: string, draft: Draft) {
       `${process.env.APP_URL ?? ""}/commandes/${order.id}`,
     ].filter(Boolean).join("\n")
   );
+}
+
+
+/* ----------------------------------------------- capture de conversation */
+
+/** Photos d'un album Telegram : bufferisées ~2,5 s puis traitées ensemble. */
+const albumBuf = new Map<string, { chatId: number; tenantId: string; tenantSlug: string; files: { fileId: string; isPdf: boolean }[]; timer: ReturnType<typeof setTimeout> }>();
+
+function queueAlbum(groupId: string, chatId: number, tenantId: string, tenantSlug: string, file: { fileId: string; isPdf: boolean }) {
+  const key = `${chatId}:${groupId}`;
+  const cur = albumBuf.get(key);
+  if (cur) {
+    clearTimeout(cur.timer);
+    cur.files.push(file);
+    cur.timer = setTimeout(() => flushAlbum(key), 2500);
+  } else {
+    albumBuf.set(key, { chatId, tenantId, tenantSlug, files: [file], timer: setTimeout(() => flushAlbum(key), 2500) });
+  }
+}
+
+async function flushAlbum(key: string) {
+  const b = albumBuf.get(key);
+  albumBuf.delete(key);
+  if (!b) return;
+  try {
+    await handleInboundMedia(b.chatId, b.tenantId, b.tenantSlug, b.files);
+  } catch (e) {
+    console.error("flushAlbum:", e);
+    await say(b.chatId, "⚠️ Je n'ai pas réussi à traiter cet envoi — réessaie ?").catch(() => null);
+  }
+}
+
+/** Point d'entrée images/PDF : classifie (ticket vs conversation) puis route. */
+async function handleInboundMedia(chatId: number, tenantId: string, tenantSlug: string, files: { fileId: string; isPdf: boolean }[]) {
+  if (!files.length) return;
+  if (!process.env.GEMINI_API_KEY) {
+    for (const f of files) await handleReceipt(chatId, tenantId, tenantSlug, f.fileId, f.isPdf);
+    return;
+  }
+  const first = await downloadPhoto(files[0].fileId);
+  if (!first) {
+    await say(chatId, "Je n'ai pas réussi à récupérer le fichier — réessaie ?");
+    return;
+  }
+  const firstBuf = files[0].isPdf
+    ? first
+    : await sharp(first).rotate().resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+  const kind = await classifyInbound(firstBuf, files[0].isPdf ? "application/pdf" : "image/webp");
+
+  if (kind !== "conversation") {
+    // justificatif (ou illisible) : flux compta habituel, fichier par fichier
+    for (const f of files) await handleReceipt(chatId, tenantId, tenantSlug, f.fileId, f.isPdf);
+    return;
+  }
+
+  await say(chatId, `📥 Capture${files.length > 1 ? "s" : ""} de conversation détectée${files.length > 1 ? "s" : ""} — je lis…`);
+  const parts: GeminiPart[] = [{ inline_data: { mime_type: files[0].isPdf ? "application/pdf" : "image/webp", data: firstBuf.toString("base64") } }];
+  for (const f of files.slice(1)) {
+    const raw = await downloadPhoto(f.fileId);
+    if (!raw) continue;
+    const buf = f.isPdf ? raw : await sharp(raw).rotate().resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+    parts.push({ inline_data: { mime_type: f.isPdf ? "application/pdf" : "image/webp", data: buf.toString("base64") } });
+  }
+  await presentConversation(chatId, tenantId, parts);
+}
+
+/** Export .txt de discussion (WhatsApp : ⋮ → Plus → Exporter). */
+async function handleChatExport(chatId: number, tenantId: string, fileId: string) {
+  const raw = await downloadPhoto(fileId);
+  if (!raw) {
+    await say(chatId, "Je n'ai pas réussi à récupérer le fichier — réessaie ?");
+    return;
+  }
+  const text = raw.toString("utf8").slice(0, 120_000);
+  await say(chatId, "📥 Export de discussion reçu — je lis…");
+  await presentConversation(chatId, tenantId, [{ text: `Export de la discussion :\n${text}` }]);
+}
+
+/** Analyse + récap + demande de validation (rien n'est créé sans ✅). */
+async function presentConversation(chatId: number, tenantId: string, parts: GeminiPart[]) {
+  const conv = await analyzeConversation(parts);
+  if (!conv) {
+    await say(chatId, "⚠️ Je n'ai pas réussi à analyser cette conversation. Réessaie, ou crée la fiche via 🎂 Nouvelle commande.");
+    return;
+  }
+  if (!conv.isRequest) {
+    await say(chatId, "🤷 Je n'ai pas reconnu de demande de gâteau dans cette conversation. Si je me trompe, crée la fiche via 🎂 Nouvelle commande.");
+    return;
+  }
+  await setStep(chatId, tenantId, "cv:confirm", { conv });
+  await sayInline(chatId, convRecap(conv), [
+    [{ text: "✅ Créer la fiche", callback_data: "cv:ok" }],
+    [
+      { text: "✏️ Corriger", callback_data: "cv:fix" },
+      { text: "❌ Ignorer", callback_data: "cv:cancel" },
+    ],
+  ]);
+}
+
+function convStatus(conv: ConversationData): "LEAD" | "DEVIS_ENVOYE" | "ACOMPTE_RECU" {
+  if (conv.depositMentioned) return "ACOMPTE_RECU";
+  if (conv.priceQuoted) return "DEVIS_ENVOYE";
+  return "LEAD";
+}
+
+const STATUS_LABEL: Record<string, string> = { LEAD: "Lead", DEVIS_ENVOYE: "Devis envoyé", ACOMPTE_RECU: "Acompte reçu" };
+const CHANNEL_LABEL: Record<string, string> = { whatsapp: "WhatsApp", instagram: "Instagram", facebook: "Facebook", sms: "SMS", autre: "autre canal" };
+
+/** Manques bloquants au stade proposé — calculés avant création. */
+function convMissing(conv: ConversationData): string[] {
+  const st = convStatus(conv);
+  const out: string[] = [];
+  if (!conv.contactName) out.push("nom");
+  if (st !== "LEAD") {
+    if (!conv.eventDate) out.push("date de l'événement");
+    if (!conv.parts) out.push("nombre de parts");
+    if (!conv.priceQuoted) out.push("prix");
+    if (!conv.occasion) out.push("occasion");
+  }
+  if (st === "ACOMPTE_RECU") {
+    if (!conv.contactPhone) out.push("téléphone");
+    if (conv.deliveryMode === "livraison" && !conv.deliveryAddress) out.push("adresse de livraison");
+  }
+  return out;
+}
+
+function convRecap(conv: ConversationData): string {
+  const miss = convMissing(conv);
+  const l: string[] = [
+    `📥 <b>Demande détectée — ${conv.contactName ?? "nom inconnu"}</b> (${CHANNEL_LABEL[conv.channel]})`,
+    [
+      conv.occasion ?? null,
+      conv.celebrant ? `${conv.celebrant}${conv.celebrantAge ? ` ${conv.celebrantAge} ans` : ""}` : null,
+      conv.eventDate ? new Date(conv.eventDate + "T12:00:00").toLocaleDateString("fr-CH") : null,
+      conv.eventTime,
+      conv.parts ? `${conv.parts} parts` : null,
+      conv.priceQuoted ? `CHF ${conv.priceQuoted}` : null,
+    ].filter(Boolean).join(" · "),
+    conv.theme ? `🎨 ${conv.theme}` : "",
+    conv.flavors ? `🍰 ${conv.flavors}` : "",
+    conv.eventPlace ? `📍 ${conv.eventPlace}` : "",
+    conv.deliveryMode ? `🚗 ${conv.deliveryMode === "retrait" ? "Retrait atelier" : `Livraison${conv.deliveryAddress ? ` — ${conv.deliveryAddress}` : ""}`}` : "",
+    conv.contactPhone ? `📱 ${conv.contactPhone}` : "",
+    conv.referredBy ? `👋 Recommandée par ${conv.referredBy}` : "",
+    conv.summary ? `\n<i>${conv.summary}</i>` : "",
+    `\nStatut proposé : <b>${STATUS_LABEL[convStatus(conv)]}</b>`,
+    miss.length ? `⚠️ Manque : ${miss.join(", ")} — je te les demanderai le soir venu.` : "✔️ Fiche complète pour ce stade.",
+  ];
+  return l.filter(Boolean).join("\n");
+}
+
+async function createFromConversation(chatId: number, tenantId: string, conv: ConversationData) {
+  const phoneN = conv.contactPhone ? normPhone(conv.contactPhone) : "";
+  let contact = phoneN
+    ? await prisma.contact.findFirst({ where: { tenantId, phone: phoneN }, include: { _count: { select: { orders: true } } } })
+    : null;
+  let knownNote = "";
+  const source = (conv.referredBy ? "BOUCHE_A_OREILLE" : conv.channel === "whatsapp" ? "WHATSAPP" : conv.channel === "instagram" ? "INSTAGRAM" : conv.channel === "facebook" ? "FACEBOOK" : "AUTRE") as Source;
+
+  if (contact) {
+    knownNote = `👋 Ce numéro existait déjà : rattachée à <b>${contact.firstName} ${contact.lastName}</b>`.trim() + ` (${contact._count.orders} commande${contact._count.orders > 1 ? "s" : ""}).`;
+    if (!contact.instagram && conv.instagram) await prisma.contact.update({ where: { id: contact.id }, data: { instagram: conv.instagram } });
+  } else {
+    const words = (conv.contactName ?? "Inconnue").split(/\s+/);
+    contact = Object.assign(
+      await prisma.contact.create({
+        data: {
+          tenantId,
+          firstName: words[0],
+          lastName: words.slice(1).join(" "),
+          phone: phoneN,
+          instagram: conv.instagram ?? "",
+          source,
+        },
+      }),
+      { _count: { orders: 0 } }
+    );
+  }
+
+  const notes = [
+    conv.summary,
+    conv.eventPlace ? `Fête : ${conv.eventPlace}${conv.eventTime ? ` (${conv.eventTime})` : ""}` : conv.eventTime ? `Heure : ${conv.eventTime}` : "",
+    conv.flavors ? `Saveurs évoquées : ${conv.flavors}` : "",
+  ].filter(Boolean).join("\n");
+
+  const order = await prisma.order.create({
+    data: {
+      tenantId,
+      contactId: contact.id,
+      status: convStatus(conv),
+      source,
+      sourceDetail: conv.referredBy ? `recommandée par ${conv.referredBy}` : "",
+      occasion: conv.occasion ?? "",
+      eventDate: conv.eventDate ? new Date(conv.eventDate + "T12:00:00Z") : null,
+      celebrant: conv.celebrant ?? "",
+      celebrantAge: conv.celebrantAge,
+      parts: conv.parts,
+      themeNote: conv.theme ?? "",
+      deliveryMode: conv.deliveryMode ?? "retrait",
+      deliveryAddress: conv.deliveryAddress ?? "",
+      priceQuoted: conv.priceQuoted,
+      ...(conv.depositMentioned ? { depositPaidAt: new Date() } : {}),
+      notes,
+      activities: { create: { type: "SYSTEM", body: `Fiche créée depuis une conversation ${CHANNEL_LABEL[conv.channel]} (capture).` } },
+    },
+    include: { contact: true },
+  });
+
+  const miss = missingFor(order);
+  const lines = [
+    `✅ <b>Fiche créée — ${contact.firstName} ${contact.lastName}</b>`.trim() + ` · ${STATUS_LABEL[order.status] ?? order.status}`,
+    knownNote,
+    `${process.env.APP_URL ?? ""}/commandes/${order.id}`,
+  ].filter(Boolean);
+
+  if (miss.length) {
+    const first = miss[0];
+    await sayInline(
+      chatId,
+      [...lines, `\n⚠️ Manque encore : ${miss.map((m) => m.label).join(", ")}.`, `On règle le premier ? ${first.ask.replace("{name}", `<b>${contact.firstName}</b>`)}`].join("\n"),
+      [
+        [{ text: "✍️ Renseigner", callback_data: `fd:fill:${order.id}:${first.field}` }],
+        [
+          { text: "⏰ Plus tard", callback_data: `fd:later:${order.id}:${first.field}` },
+          { text: "❌ N'existe pas", callback_data: `fd:never:${order.id}:${first.field}` },
+        ],
+      ]
+    );
+  } else {
+    await say(chatId, [...lines, "✔️ Fiche complète pour ce stade."].join("\n"));
+  }
 }
 
 /* ------------------------------------------------------- justificatifs */
@@ -612,6 +850,54 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       return ok();
     }
 
+    if (ns === "cv") {
+      const draft = (session?.draft ?? {}) as Draft;
+      const conv = draft.conv;
+      await answerCallback(cb.id);
+      if (!conv) {
+        await say(chatId, "Session expirée — renvoie les captures.");
+        return ok();
+      }
+      if (action === "ok") {
+        await setStep(chatId, tenant.id, "idle", {});
+        await editMessage(chatId, mid, "📥 Demande validée — je crée la fiche…");
+        await createFromConversation(chatId, tenant.id, conv);
+      } else if (action === "fix") {
+        await setStep(chatId, tenant.id, "cv:fix", { conv });
+        await say(chatId, "✏️ Envoie la correction en texte libre — ex. « le prix c'est 195 », « tél +41 79 123 45 67 », « c'est un baptême », « 30 parts ». Plusieurs corrections d'un coup, ça marche aussi.");
+      } else {
+        await setStep(chatId, tenant.id, "idle", {});
+        await editMessage(chatId, mid, "🗑 Demande ignorée — rien n'a été créé.");
+      }
+      return ok();
+    }
+
+    if (ns === "fd") {
+      const [orderId, field] = rest;
+      const order = orderId ? await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id }, include: { contact: true } }) : null;
+      if (!order) {
+        await answerCallback(cb.id, "Fiche introuvable");
+        return ok();
+      }
+      const name = order.contact.firstName;
+      if (action === "fill") {
+        await answerCallback(cb.id);
+        const miss = missingFor(order).find((m) => m.field === field);
+        await setStep(chatId, tenant.id, `fill:${orderId}:${field}`, {});
+        await say(chatId, `✍️ ${(miss?.ask ?? `Nouvelle valeur pour ${field} de {name} ?`).replace("{name}", `<b>${name}</b>`)}\n<i>(/annule pour laisser tomber)</i>`);
+      } else if (action === "later") {
+        const st = await getSettings(tenant.id);
+        await snoozeField(tenant.id, orderId, field, st.fieldFollowupDays);
+        await answerCallback(cb.id, `OK — je redemande dans ${st.fieldFollowupDays} j`);
+        await editMessage(chatId, mid, `⏰ Noté — je te redemande ça dans ${st.fieldFollowupDays} jour${st.fieldFollowupDays > 1 ? "s" : ""} (${name}).`);
+      } else if (action === "never") {
+        await dismissField(tenant.id, orderId, field);
+        await answerCallback(cb.id, "Je ne redemanderai plus");
+        await editMessage(chatId, mid, `❌ Compris — je ne redemanderai plus cette info pour ${name}.`);
+      }
+      return ok();
+    }
+
     if (ns === "noop") {
       await answerCallback(cb.id, "🧪 Bouton de test — aucun effet");
       return ok();
@@ -763,19 +1049,32 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
 
   if (Array.isArray(msg.photo) && msg.photo.length) {
     const best = msg.photo[msg.photo.length - 1];
-    await handleReceipt(chatId, tenant.id, tenant.slug, best.file_id, false);
+    const file = { fileId: best.file_id as string, isPdf: false };
+    if (typeof msg.media_group_id === "string" && msg.media_group_id) {
+      queueAlbum(msg.media_group_id, chatId, tenant.id, tenant.slug, file);
+    } else {
+      await handleInboundMedia(chatId, tenant.id, tenant.slug, [file]);
+    }
     return ok();
   }
   if (msg.document?.file_id) {
     const mime = msg.document.mime_type ?? "";
+    const fname = String(msg.document.file_name ?? "").toLowerCase();
     if ((msg.document.file_size ?? 0) > 15_000_000) {
       await say(chatId, "Fichier trop lourd (max ~15 Mo).");
       return ok();
     }
-    if (mime === "application/pdf" || mime.startsWith("image/")) {
-      await handleReceipt(chatId, tenant.id, tenant.slug, msg.document.file_id, mime === "application/pdf");
+    if (mime === "text/plain" || fname.endsWith(".txt")) {
+      await handleChatExport(chatId, tenant.id, msg.document.file_id);
+    } else if (mime === "application/pdf" || mime.startsWith("image/")) {
+      const file = { fileId: msg.document.file_id as string, isPdf: mime === "application/pdf" };
+      if (typeof msg.media_group_id === "string" && msg.media_group_id) {
+        queueAlbum(msg.media_group_id, chatId, tenant.id, tenant.slug, file);
+      } else {
+        await handleInboundMedia(chatId, tenant.id, tenant.slug, [file]);
+      }
     } else {
-      await say(chatId, "Je ne lis que les images et les PDF pour l'instant.");
+      await say(chatId, "Je lis les images, les PDF et les exports de discussion (.txt).");
     }
     return ok();
   }
@@ -1017,6 +1316,63 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
   }
 
   /* ---- correction d'un justificatif ---- */
+  if (session?.step === "cv:fix") {
+    const draft = (session.draft ?? {}) as Draft;
+    if (!draft.conv) {
+      await setStep(chatId, tenant.id, "idle", {});
+      await say(chatId, "Session expirée — renvoie les captures.");
+      return ok();
+    }
+    await say(chatId, "✏️ Je corrige…");
+    const fixed = await analyzeConversation([
+      { text: `Demande déjà extraite (JSON) : ${JSON.stringify(draft.conv)}\nCorrection de la pâtissière : « ${text} »\nApplique la correction et renvoie le JSON complet mis à jour.` },
+    ]);
+    if (!fixed) {
+      await say(chatId, "⚠️ Je n'ai pas réussi à appliquer la correction — reformule ?");
+      return ok();
+    }
+    fixed.isRequest = true;
+    await setStep(chatId, tenant.id, "cv:confirm", { conv: fixed });
+    await sayInline(chatId, convRecap(fixed), [
+      [{ text: "✅ Créer la fiche", callback_data: "cv:ok" }],
+      [
+        { text: "✏️ Corriger", callback_data: "cv:fix" },
+        { text: "❌ Ignorer", callback_data: "cv:cancel" },
+      ],
+    ]);
+    return ok();
+  }
+
+  if (session?.step?.startsWith("fill:")) {
+    const [, orderId, field] = session.step.split(":");
+    const confirmed = await fillField(tenant.id, orderId, field, text);
+    if (!confirmed) {
+      await say(chatId, "🤔 Je n'ai pas compris — réessaie (ex. « +41 79 123 45 67 », « 22.08 », « 26 », « anniversaire ») ou /annule.");
+      return ok();
+    }
+    await prisma.fieldSnooze.deleteMany({ where: { tenantId: tenant.id, orderId, field } });
+    await setStep(chatId, tenant.id, "idle", {});
+    const order = await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id }, include: { contact: true } });
+    const remaining = order ? missingFor(order) : [];
+    if (order && remaining.length) {
+      const nxt = remaining[0];
+      await sayInline(
+        chatId,
+        `✓ Fiche à jour — ${confirmed}.\nIl manque encore : ${remaining.map((m) => m.label).join(", ")}.\n${nxt.ask.replace("{name}", `<b>${order.contact.firstName}</b>`)}`,
+        [
+          [{ text: "✍️ Renseigner", callback_data: `fd:fill:${orderId}:${nxt.field}` }],
+          [
+            { text: "⏰ Plus tard", callback_data: `fd:later:${orderId}:${nxt.field}` },
+            { text: "❌ N'existe pas", callback_data: `fd:never:${orderId}:${nxt.field}` },
+          ],
+        ]
+      );
+    } else {
+      await say(chatId, `✓ Fiche à jour — ${confirmed}. ✔️ Plus rien ne manque pour ce stade.`);
+    }
+    return ok();
+  }
+
   if (session?.step?.startsWith("fix:")) {
     const expId = session.step.slice(4);
     const exp = await prisma.expense.findUnique({ where: { id: expId } });
