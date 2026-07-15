@@ -2,7 +2,7 @@ import { prisma, currentTenant } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { saveSettings } from "@/app/actions";
 import Shell from "@/app/components/Shell";
-import TriggerTests from "./TriggerTests";
+import AutomationsSection from "./AutomationsSection";
 import ConsignesField from "./ConsignesField";
 
 export const dynamic = "force-dynamic";
@@ -114,27 +114,39 @@ export default async function Reglages() {
           <ConsignesField defaultValue={raw?.assistantInstructions ?? ""} />
         </section>
 
-        {/* Bot & crons */}
+        {/* Automatismes (bot + crons) */}
         <section className="rounded-2xl border border-stone-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Bot Telegram</h2>
-          <div className="mb-5 grid gap-4 sm:grid-cols-2">
-            <label>
-              <span className={label}>Heure du digest matin (0-23)</span>
-              <input name="digestHour" type="number" min="0" max="23" defaultValue={raw?.digestHour ?? ""} placeholder={String(eff.digestHour)} className={input} />
-            </label>
-            <label>
-              <span className={label}>Heure des relances du soir (0-23)</span>
-              <input name="nudgeHour" type="number" min="0" max="23" defaultValue={raw?.nudgeHour ?? ""} placeholder={String(eff.nudgeHour)} className={input} />
-            </label>
-          </div>
-          <p className={label}>Automatismes — actif / tester</p>
-          <TriggerTests
-            defaults={{
+          <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-stone-600">Automatismes</h2>
+          <p className="mb-4 text-xs text-stone-500">
+            Tout ce que le bot fait pour toi, au fil de la vie d'une commande. Active, règle les délais, teste.
+          </p>
+          <AutomationsSection
+            toggles={{
               cronDigest: eff.cronDigest,
               cronEveningNudges: eff.cronEveningNudges,
               cronReviews: eff.cronReviews,
               cronBirthday: eff.cronBirthday,
               cronMonthly: eff.cronMonthly,
+            }}
+            raw={{
+              digestHour: raw?.digestHour ?? null,
+              nudgeHour: raw?.nudgeHour ?? null,
+              reviewDelayDays: raw?.reviewDelayDays ?? null,
+              quoteFollowupDays: raw?.quoteFollowupDays ?? null,
+              leadFollowupHours: raw?.leadFollowupHours ?? null,
+              birthdayLeadDays: raw?.birthdayLeadDays ?? null,
+              nudgeCooldownDays: raw?.nudgeCooldownDays ?? null,
+              nudgeMaxPerEvening: raw?.nudgeMaxPerEvening ?? null,
+            }}
+            eff={{
+              digestHour: eff.digestHour,
+              nudgeHour: eff.nudgeHour,
+              reviewDelayDays: eff.reviewDelayDays,
+              quoteFollowupDays: eff.quoteFollowupDays,
+              leadFollowupHours: eff.leadFollowupHours,
+              birthdayLeadDays: eff.birthdayLeadDays,
+              nudgeCooldownDays: eff.nudgeCooldownDays,
+              nudgeMaxPerEvening: eff.nudgeMaxPerEvening,
             }}
           />
           <p className="mt-4 text-[11px] text-stone-400">

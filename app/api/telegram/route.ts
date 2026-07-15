@@ -16,6 +16,24 @@ import { analyzeReceipt } from "@/lib/gemini";
 import { chf, CATEGORIES, catLabel } from "@/lib/money";
 import { paymentState } from "@/lib/payments";
 import { waLink } from "@/lib/wa";
+import { AUTOMATIONS } from "@/lib/automations";
+
+/* aide générée depuis le registre central (lib/automations.ts) */
+function helpText(): string {
+  const fam = (f: "cron" | "reaction" | "command", title: string) =>
+    [`<b>${title}</b>`, ...AUTOMATIONS.filter((a) => a.family === f).map((a) => `${a.emoji} <b>${a.name}</b> — ${a.desc} <i>(${a.trigger})</i>`)].join("\n");
+  return [
+    "<b>Carnet — aide</b>",
+    fam("command", "🎂 À la demande"),
+    "",
+    fam("cron", "⏰ Programmés (réglables dans Réglages → Automatismes)"),
+    "",
+    fam("reaction", "⚡ Réactions automatiques"),
+    "",
+    "/annule pour abandonner une saisie en cours.",
+  ].join("\n");
+}
+
 import { getSettings } from "@/lib/settings";
 import { normPhone } from "@/lib/normalize";
 import type { Source, ExpenseCategory } from "@prisma/client";
@@ -633,15 +651,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       if (action === "scan") {
         await say(chatId, "📸 Envoie-moi simplement la <b>photo d'un ticket</b> ou un <b>PDF de facture</b> — n'importe quand, sans bouton. Je lis le montant, la date et la TVA, tu valides d'un tap.");
       } else if (action === "aide") {
-        await say(chatId, [
-          "<b>Carnet — aide</b>",
-          "🎂 <b>Nouvelle commande</b> : je cherche le client par son nom (existant ou nouveau), puis 4 questions max.",
-          "📸 Photo/PDF envoyé = dépense comptabilisée après ta validation.",
-          "📅 <b>Cette semaine</b> : ce qui sort de l'atelier.",
-          "💰 <b>Dépenses du mois</b> : total et détail par catégorie.",
-          "Chaque matin à 7 h : le programme du jour + demandes d'avis à J+2.",
-          "/annule pour abandonner une saisie en cours.",
-        ].join("\n"));
+        await say(chatId, helpText());
       }
       return ok();
     }
@@ -773,8 +783,12 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
   const text: string = typeof msg.text === "string" ? msg.text.trim() : "";
   if (!text) return ok();
 
-  if (text === "/start" || text === "/aide") {
-    await say(chatId, "Bienvenue sur <b>Carnet</b> 🧁\n🎂 pour une nouvelle commande, ou envoie directement la photo d'un ticket.");
+  if (text === "/start") {
+    await say(chatId, "Bienvenue sur <b>Carnet</b> 🧁\n🎂 pour une nouvelle commande, ou envoie directement la photo d'un ticket.\n/aide pour tout ce que je sais faire.");
+    return ok();
+  }
+  if (text === "/aide") {
+    await say(chatId, helpText());
     return ok();
   }
   // nouvelle commande — et compatibilité avec les anciens boutons

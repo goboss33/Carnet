@@ -38,6 +38,13 @@ model Settings {
   cronReviews       Boolean  @default(true)
   cronBirthday      Boolean  @default(true)
   cronMonthly       Boolean  @default(true)
+  // délais des automatismes
+  reviewDelayDays    Int?
+  quoteFollowupDays  Int?
+  leadFollowupHours  Int?
+  birthdayLeadDays   Int?
+  nudgeCooldownDays  Int?
+  nudgeMaxPerEvening Int?
   reviewUrl         String   @default("")
   // paiement
   paymentDefault    String   @default("twint") // twint | virement

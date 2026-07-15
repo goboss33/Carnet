@@ -62,12 +62,12 @@ async function tick() {
     if (hour === s.digestHour && lastRun.get(`${t.id}:digest`) !== today) {
       lastRun.set(`${t.id}:digest`, today);
       if (s.cronDigest) await morningDigest(t).catch((e) => console.error("digest:", e));
-      if (s.cronReviews) await reviewNudges(t, s.reviewUrl).catch((e) => console.error("reviews:", e));
-      if (s.cronBirthday) await birthdayNudges(t).catch((e) => console.error("birthday:", e));
+      if (s.cronReviews) await reviewNudges(t, s).catch((e) => console.error("reviews:", e));
+      if (s.cronBirthday) await birthdayNudges(t, s).catch((e) => console.error("birthday:", e));
     }
     if (hour === s.nudgeHour && lastRun.get(`${t.id}:nudge`) !== today) {
       lastRun.set(`${t.id}:nudge`, today);
-      if (s.cronEveningNudges) await eveningNudges(t).catch((e) => console.error("evening:", e));
+      if (s.cronEveningNudges) await eveningNudges(t, s).catch((e) => console.error("evening:", e));
     }
     if (now.getDate() === 1 && hour === s.digestHour + 1 && lastRun.get(`${t.id}:monthly`) !== today) {
       lastRun.set(`${t.id}:monthly`, today);
@@ -126,9 +126,9 @@ async function monthlyReport(t: Tenant, dryRun = false) {
 /* ------------------------------------------------ suivi du soir
    Max 3 questions, par urgence : livraison à confirmer > lead sans réponse
    > devis sans nouvelles. Cooldown 2 jours par fiche (lastNudgeAt). */
-async function eveningNudges(t: Tenant, dryRun = false) {
+async function eveningNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings>>, dryRun = false) {
   const now = Date.now();
-  const cooldown = new Date(now - 2 * 86400000);
+  const cooldown = new Date(now - s.nudgeCooldownDays * 86400000);
 
   const picked: { kind: "delivered" | "lead" | "quote"; o: Awaited<ReturnType<typeof prisma.order.findFirst>> & object }[] = [];
 
@@ -141,42 +141,42 @@ async function eveningNudges(t: Tenant, dryRun = false) {
     },
     include: { contact: true },
     orderBy: { eventDate: "asc" },
-    take: 3,
+    take: s.nudgeMaxPerEvening,
   });
   for (const o of delivered) picked.push({ kind: "delivered", o });
 
-  if (picked.length < 3) {
+  if (picked.length < s.nudgeMaxPerEvening) {
     const leads = await prisma.order.findMany({
       where: {
         tenantId: t.id,
         status: "LEAD",
-        createdAt: { lt: new Date(now - 24 * 3600000) },
+        createdAt: { lt: new Date(now - s.leadFollowupHours * 3600000) },
         OR: [{ lastNudgeAt: null }, { lastNudgeAt: { lt: cooldown } }],
       },
       include: { contact: true },
       orderBy: { createdAt: "asc" },
-      take: 3 - picked.length,
+      take: s.nudgeMaxPerEvening - picked.length,
     });
     for (const o of leads) picked.push({ kind: "lead", o });
   }
 
-  if (picked.length < 3) {
+  if (picked.length < s.nudgeMaxPerEvening) {
     const quotes = await prisma.order.findMany({
       where: {
         tenantId: t.id,
         status: "DEVIS_ENVOYE",
-        updatedAt: { lt: new Date(now - 4 * 86400000) },
+        updatedAt: { lt: new Date(now - s.quoteFollowupDays * 86400000) },
         OR: [{ lastNudgeAt: null }, { lastNudgeAt: { lt: cooldown } }],
       },
       include: { contact: true },
       orderBy: { updatedAt: "asc" },
-      take: 3 - picked.length,
+      take: s.nudgeMaxPerEvening - picked.length,
     });
     for (const o of quotes) picked.push({ kind: "quote", o });
   }
 
   if (!picked.length) {
-    if (dryRun) await notifyAll("🧪 Relances du soir : rien à suivre aujourd'hui.\nRègles : livraison confirmée à date passée · lead sans réponse depuis 24 h · devis sans nouvelles depuis 4 jours — cooldown 2 jours par fiche.");
+    if (dryRun) await notifyAll(`🧪 Relances du soir : rien à suivre aujourd'hui.\nRègles : livraison confirmée à date passée · lead sans réponse depuis ${s.leadFollowupHours} h · devis sans nouvelles depuis ${s.quoteFollowupDays} jours — cooldown ${s.nudgeCooldownDays} j par fiche, max ${s.nudgeMaxPerEvening}/soir.`);
     return;
   }
   const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -251,32 +251,32 @@ async function morningDigest(t: Tenant, dryRun = false) {
   await notifyAll(lines.join("\n"));
 }
 
-async function reviewNudges(t: Tenant, reviewUrl: string, dryRun = false) {
+async function reviewNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings>>, dryRun = false) {
   const candidates = await prisma.order.findMany({
     where: {
       tenantId: t.id,
       status: "LIVRE",
       reviewAskedAt: null,
-      deliveredAt: { lte: new Date(Date.now() - 2 * 86400000), gte: new Date(Date.now() - 14 * 86400000) },
+      deliveredAt: { lte: new Date(Date.now() - s.reviewDelayDays * 86400000), gte: new Date(Date.now() - (s.reviewDelayDays + 12) * 86400000) },
     },
     include: { contact: true },
   });
   if (dryRun && !candidates.length) {
-    await notifyAll("🧪 Avis J+2 : aucun cas éligible aujourd'hui.\nRègle : commande livrée il y a 2 à 14 jours, avis pas encore demandé.");
+    await notifyAll(`🧪 Avis J+${s.reviewDelayDays} : aucun cas éligible aujourd'hui.\nRègle : commande livrée il y a ${s.reviewDelayDays} à ${s.reviewDelayDays + 12} jours, avis pas encore demandé.`);
     return;
   }
   for (const o of candidates) {
     const msgClient = [
       `Bonjour ${o.contact.firstName} ! C'est Annie de Maman Gâteau 🧁`,
       `J'espère que ${o.celebrant ? `la fête de ${o.celebrant}` : "votre fête"} était magique et que le gâteau a régalé tout le monde !`,
-      reviewUrl
-        ? `Si vous avez 30 secondes, votre petit avis m'aiderait énormément : ${reviewUrl}`
+      s.reviewUrl
+        ? `Si vous avez 30 secondes, votre petit avis m'aiderait énormément : ${s.reviewUrl}`
         : `Si vous avez 30 secondes, un petit avis Google m'aiderait énormément 💛`,
       `Merci du fond du cœur, et à bientôt !`,
     ].join("\n");
     await notifyAll(
       [
-        `💬 <b>Demande d'avis — ${o.contact.firstName}</b> (livré il y a 2 jours)`,
+        `💬 <b>Demande d'avis — ${o.contact.firstName}</b> (livré il y a ${s.reviewDelayDays} jours ou plus)`,
         o.contact.phone ? `<a href="${waLink(o.contact.phone, msgClient)}">📲 Ouvrir WhatsApp avec le message</a>` : `Transfère-lui ce message :`,
         "",
         `<code>${msgClient}</code>`,
@@ -291,11 +291,11 @@ async function reviewNudges(t: Tenant, reviewUrl: string, dryRun = false) {
 /* ------------------------------------------------ relance anniversaire
    ~3 semaines avant l'anniversaire (1 an, puis chaque année) d'une commande
    d'anniversaire passée : message prêt à envoyer, au plus une fois par an. */
-async function birthdayNudges(t: Tenant, dryRun = false) {
+async function birthdayNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings>>, dryRun = false) {
   let sentBirthday = 0;
   const now = new Date();
-  const SOON_MIN = 18;
-  const SOON_MAX = 25; // fenêtre ~3 semaines avant
+  const SOON_MIN = Math.max(1, s.birthdayLeadDays - 3);
+  const SOON_MAX = s.birthdayLeadDays + 4;
   const candidates = await prisma.order.findMany({
     where: {
       tenantId: t.id,
@@ -332,7 +332,7 @@ async function birthdayNudges(t: Tenant, dryRun = false) {
     if (!dryRun) await prisma.order.update({ where: { id: o.id }, data: { anniversaryNudgedAt: new Date() } });
   }
   if (dryRun && !sentBirthday) {
-    await notifyAll("🧪 Relance anniversaire : aucun cas éligible aujourd'hui.\nRègle : commande d'anniversaire dont la date retombe dans 18 à 25 jours, pas déjà relancée cette année.");
+    await notifyAll(`🧪 Relance anniversaire : aucun cas éligible aujourd'hui.\nRègle : commande d'anniversaire dont la date retombe dans ${Math.max(1, s.birthdayLeadDays - 3)} à ${s.birthdayLeadDays + 4} jours, pas déjà relancée cette année.`);
   }
 }
 
@@ -398,9 +398,9 @@ export async function testTrigger(tenantId: string, kind: string): Promise<{ ok:
     await notifyAll(`🧪 <b>Test « ${kind} »</b> — les messages qui suivent sont un aperçu, rien n'est marqué comme traité.`);
     switch (kind) {
       case "digest": await morningDigest(t, true); break;
-      case "nudges": await eveningNudges(t, true); break;
-      case "reviews": await reviewNudges(t, s.reviewUrl, true); break;
-      case "birthday": await birthdayNudges(t, true); break;
+      case "nudges": await eveningNudges(t, s, true); break;
+      case "reviews": await reviewNudges(t, s, true); break;
+      case "birthday": await birthdayNudges(t, s, true); break;
       case "monthly": await monthlyReport(t, true); break;
       default: return { ok: false, message: `Déclencheur inconnu : ${kind}` };
     }

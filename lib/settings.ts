@@ -15,6 +15,12 @@ export type EffectiveSettings = {
   cronReviews: boolean;
   cronBirthday: boolean;
   cronMonthly: boolean;
+  reviewDelayDays: number;
+  quoteFollowupDays: number;
+  leadFollowupHours: number;
+  birthdayLeadDays: number;
+  nudgeCooldownDays: number;
+  nudgeMaxPerEvening: number;
   reviewUrl: string;
   paymentDefault: "twint" | "virement";
   twintNumber: string;
@@ -45,6 +51,12 @@ export async function getSettings(tenantId: string): Promise<EffectiveSettings> 
     cronReviews: s?.cronReviews ?? true,
     cronBirthday: s?.cronBirthday ?? true,
     cronMonthly: s?.cronMonthly ?? true,
+    reviewDelayDays: s?.reviewDelayDays ?? 2,
+    quoteFollowupDays: s?.quoteFollowupDays ?? 4,
+    leadFollowupHours: s?.leadFollowupHours ?? 24,
+    birthdayLeadDays: s?.birthdayLeadDays ?? 21,
+    nudgeCooldownDays: s?.nudgeCooldownDays ?? 2,
+    nudgeMaxPerEvening: s?.nudgeMaxPerEvening ?? 3,
     reviewUrl: s?.reviewUrl || process.env.GOOGLE_REVIEW_URL || "",
     paymentDefault: s?.paymentDefault === "virement" ? "virement" : "twint",
     twintNumber: s?.twintNumber ?? "",
