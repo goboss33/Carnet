@@ -47,6 +47,7 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
           <Link href={`/compta?m=${fmtM(prev)}`} className="rounded-md px-2 py-1 hover:bg-stone-100">←</Link>
           <form className="inline">
             <input
+              key={month}
               type="month"
               name="m"
               defaultValue={month}

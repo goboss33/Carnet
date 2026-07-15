@@ -25,7 +25,7 @@ export default async function Cap() {
     { label: "CA du mois (livré)", value: `CHF ${c.caMois}`, goal: c.s.goalCaMensuel, v: c.caMois, sub: `objectif ${c.s.goalCaMensuel}` },
     { label: "Résultat net du mois", value: `CHF ${c.netMois}`, goal: null, v: 0, sub: c.netMois >= 0 ? "dans le vert" : "dans le rouge" },
     { label: "Panier moyen (3 mois)", value: `CHF ${c.panierMoyen}`, goal: c.s.goalPanierMoyen, v: c.panierMoyen, sub: `objectif ${c.s.goalPanierMoyen} · ${c.chfPart} CHF/part` },
-    { label: "Week-ends remplis", value: `${c.weekendsPleins}/4`, goal: 3, v: c.weekendsPleins, sub: "4 prochains week-ends" },
+    { label: "Week-ends remplis", value: `${c.weekendsPleins}/4`, goal: 3, v: c.weekendsPleins, sub: `à venir · constance 3 mois : ${c.remplissage3mPct}%` },
     { label: "Part mariage (3 mois)", value: `${c.partMariagePct}%`, goal: c.s.goalPartMariage, v: c.partMariagePct, sub: `objectif ${c.s.goalPartMariage}%` },
     { label: "CA hors sur-mesure", value: `${c.partDecouplePct}%`, goal: c.s.goalPartDecouple, v: c.partDecouplePct, sub: "le CA qui ne dépend pas des heures" },
     { label: "Clientes qui reviennent", value: `${c.retentionPct}%`, goal: null, v: 0, sub: "≥ 2 commandes" },
@@ -75,7 +75,7 @@ export default async function Cap() {
       </div>
 
       {/* Phases */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {c.phases.map((p, i) => {
           const done = p.jalons.filter((j) => j.done).length;
           return (

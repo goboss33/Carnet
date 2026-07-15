@@ -3,6 +3,7 @@ import { getSettings } from "@/lib/settings";
 import { saveSettings } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 import TestCronButton from "./TestCronButton";
+import TriggerTests from "./TriggerTests";
 import ConsignesField from "./ConsignesField";
 
 export const dynamic = "force-dynamic";
@@ -149,6 +150,11 @@ export default async function Reglages() {
         </section>
 
         {/* Avis */}
+        <section className="rounded-2xl border border-stone-200 bg-white p-6">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Tester les automatismes</h2>
+          <TriggerTests />
+        </section>
+
         <section className="rounded-2xl border border-stone-200 bg-white p-6">
           <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Avis clients</h2>
           <label>

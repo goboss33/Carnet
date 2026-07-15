@@ -683,3 +683,10 @@ export async function setRevenueCategory(orderId: string, formData: FormData) {
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/cap");
 }
+
+/** Teste un déclencheur du bot (mode 🧪 : messages réels, aucun état modifié). */
+export async function testTriggerAction(kind: string): Promise<{ ok: boolean; message: string }> {
+  const tenant = await currentTenant();
+  const { testTrigger } = await import("@/lib/cron");
+  return testTrigger(tenant.id, kind);
+}

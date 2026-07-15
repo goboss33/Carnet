@@ -24,6 +24,7 @@ export type CapData = {
   partMariagePct: number;    // % CA 3 mois
   partDecouplePct: number;   // % CA 3 mois hors SUR_MESURE
   weekendsPleins: number;    // sur les 4 à venir
+  remplissage3mPct: number;  // % week-ends remplis, 12 dernières semaines
   retentionPct: number;      // % clients avec >= 2 commandes
   followers: { month: string; value: number }[];
   avisGoogle: number | null; // dernier snapshot
@@ -109,6 +110,26 @@ export async function computeCap(tenantId: string): Promise<CapData> {
     confirmees.some((o) => o.eventDate! >= a && o.eventDate! <= b)
   ).length;
 
+  // constance : % de week-ends remplis sur les 12 dernières semaines
+  const pastOrders = livrees12.filter((o) => o.deliveredAt! >= new Date(now.getTime() - 12 * 7 * 86400000));
+  const pastWeekends: [Date, Date][] = [];
+  const pd = new Date(now);
+  pd.setDate(pd.getDate() - 12 * 7);
+  pd.setHours(0, 0, 0, 0);
+  const cursor = new Date(pd);
+  while (cursor < now) {
+    if (cursor.getDay() === 6) {
+      const sat = new Date(cursor);
+      const sun = new Date(cursor);
+      sun.setDate(sun.getDate() + 1);
+      sun.setHours(23, 59, 59);
+      if (sun < now) pastWeekends.push([sat, sun]);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  const pastFilled = pastWeekends.filter(([a, b]) => pastOrders.some((o) => o.deliveredAt! >= a && o.deliveredAt! <= b)).length;
+  const remplissage3mPct = pastWeekends.length ? Math.round((pastFilled / pastWeekends.length) * 100) : 0;
+
   const withOrder = contactsAgg.filter((c) => c._count.orders >= 1).length;
   const repeat = contactsAgg.filter((c) => c._count.orders >= 2).length;
   const retentionPct = withOrder ? Math.round((repeat / withOrder) * 100) : 0;
@@ -119,7 +140,8 @@ export async function computeCap(tenantId: string): Promise<CapData> {
 
   const partMariagePct = ca3 ? Math.round((caMariage / ca3) * 100) : 0;
   const partDecouplePct = ca3 ? Math.round((caDecouple / ca3) * 100) : 0;
-  const mariageLivre = livrees12.some((o) => /mariage|wedding/i.test(o.occasion));
+  const mariagesLivres = livrees12.filter((o) => /mariage|wedding/i.test(o.occasion)).length;
+  const mariageLivre = mariagesLivres > 0;
   const m = s.milestones;
 
   const phases = [
@@ -128,29 +150,40 @@ export async function computeCap(tenantId: string): Promise<CapData> {
       jalons: [
         { key: "site", label: "Site + configurateur en ligne", done: true, auto: true },
         { key: "pipeline", label: "20 commandes suivies dans Carnet", done: totalOrders >= 20, auto: true, detail: `${totalOrders}/20` },
-        { key: "avis10", label: "10 avis Google", done: (avisGoogle ?? 0) >= 10, auto: true, detail: avisGoogle != null ? `${avisGoogle}/10` : "à saisir" },
-        { key: "mariage1", label: "Premier mariage livré", done: mariageLivre, auto: true },
+        { key: "avis10", label: "5 premiers avis Google", done: (avisGoogle ?? 0) >= 5, auto: true, detail: avisGoogle != null ? `${avisGoogle}/5` : "à saisir" },
         { key: "flyers", label: "Flyers chez 2 partenaires", done: !!m.flyers, auto: false },
+        { key: "insta300", label: "300 abonnés Instagram", done: (followers.at(-1)?.value ?? 0) >= 300, auto: true, detail: followers.at(-1) ? `${followers.at(-1)!.value}/300` : "à saisir" },
       ],
     },
     {
-      name: "Phase 2 — Un vrai salaire",
+      name: "Phase 2 — L'élan",
+      jalons: [
+        { key: "cmd60", label: "60 commandes au compteur", done: totalOrders >= 60, auto: true, detail: `${totalOrders}/60` },
+        { key: "caPalier", label: `CA mensuel ≥ ${Math.round(s.goalCaMensuel * 0.6)} CHF`, done: cur.ca >= s.goalCaMensuel * 0.6, auto: true, detail: `${cur.ca}/${Math.round(s.goalCaMensuel * 0.6)}` },
+        { key: "mariage1", label: "Premier mariage livré", done: mariageLivre, auto: true },
+        { key: "avisPalier", label: `${Math.round(s.goalAvisGoogle * 0.6)} avis Google`, done: (avisGoogle ?? 0) >= s.goalAvisGoogle * 0.6, auto: true, detail: avisGoogle != null ? `${avisGoogle}/${Math.round(s.goalAvisGoogle * 0.6)}` : "à saisir" },
+        { key: "instaPalier", label: `${Math.round(s.goalInstagram * 0.5)} abonnés Instagram`, done: (followers.at(-1)?.value ?? 0) >= s.goalInstagram * 0.5, auto: true, detail: followers.at(-1) ? `${followers.at(-1)!.value}/${Math.round(s.goalInstagram * 0.5)}` : "à saisir" },
+        { key: "wk2", label: "1 week-end sur 2 rempli (3 mois)", done: remplissage3mPct >= 50, auto: true, detail: `${remplissage3mPct}%` },
+      ],
+    },
+    {
+      name: "Phase 3 — Un vrai salaire",
       jalons: [
         { key: "ca", label: `CA mensuel ≥ ${s.goalCaMensuel} CHF`, done: cur.ca >= s.goalCaMensuel, auto: true, detail: `${cur.ca}/${s.goalCaMensuel}` },
         { key: "net", label: "Résultat net positif 3 mois de suite", done: months.slice(-3).every((x) => x.net > 0), auto: true },
         { key: "panier", label: `Panier moyen ≥ ${s.goalPanierMoyen} CHF`, done: panierMoyen >= s.goalPanierMoyen, auto: true, detail: `${panierMoyen}/${s.goalPanierMoyen}` },
-        { key: "remplissage", label: "3 week-ends sur 4 remplis", done: weekendsPleins >= 3, auto: true, detail: `${weekendsPleins}/4` },
+        { key: "remplissage", label: "3 week-ends sur 4 remplis (3 mois d'affilée)", done: remplissage3mPct >= 75, auto: true, detail: `${remplissage3mPct}%` },
         { key: "mariagePct", label: `Mariages ≥ ${s.goalPartMariage} % du CA`, done: partMariagePct >= s.goalPartMariage, auto: true, detail: `${partMariagePct}%` },
         { key: "avisGoal", label: `${s.goalAvisGoogle} avis Google`, done: (avisGoogle ?? 0) >= s.goalAvisGoogle, auto: true, detail: avisGoogle != null ? `${avisGoogle}/${s.goalAvisGoogle}` : "à saisir" },
       ],
     },
     {
-      name: "Phase 3 — Découplage du temps",
+      name: "Phase 4 — Découplage du temps",
       jalons: [
         { key: "collection", label: "Collection signature en ligne", done: !!m.collection, auto: false },
         { key: "atelier", label: "Premier atelier donné", done: !!m.atelier, auto: false },
         { key: "bons", label: "Bons cadeaux en vente", done: !!m.bons, auto: false },
-        { key: "eshop", label: "E-shop décors en sucre ouvert", done: !!m.eshop, auto: false },
+        { key: "eshop", label: "Boutique toppers en ligne", done: !!m.eshop, auto: false },
         { key: "decouple", label: `≥ ${s.goalPartDecouple} % du CA hors sur-mesure`, done: partDecouplePct >= s.goalPartDecouple, auto: true, detail: `${partDecouplePct}%` },
         { key: "insta", label: `${s.goalInstagram} abonnés Instagram`, done: (followers.at(-1)?.value ?? 0) >= s.goalInstagram, auto: true, detail: followers.at(-1) ? `${followers.at(-1)!.value}/${s.goalInstagram}` : "à saisir" },
       ],
@@ -169,6 +202,7 @@ export async function computeCap(tenantId: string): Promise<CapData> {
     partMariagePct,
     partDecouplePct,
     weekendsPleins,
+    remplissage3mPct,
     retentionPct,
     followers,
     avisGoogle,

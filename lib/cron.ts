@@ -37,17 +37,19 @@ async function normalizeExisting() {
   if (fixed) console.log(`Carnet : ${fixed} contact(s) normalisé(s).`);
 }
 
-/** Rétro-tag idempotent : catégorie de revenu devinée depuis l'occasion. */
+/** Rétro-tag : seul le B2B est déduit ; les cupcakes historiques restent du
+    sur-mesure (décors personnalisés) — la catégorie Collection commencera
+    avec la vraie collection. Répare aussi l'ancien tag trop agressif. */
 async function retroTagRevenue() {
-  const cup = await prisma.order.updateMany({
-    where: { revenueCategory: "SUR_MESURE", occasion: { contains: "cupcake", mode: "insensitive" } },
-    data: { revenueCategory: "COLLECTION" },
+  const undo = await prisma.order.updateMany({
+    where: { revenueCategory: "COLLECTION", occasion: { contains: "cupcake", mode: "insensitive" } },
+    data: { revenueCategory: "SUR_MESURE" },
   });
   const b2b = await prisma.order.updateMany({
     where: { revenueCategory: "SUR_MESURE", occasion: { contains: "entreprise", mode: "insensitive" } },
     data: { revenueCategory: "B2B" },
   });
-  if (cup.count || b2b.count) console.log(`Carnet : rétro-tag revenu — ${cup.count} collection, ${b2b.count} B2B.`);
+  if (undo.count || b2b.count) console.log(`Carnet : rétro-tag — ${undo.count} cupcakes re-classés sur-mesure, ${b2b.count} B2B.`);
 }
 
 async function tick() {
@@ -75,7 +77,7 @@ async function tick() {
 }
 
 /* ------------------------------------------------ bilan du 1er du mois */
-async function monthlyReport(t: Tenant) {
+async function monthlyReport(t: Tenant, dryRun = false) {
   const { computeCap } = await import("@/lib/cap");
   const c = await computeCap(t.id);
   const prev = c.caParMois[c.caParMois.length - 2]; // mois qui vient de se terminer
@@ -83,19 +85,32 @@ async function monthlyReport(t: Tenant) {
   const delta = prev2 && prev2.ca > 0 ? Math.round(((prev.ca - prev2.ca) / prev2.ca) * 100) : null;
   const phase = c.phases[c.phaseCourante];
   const done = phase.jalons.filter((j) => j.done).length;
+
+  // Les bons points du mois — parce qu'une ascension se célèbre marche par marche
+  const wins: string[] = [];
+  if (delta != null && delta > 0) wins.push(`🎉 CA en hausse de <b>${delta} %</b> par rapport au mois précédent !`);
+  if (prev.ca > 0 && prev.ca >= Math.max(...c.caParMois.slice(0, -1).map((x) => x.ca))) wins.push("🏆 Meilleur mois des 12 derniers — record battu !");
+  if (prev.net > 0) wins.push(`💚 Mois dans le vert : CHF ${prev.net} de résultat net.`);
+  if (c.weekendsPleins >= 3) wins.push(`🔥 ${c.weekendsPleins} week-ends sur 4 déjà remplis pour la suite.`);
+  if (c.retentionPct >= 20) wins.push(`💛 ${c.retentionPct} % de tes clientes sont déjà revenues — elles t'adorent.`);
+  const attention: string[] = [];
+  if (delta != null && delta < -15) attention.push(`👀 CA en retrait de ${Math.abs(delta)} % — les creux font partie du jeu, regarde les leads en attente.`);
+
   await notifyAll(
     [
-      `📈 <b>Bilan de ${prev.month}</b>`,
+      `📈 <b>Bilan de ${prev.month}</b>${dryRun ? " (🧪 test)" : ""}`,
       `CA livré : <b>CHF ${prev.ca}</b>${delta != null ? ` (${delta >= 0 ? "+" : ""}${delta} %)` : ""} · net : CHF ${prev.net}`,
       `Panier moyen : CHF ${c.panierMoyen} · mariages : ${c.partMariagePct} % · hors sur-mesure : ${c.partDecouplePct} %`,
       `Week-ends à venir remplis : ${c.weekendsPleins}/4 · clientes fidèles : ${c.retentionPct} %`,
+      ...wins,
+      ...attention,
       `${phase.name} : <b>${done}/${phase.jalons.length}</b> jalons ✓`,
       `${process.env.APP_URL ?? ""}/cap`,
     ].join("\n")
   );
   // saisie éclair des métriques manuelles
   const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((x) => x.trim()).filter(Boolean);
-  if (ids.length) {
+  if (ids.length && !dryRun) {
     await prisma.botSession.upsert({
       where: { chatId: BigInt(ids[0]) },
       update: { step: "metric:instagram_followers" },
@@ -111,7 +126,7 @@ async function monthlyReport(t: Tenant) {
 /* ------------------------------------------------ suivi du soir
    Max 3 questions, par urgence : livraison à confirmer > lead sans réponse
    > devis sans nouvelles. Cooldown 2 jours par fiche (lastNudgeAt). */
-async function eveningNudges(t: Tenant) {
+async function eveningNudges(t: Tenant, dryRun = false) {
   const now = Date.now();
   const cooldown = new Date(now - 2 * 86400000);
 
@@ -204,7 +219,7 @@ async function eveningNudges(t: Tenant) {
   }
 }
 
-async function morningDigest(t: Tenant) {
+async function morningDigest(t: Tenant, dryRun = false) {
   const soon = await prisma.order.findMany({
     where: {
       tenantId: t.id,
@@ -229,7 +244,7 @@ async function morningDigest(t: Tenant) {
   await notifyAll(lines.join("\n"));
 }
 
-async function reviewNudges(t: Tenant, reviewUrl: string) {
+async function reviewNudges(t: Tenant, reviewUrl: string, dryRun = false) {
   const candidates = await prisma.order.findMany({
     where: {
       tenantId: t.id,
@@ -265,7 +280,7 @@ async function reviewNudges(t: Tenant, reviewUrl: string) {
 /* ------------------------------------------------ relance anniversaire
    ~3 semaines avant l'anniversaire (1 an, puis chaque année) d'une commande
    d'anniversaire passée : message prêt à envoyer, au plus une fois par an. */
-async function birthdayNudges(t: Tenant) {
+async function birthdayNudges(t: Tenant, dryRun = false) {
   const now = new Date();
   const SOON_MIN = 18;
   const SOON_MAX = 25; // fenêtre ~3 semaines avant
@@ -353,4 +368,28 @@ export async function cronSelfTest(tenantId: string): Promise<{ ok: boolean; mes
     ok: true,
     message: `Test envoyé à ${ids.length} destinataire(s) — regarde Telegram. Le bot voit : ${production} à produire, ${leads} lead(s), ${quotes} devis, ${reviews} avis, ${birthdays} anniversaire(s). Heure serveur ${serverHour} h / heure de Zurich ${zh} h.`,
   };
+}
+
+
+/* ------------------------------------------------ test d'un déclencheur
+   Exécute la vraie fonction en mode 🧪 (aucune écriture d'état) pour vérifier
+   le format des messages sans polluer les cooldowns. */
+export async function testTrigger(tenantId: string, kind: string): Promise<{ ok: boolean; message: string }> {
+  const t = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  if (!t) return { ok: false, message: "Tenant introuvable" };
+  const s = await getSettings(tenantId);
+  try {
+    await notifyAll(`🧪 <b>Test « ${kind} »</b> — les messages qui suivent sont un aperçu, rien n'est marqué comme traité.`);
+    switch (kind) {
+      case "digest": await morningDigest(t, true); break;
+      case "nudges": await eveningNudges(t, true); break;
+      case "reviews": await reviewNudges(t, s.reviewUrl, true); break;
+      case "birthday": await birthdayNudges(t, true); break;
+      case "monthly": await monthlyReport(t, true); break;
+      default: return { ok: false, message: `Déclencheur inconnu : ${kind}` };
+    }
+    return { ok: true, message: "Envoyé sur Telegram — regarde ton téléphone 📱" };
+  } catch (e) {
+    return { ok: false, message: `Erreur : ${e instanceof Error ? e.message : "inconnue"}` };
+  }
 }
