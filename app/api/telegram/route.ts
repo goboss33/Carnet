@@ -594,6 +594,11 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       return ok();
     }
 
+    if (ns === "noop") {
+      await answerCallback(cb.id, "🧪 Bouton de test — aucun effet");
+      return ok();
+    }
+
     if (ns === "metric") {
       await answerCallback(cb.id);
       const step = session?.step ?? "";

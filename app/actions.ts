@@ -615,6 +615,7 @@ export async function saveSettings(formData: FormData) {
     cronEveningNudges: formData.get("cronEveningNudges") === "on",
     cronReviews: formData.get("cronReviews") === "on",
     cronBirthday: formData.get("cronBirthday") === "on",
+    cronMonthly: formData.get("cronMonthly") === "on",
     paymentDefault: formData.get("paymentDefault") === "virement" ? "virement" : "twint",
     twintNumber: String(formData.get("twintNumber") ?? "").trim(),
     accountHolder: String(formData.get("accountHolder") ?? "").trim(),

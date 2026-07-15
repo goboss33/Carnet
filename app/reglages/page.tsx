@@ -2,7 +2,6 @@ import { prisma, currentTenant } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { saveSettings } from "@/app/actions";
 import Shell from "@/app/components/Shell";
-import TestCronButton from "./TestCronButton";
 import TriggerTests from "./TriggerTests";
 import ConsignesField from "./ConsignesField";
 
@@ -17,13 +16,6 @@ export default async function Reglages() {
     prisma.settings.findUnique({ where: { tenantId: tenant.id } }),
     getSettings(tenant.id),
   ]);
-
-  const crons: { name: string; label: string; on: boolean }[] = [
-    { name: "cronDigest", label: "Digest du matin (programme du jour)", on: eff.cronDigest },
-    { name: "cronEveningNudges", label: "Relances du soir (leads, devis, livraisons)", on: eff.cronEveningNudges },
-    { name: "cronReviews", label: "Demandes d'avis (J+2 après livraison)", on: eff.cronReviews },
-    { name: "cronBirthday", label: "Relance anniversaire (~3 semaines avant)", on: eff.cronBirthday },
-  ];
 
   return (
     <Shell>
@@ -135,26 +127,22 @@ export default async function Reglages() {
               <input name="nudgeHour" type="number" min="0" max="23" defaultValue={raw?.nudgeHour ?? ""} placeholder={String(eff.nudgeHour)} className={input} />
             </label>
           </div>
-          <p className={label}>Crons actifs</p>
-          <div className="space-y-2.5">
-            {crons.map((c) => (
-              <label key={c.name} className="flex items-center gap-3 text-sm text-stone-700">
-                <input type="checkbox" name={c.name} defaultChecked={c.on} className="h-4 w-4 accent-stone-900" />
-                {c.label}
-              </label>
-            ))}
-          </div>
+          <p className={label}>Automatismes — actif / tester</p>
+          <TriggerTests
+            defaults={{
+              cronDigest: eff.cronDigest,
+              cronEveningNudges: eff.cronEveningNudges,
+              cronReviews: eff.cronReviews,
+              cronBirthday: eff.cronBirthday,
+              cronMonthly: eff.cronMonthly,
+            }}
+          />
           <p className="mt-4 text-[11px] text-stone-400">
             Le token du bot et la liste des utilisateurs autorisés restent des variables d'environnement (sécurité).
           </p>
         </section>
 
         {/* Avis */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Tester les automatismes</h2>
-          <TriggerTests />
-        </section>
-
         <section className="rounded-2xl border border-stone-200 bg-white p-6">
           <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Avis clients</h2>
           <label>
@@ -168,9 +156,6 @@ export default async function Reglages() {
         </button>
       </form>
 
-      <div className="mt-6 max-w-2xl">
-        <TestCronButton />
-      </div>
     </Shell>
   );
 }

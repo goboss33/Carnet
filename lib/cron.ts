@@ -71,7 +71,7 @@ async function tick() {
     }
     if (now.getDate() === 1 && hour === s.digestHour + 1 && lastRun.get(`${t.id}:monthly`) !== today) {
       lastRun.set(`${t.id}:monthly`, today);
-      await monthlyReport(t).catch((e) => console.error("monthly:", e));
+      if (s.cronMonthly) await monthlyReport(t).catch((e) => console.error("monthly:", e));
     }
   }
 }
@@ -175,7 +175,10 @@ async function eveningNudges(t: Tenant, dryRun = false) {
     for (const o of quotes) picked.push({ kind: "quote", o });
   }
 
-  if (!picked.length) return;
+  if (!picked.length) {
+    if (dryRun) await notifyAll("🧪 Relances du soir : rien à suivre aujourd'hui.\nRègles : livraison confirmée à date passée · lead sans réponse depuis 24 h · devis sans nouvelles depuis 4 jours — cooldown 2 jours par fiche.");
+    return;
+  }
   const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
   for (const { kind, o } of picked) {
@@ -214,7 +217,8 @@ async function eveningNudges(t: Tenant, dryRun = false) {
         ],
       ];
     }
-    for (const id of ids) await sayInline(Number(id), text, buttons);
+    const finalButtons = dryRun ? buttons.map((row) => row.map((b) => ({ ...b, callback_data: "noop" }))) : buttons;
+    for (const id of ids) await sayInline(Number(id), text, finalButtons);
     await prisma.order.update({ where: { id: order.id }, data: { lastNudgeAt: new Date() } });
   }
 }
@@ -230,7 +234,10 @@ async function morningDigest(t: Tenant, dryRun = false) {
     orderBy: { eventDate: "asc" },
   });
   const pendingLeads = await prisma.order.count({ where: { tenantId: t.id, status: "LEAD" } });
-  if (!soon.length && !pendingLeads) return;
+  if (!soon.length && !pendingLeads) {
+    if (dryRun) await notifyAll("🧪 Digest : rien à annoncer aujourd'hui — aucune sortie d'atelier sous 3 jours et aucun lead en attente.");
+    return;
+  }
   const lines = [
     "☀️ <b>Bonjour ! Le programme :</b>",
     ...soon.map((o) => {
@@ -254,6 +261,10 @@ async function reviewNudges(t: Tenant, reviewUrl: string, dryRun = false) {
     },
     include: { contact: true },
   });
+  if (dryRun && !candidates.length) {
+    await notifyAll("🧪 Avis J+2 : aucun cas éligible aujourd'hui.\nRègle : commande livrée il y a 2 à 14 jours, avis pas encore demandé.");
+    return;
+  }
   for (const o of candidates) {
     const msgClient = [
       `Bonjour ${o.contact.firstName} ! C'est Annie de Maman Gâteau 🧁`,
@@ -273,7 +284,7 @@ async function reviewNudges(t: Tenant, reviewUrl: string, dryRun = false) {
         `(ou appui long → copier)`,
       ].join("\n")
     );
-    await prisma.order.update({ where: { id: o.id }, data: { reviewAskedAt: new Date() } });
+    if (!dryRun) await prisma.order.update({ where: { id: o.id }, data: { reviewAskedAt: new Date() } });
   }
 }
 
@@ -281,6 +292,7 @@ async function reviewNudges(t: Tenant, reviewUrl: string, dryRun = false) {
    ~3 semaines avant l'anniversaire (1 an, puis chaque année) d'une commande
    d'anniversaire passée : message prêt à envoyer, au plus une fois par an. */
 async function birthdayNudges(t: Tenant, dryRun = false) {
+  let sentBirthday = 0;
   const now = new Date();
   const SOON_MIN = 18;
   const SOON_MAX = 25; // fenêtre ~3 semaines avant
@@ -298,6 +310,7 @@ async function birthdayNudges(t: Tenant, dryRun = false) {
     const next = nextAnniversary(o.eventDate, now);
     const days = Math.ceil((next.getTime() - now.getTime()) / 86400000);
     if (days < SOON_MIN || days > SOON_MAX) continue;
+    sentBirthday++;
     const yearsSince = next.getUTCFullYear() - o.eventDate.getUTCFullYear();
     const nextAge = o.celebrantAge ? o.celebrantAge + yearsSince : null;
     const who = o.celebrant || o.contact.firstName;
@@ -316,7 +329,10 @@ async function birthdayNudges(t: Tenant, dryRun = false) {
         `<code>${msgClient}</code>`,
       ].filter(Boolean).join("\n")
     );
-    await prisma.order.update({ where: { id: o.id }, data: { anniversaryNudgedAt: new Date() } });
+    if (!dryRun) await prisma.order.update({ where: { id: o.id }, data: { anniversaryNudgedAt: new Date() } });
+  }
+  if (dryRun && !sentBirthday) {
+    await notifyAll("🧪 Relance anniversaire : aucun cas éligible aujourd'hui.\nRègle : commande d'anniversaire dont la date retombe dans 18 à 25 jours, pas déjà relancée cette année.");
   }
 }
 
