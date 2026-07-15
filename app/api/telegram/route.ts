@@ -7,9 +7,10 @@
 --------------------------------------------------------------------------- */
 
 import { NextRequest, NextResponse } from "next/server";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, writeFile, rename, unlink } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
+import AdmZip from "adm-zip";
 import { prisma, currentTenant } from "@/lib/db";
 import { say, sayInline, editMessage, answerCallback, downloadPhoto, tg } from "@/lib/telegram";
 import { analyzeReceipt, classifyInbound, analyzeConversation, type ConversationData, type GeminiPart } from "@/lib/gemini";
@@ -69,6 +70,7 @@ type Draft = {
   parts?: number;
   priceQuoted?: number;
   conv?: ConversationData;
+  photos?: string[];
 };
 
 const QUESTIONS: Record<string, { q: string; skippable: boolean }> = {
@@ -233,6 +235,11 @@ async function flushAlbum(key: string) {
 /** Point d'entrée images/PDF : classifie (ticket vs conversation) puis route. */
 async function handleInboundMedia(chatId: number, tenantId: string, tenantSlug: string, files: { fileId: string; isPdf: boolean }[]) {
   if (!files.length) return;
+  const sess = await prisma.botSession.findUnique({ where: { chatId: BigInt(chatId) } });
+  if (sess?.step?.startsWith("att:")) {
+    await attachInspirations(chatId, tenantId, tenantSlug, sess.step.slice(4), files);
+    return;
+  }
   if (!process.env.GEMINI_API_KEY) {
     for (const f of files) await handleReceipt(chatId, tenantId, tenantSlug, f.fileId, f.isPdf);
     return;
@@ -276,9 +283,76 @@ async function handleChatExport(chatId: number, tenantId: string, fileId: string
   await presentConversation(chatId, tenantId, [{ text: `Export de la discussion :\n${text}` }]);
 }
 
+const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Export .zip WhatsApp (discussion + médias) : txt → analyse, images de la CLIENTE → inspirations. */
+async function handleChatZip(chatId: number, tenantId: string, tenantSlug: string, fileId: string) {
+  const raw = await downloadPhoto(fileId);
+  if (!raw) {
+    await say(chatId, "Je n'ai pas réussi à récupérer le fichier — réessaie ? (si l'export est lourd, refais-le « sans médias »)");
+    return;
+  }
+  let zip: AdmZip;
+  try {
+    zip = new AdmZip(raw);
+  } catch {
+    await say(chatId, "⚠️ Ce zip est illisible — réessaie l'export depuis WhatsApp.");
+    return;
+  }
+  const entries = zip.getEntries().filter((e) => !e.isDirectory && !e.entryName.includes(".."));
+  const txtEntry =
+    entries.find((e) => /chat|discussion/i.test(e.entryName) && e.entryName.toLowerCase().endsWith(".txt")) ??
+    entries.find((e) => e.entryName.toLowerCase().endsWith(".txt"));
+  if (!txtEntry) {
+    await say(chatId, "⚠️ Pas de fichier de discussion (.txt) dans ce zip.");
+    return;
+  }
+  const text = txtEntry.getData().toString("utf8").slice(0, 120_000);
+  const imgEntries = entries.filter((e) => /\.(jpe?g|png|webp)$/i.test(e.entryName)).slice(0, 40);
+  await say(chatId, `📥 Export reçu (discussion${imgEntries.length ? ` + ${imgEntries.length} image${imgEntries.length > 1 ? "s" : ""}` : ""}) — je lis…`);
+
+  const conv = await analyzeConversation([{ text: `Export de la discussion :\n${text}` }]);
+  if (!conv || !conv.isRequest) {
+    await say(chatId, conv ? "🤷 Je n'ai pas reconnu de demande de gâteau dans cette discussion." : "⚠️ Je n'ai pas réussi à analyser cette discussion — réessaie ?");
+    return;
+  }
+
+  // qui a envoyé quoi ? (ligne du txt qui référence le fichier)
+  const clientKeyName = (conv.contactName ?? "").toLowerCase();
+  const clientKeyPhone = (conv.contactPhone ?? "").replace(/\D/g, "").slice(-9);
+  const photos: string[] = [];
+  const dir = path.resolve(process.env.RECEIPTS_DIR ?? "./data/receipts");
+  let idx = 0;
+  for (const e of imgEntries) {
+    const base = e.entryName.split("/").pop() ?? e.entryName;
+    const m = text.match(new RegExp(`(?:-\\s|\\]\\s?)([^:\\n]{1,60}?)\\s?:[^\\n]*${esc(base)}`));
+    const sender = (m?.[1] ?? "").trim().toLowerCase();
+    const senderDigits = sender.replace(/\D/g, "").slice(-9);
+    const isClient =
+      sender &&
+      ((clientKeyName && (sender.includes(clientKeyName) || clientKeyName.includes(sender))) ||
+        (clientKeyPhone && senderDigits && senderDigits === clientKeyPhone));
+    if (!isClient) continue;
+    try {
+      const buf = e.getData();
+      if (!buf.length || buf.length > 6_000_000) continue;
+      const webp = await sharp(buf).rotate().resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+      idx++;
+      const rel = path.join("inspirations", tenantSlug, `tmp-cv-${chatId}`, `${idx}.webp`);
+      const abs = path.join(dir, rel);
+      await mkdir(path.dirname(abs), { recursive: true });
+      await writeFile(abs, webp);
+      photos.push(rel);
+    } catch (err) {
+      console.error("zip image:", err);
+    }
+  }
+  await presentConversation(chatId, tenantId, [], { conv, photos });
+}
+
 /** Analyse + récap + demande de validation (rien n'est créé sans ✅). */
-async function presentConversation(chatId: number, tenantId: string, parts: GeminiPart[]) {
-  const conv = await analyzeConversation(parts);
+async function presentConversation(chatId: number, tenantId: string, parts: GeminiPart[], pre?: { conv: ConversationData; photos: string[] }) {
+  const conv = pre?.conv ?? (await analyzeConversation(parts));
   if (!conv) {
     await say(chatId, "⚠️ Je n'ai pas réussi à analyser cette conversation. Réessaie, ou crée la fiche via 🎂 Nouvelle commande.");
     return;
@@ -287,8 +361,9 @@ async function presentConversation(chatId: number, tenantId: string, parts: Gemi
     await say(chatId, "🤷 Je n'ai pas reconnu de demande de gâteau dans cette conversation. Si je me trompe, crée la fiche via 🎂 Nouvelle commande.");
     return;
   }
-  await setStep(chatId, tenantId, "cv:confirm", { conv });
-  await sayInline(chatId, convRecap(conv), [
+  const photos = pre?.photos ?? [];
+  await setStep(chatId, tenantId, "cv:confirm", { conv, photos });
+  await sayInline(chatId, convRecap(conv) + (photos.length ? `\n📎 ${photos.length} photo${photos.length > 1 ? "s" : ""} d'inspiration de la cliente — jointe${photos.length > 1 ? "s" : ""} à la fiche au moment du ✅.` : ""), [
     [{ text: "✅ Créer la fiche", callback_data: "cv:ok" }],
     [
       { text: "✏️ Corriger", callback_data: "cv:fix" },
@@ -349,7 +424,7 @@ function convRecap(conv: ConversationData): string {
   return l.filter(Boolean).join("\n");
 }
 
-async function createFromConversation(chatId: number, tenantId: string, conv: ConversationData) {
+async function createFromConversation(chatId: number, tenantId: string, conv: ConversationData, tmpPhotos: string[] = []) {
   const phoneN = conv.contactPhone ? normPhone(conv.contactPhone) : "";
   let contact = phoneN
     ? await prisma.contact.findFirst({ where: { tenantId, phone: phoneN }, include: { _count: { select: { orders: true } } } })
@@ -406,12 +481,31 @@ async function createFromConversation(chatId: number, tenantId: string, conv: Co
     include: { contact: true },
   });
 
+  // photos d'inspiration extraites du zip : déplacées du dossier temporaire vers la fiche
+  if (tmpPhotos.length) {
+    const dir = path.resolve(process.env.RECEIPTS_DIR ?? "./data/receipts");
+    const rels: string[] = [];
+    for (let i = 0; i < tmpPhotos.length; i++) {
+      try {
+        const rel = path.join("inspirations", (await prisma.tenant.findUnique({ where: { id: tenantId } }))?.slug ?? "mg", order.id, `insp-${i + 1}.webp`);
+        await mkdir(path.dirname(path.join(dir, rel)), { recursive: true });
+        await rename(path.join(dir, tmpPhotos[i]), path.join(dir, rel));
+        rels.push(rel);
+      } catch (e) {
+        console.error("move inspiration:", e);
+      }
+    }
+    if (rels.length) await prisma.order.update({ where: { id: order.id }, data: { inspirationPhotos: rels } });
+  }
+
   const miss = missingFor(order);
   const lines = [
     `✅ <b>Fiche créée — ${contact.firstName} ${contact.lastName}</b>`.trim() + ` · ${STATUS_LABEL[order.status] ?? order.status}`,
     knownNote,
     `${process.env.APP_URL ?? ""}/commandes/${order.id}`,
   ].filter(Boolean);
+
+  if (tmpPhotos.length) lines.push(`📎 ${tmpPhotos.length} photo${tmpPhotos.length > 1 ? "s" : ""} d'inspiration jointe${tmpPhotos.length > 1 ? "s" : ""}.`);
 
   if (miss.length) {
     const first = miss[0];
@@ -424,11 +518,43 @@ async function createFromConversation(chatId: number, tenantId: string, conv: Co
           { text: "⏰ Plus tard", callback_data: `fd:later:${order.id}:${first.field}` },
           { text: "❌ N'existe pas", callback_data: `fd:never:${order.id}:${first.field}` },
         ],
+        [{ text: "📎 Ajouter des inspirations", callback_data: `att:start:${order.id}` }],
       ]
     );
   } else {
-    await say(chatId, [...lines, "✔️ Fiche complète pour ce stade."].join("\n"));
+    await sayInline(chatId, [...lines, "✔️ Fiche complète pour ce stade."].join("\n"), [
+      [{ text: "📎 Ajouter des inspirations", callback_data: `att:start:${order.id}` }],
+    ]);
   }
+}
+
+/** Mode 📎 : les photos envoyées s'attachent à la fiche jusqu'à « Terminé ». */
+async function attachInspirations(chatId: number, tenantId: string, tenantSlug: string, orderId: string, files: { fileId: string; isPdf: boolean }[]) {
+  const order = await prisma.order.findFirst({ where: { id: orderId, tenantId }, include: { contact: true } });
+  if (!order) {
+    await say(chatId, "Fiche introuvable — mode 📎 annulé.");
+    return;
+  }
+  const dir = path.resolve(process.env.RECEIPTS_DIR ?? "./data/receipts");
+  const rels: string[] = [];
+  for (const f of files.filter((x) => !x.isPdf)) {
+    try {
+      const raw = await downloadPhoto(f.fileId);
+      if (!raw) continue;
+      const webp = await sharp(raw).rotate().resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+      const rel = path.join("inspirations", tenantSlug, order.id, `att-${Date.now()}-${rels.length + 1}.webp`);
+      await mkdir(path.dirname(path.join(dir, rel)), { recursive: true });
+      await writeFile(path.join(dir, rel), webp);
+      rels.push(rel);
+    } catch (e) {
+      console.error("attach inspiration:", e);
+    }
+  }
+  if (rels.length) await prisma.order.update({ where: { id: orderId }, data: { inspirationPhotos: { push: rels } } });
+  const total = order.inspirationPhotos.length + rels.length;
+  await sayInline(chatId, `📎 +${rels.length} — ${total} photo${total > 1 ? "s" : ""} sur la fiche de <b>${order.contact.firstName}</b>. Envoie la suite, ou :`, [
+    [{ text: "✅ Terminé", callback_data: `att:done:${orderId}` }],
+  ]);
 }
 
 /* ------------------------------------------------------- justificatifs */
@@ -861,13 +987,34 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       if (action === "ok") {
         await setStep(chatId, tenant.id, "idle", {});
         await editMessage(chatId, mid, "📥 Demande validée — je crée la fiche…");
-        await createFromConversation(chatId, tenant.id, conv);
+        await createFromConversation(chatId, tenant.id, conv, draft.photos ?? []);
       } else if (action === "fix") {
-        await setStep(chatId, tenant.id, "cv:fix", { conv });
+        await setStep(chatId, tenant.id, "cv:fix", { conv, photos: draft.photos });
         await say(chatId, "✏️ Envoie la correction en texte libre — ex. « le prix c'est 195 », « tél +41 79 123 45 67 », « c'est un baptême », « 30 parts ». Plusieurs corrections d'un coup, ça marche aussi.");
       } else {
         await setStep(chatId, tenant.id, "idle", {});
+        if (draft.photos?.length) {
+          const dir = path.resolve(process.env.RECEIPTS_DIR ?? "./data/receipts");
+          for (const rel of draft.photos) await unlink(path.join(dir, rel)).catch(() => null);
+        }
         await editMessage(chatId, mid, "🗑 Demande ignorée — rien n'a été créé.");
+      }
+      return ok();
+    }
+
+    if (ns === "att") {
+      const orderId = rest[0];
+      if (action === "start") {
+        await answerCallback(cb.id);
+        await setStep(chatId, tenant.id, `att:${orderId}`, {});
+        await sayInline(chatId, "📎 Transfère-moi les photos d'inspiration (une ou plusieurs, depuis WhatsApp/Insta ça marche aussi).", [
+          [{ text: "✅ Terminé", callback_data: `att:done:${orderId}` }],
+        ]);
+      } else if (action === "done") {
+        await setStep(chatId, tenant.id, "idle", {});
+        const o = await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id }, include: { contact: true } });
+        await answerCallback(cb.id, "Mode 📎 terminé");
+        await editMessage(chatId, mid, o ? `📎 ${o.inspirationPhotos.length} photo${o.inspirationPhotos.length > 1 ? "s" : ""} d'inspiration sur la fiche de ${o.contact.firstName}.\n${process.env.APP_URL ?? ""}/commandes/${o.id}` : "📎 Terminé.");
       }
       return ok();
     }
@@ -1064,7 +1211,9 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       await say(chatId, "Fichier trop lourd (max ~15 Mo).");
       return ok();
     }
-    if (mime === "text/plain" || fname.endsWith(".txt")) {
+    if (mime === "application/zip" || mime === "application/x-zip-compressed" || fname.endsWith(".zip")) {
+      await handleChatZip(chatId, tenant.id, tenant.slug, msg.document.file_id);
+    } else if (mime === "text/plain" || fname.endsWith(".txt")) {
       await handleChatExport(chatId, tenant.id, msg.document.file_id);
     } else if (mime === "application/pdf" || mime.startsWith("image/")) {
       const file = { fileId: msg.document.file_id as string, isPdf: mime === "application/pdf" };
@@ -1074,7 +1223,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         await handleInboundMedia(chatId, tenant.id, tenant.slug, [file]);
       }
     } else {
-      await say(chatId, "Je lis les images, les PDF et les exports de discussion (.txt).");
+      await say(chatId, "Je lis les images, les PDF et les exports de discussion (.txt ou .zip WhatsApp).");
     }
     return ok();
   }
@@ -1332,7 +1481,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       return ok();
     }
     fixed.isRequest = true;
-    await setStep(chatId, tenant.id, "cv:confirm", { conv: fixed });
+    await setStep(chatId, tenant.id, "cv:confirm", { conv: fixed, photos: draft.photos });
     await sayInline(chatId, convRecap(fixed), [
       [{ text: "✅ Créer la fiche", callback_data: "cv:ok" }],
       [
