@@ -277,6 +277,24 @@ enum PartnerType {
   AUTRE
 }
 
+/* Candidature partenaire (formulaire public du site) — en attente de décision. */
+model PartnerApplication {
+  id          String      @id @default(cuid())
+  tenantId    String
+  business    String
+  type        PartnerType @default(COMMERCE)
+  typeLabel   String      @default("")
+  contactName String      @default("")
+  phone       String      @default("")
+  city        String      @default("")
+  message     String      @default("")
+  status      String      @default("pending") // pending | accepted | declined
+  createdAt   DateTime    @default(now())
+  handledAt   DateTime?
+
+  @@index([tenantId, status])
+}
+
 model Partner {
   id        String      @id @default(cuid())
   tenantId  String
@@ -286,6 +304,8 @@ model Partner {
   code      String
   ratePct   Int         @default(10)
   contact   String      @default("")
+  phone     String      @default("")
+  city      String      @default("")
   active    Boolean     @default(true)
   createdAt DateTime    @default(now())
   orders    Order[]

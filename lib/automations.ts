@@ -135,6 +135,16 @@ export const AUTOMATIONS: Automation[] = [
     stage: 0,
   },
   {
+    id: "partner-apply",
+    family: "reaction",
+    emoji: "🤝",
+    name: "Candidature partenaire",
+    desc: "Quand un commerce postule via la page Partenaires du site, la candidature arrive sur Telegram : réponds sur WhatsApp d'un tap, accepte (fiche partenaire + code créés automatiquement) ou décline.",
+    trigger: "Dès qu'un pro envoie le formulaire /partenaires",
+    example: "🤝 Candidature partenaire — Fleur & Chocolat (fleuriste, Lutry)\nMarie · +41 79 …\n[📲 WhatsApp] [✅ Créer le partenaire] [🗄 Décliner]",
+    stage: 0,
+  },
+  {
     id: "notif-devis",
     family: "reaction",
     emoji: "🔔",

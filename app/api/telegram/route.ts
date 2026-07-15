@@ -1002,6 +1002,56 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       return ok();
     }
 
+    if (ns === "pa") {
+      const app = await prisma.partnerApplication.findFirst({ where: { id: rest[0], tenantId: tenant.id } });
+      if (!app) {
+        await answerCallback(cb.id, "Candidature introuvable");
+        return ok();
+      }
+      if (app.status !== "pending") {
+        await answerCallback(cb.id, `Déjà traitée (${app.status === "accepted" ? "acceptée" : "déclinée"})`);
+        return ok();
+      }
+      if (action === "ok") {
+        // code auto : 4 lettres du commerce + 3 de la ville, anti-collision
+        const clean = (x: string) => x.toUpperCase().normalize("NFD").replace(/[^A-Z]/g, "");
+        let base = `${clean(app.business).slice(0, 4) || "PART"}${app.city ? `-${clean(app.city).slice(0, 3)}` : ""}`;
+        let code = base;
+        for (let i = 2; await prisma.partner.findUnique({ where: { tenantId_code: { tenantId: tenant.id, code } } }); i++) {
+          code = `${base}${i}`;
+        }
+        const partner = await prisma.partner.create({
+          data: {
+            tenantId: tenant.id,
+            name: app.business,
+            type: app.type,
+            code,
+            ratePct: 10,
+            contact: app.contactName,
+            phone: app.phone,
+            city: app.city,
+          },
+        });
+        await prisma.partnerApplication.update({ where: { id: app.id }, data: { status: "accepted", handledAt: new Date() } });
+        await answerCallback(cb.id, "Partenaire créé ✓");
+        await editMessage(
+          chatId,
+          mid,
+          [
+            `✅ <b>Partenaire créé — ${app.business}</b>`,
+            `Code : <b>${code}</b> · commission par défaut 10 % (modifiable)`,
+            `🖨 Flyer personnalisé : ${process.env.APP_URL ?? ""}/api/partenaires/${partner.id}/flyer`,
+            `Fiche : ${process.env.APP_URL ?? ""}/partenaires`,
+          ].join("\n")
+        );
+      } else if (action === "no") {
+        await prisma.partnerApplication.update({ where: { id: app.id }, data: { status: "declined", handledAt: new Date() } });
+        await answerCallback(cb.id, "Déclinée");
+        await editMessage(chatId, mid, `🗄 Candidature de <b>${app.business}</b> déclinée — rien n'a été créé.`);
+      }
+      return ok();
+    }
+
     if (ns === "att") {
       const orderId = rest[0];
       if (action === "start") {

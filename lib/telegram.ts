@@ -27,7 +27,7 @@ export const say = (chatId: number | bigint, text: string, extra: Record<string,
 export const sayInline = (
   chatId: number | bigint,
   text: string,
-  inline: { text: string; callback_data: string }[][]
+  inline: { text: string; callback_data?: string; url?: string }[][]
 ) =>
   tg("sendMessage", {
     chat_id: Number(chatId),
@@ -40,7 +40,7 @@ export const editMessage = (
   chatId: number | bigint,
   messageId: number,
   text: string,
-  inline?: { text: string; callback_data: string }[][]
+  inline?: { text: string; callback_data?: string; url?: string }[][]
 ) =>
   tg("editMessageText", {
     chat_id: Number(chatId),
@@ -70,12 +70,12 @@ export async function notifyAll(text: string) {
 }
 
 /** Message avec boutons inline à tous les utilisateurs autorisés. */
-export async function notifyAllInline(text: string, inline: { text: string; callback_data: string }[][]) {
+export async function notifyAllInline(text: string, inline: { text: string; callback_data?: string; url?: string }[][]) {
   const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   await Promise.allSettled(ids.map((id) => sayInline(Number(id), text, inline)));
 }
 
-type Inline = { text: string; callback_data: string }[][];
+type Inline = { text: string; callback_data?: string; url?: string }[][];
 
 /** Envoie une photo (bytes) à un chat (légende en HTML, boutons inline optionnels). */
 export async function sendPhotoTo(chatId: number | bigint, buf: Buffer, filename: string, caption?: string, inline?: Inline) {
