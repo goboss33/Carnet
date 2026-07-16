@@ -116,6 +116,35 @@ export async function advanceStatus(orderId: string) {
   revalidatePath(`/commandes/${orderId}`);
 }
 
+/** Déplacement pipeline (drag & drop / menu) — mêmes effets de bord que le
+    passage d'étape, quel que soit le saut. */
+export async function moveOrderStatus(orderId: string, status: OrderStatus): Promise<{ error?: string }> {
+  const tenant = await currentTenant();
+  const order = await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id } });
+  if (!order) return { error: "Commande introuvable." };
+  if (order.status === status) return {};
+  const s = await getSettings(order.tenantId);
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status,
+      ...(status === "ACOMPTE_RECU" && !order.depositPaidAt
+        ? {
+            depositPaidAt: new Date(),
+            ...(order.depositCents || !order.priceQuoted ? {} : { depositCents: Math.round((order.priceQuoted * s.depositPct) / 100) * 100 }),
+          }
+        : {}),
+      ...(status === "LIVRE" && !order.deliveredAt ? { deliveredAt: new Date() } : {}),
+      ...(status === "ANNULE" ? { cancelledAt: new Date() } : {}),
+      activities: { create: { type: "STATUS", body: `Statut : ${order.status} → ${status}` } },
+    },
+  });
+  revalidatePath("/");
+  revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/compta");
+  return {};
+}
+
 export async function setStatus(orderId: string, status: OrderStatus) {
   await prisma.order.update({
     where: { id: orderId },
