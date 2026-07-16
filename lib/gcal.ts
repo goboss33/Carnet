@@ -3,13 +3,28 @@
    Dès l'acompte : événement journée entière à la date de l'événement ;
    dès que l'heure de remise (handoverAt) est fixée : événement horaire.
    Annulation : événement supprimé. Fire-and-forget : ne bloque jamais l'app.
-   Env : GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET,
-         GCAL_REFRESH_TOKEN, GCAL_CALENDAR_ID (défaut "primary").
+   Auth, deux modes :
+   · Compte de service (recommandé) : GCAL_SA_KEY_JSON_B64 (clé JSON encodée
+     base64) + GCAL_CALENDAR_ID (l'adresse de l'agenda partagé au compte).
+   · OAuth refresh token (secours) : GOOGLE_OAUTH_CLIENT_ID/SECRET +
+     GCAL_REFRESH_TOKEN.
 --------------------------------------------------------------------------- */
+import { createSign } from "crypto";
 import { prisma } from "@/lib/db";
 
+function saKey(): { client_email: string; private_key: string } | null {
+  const b64 = process.env.GCAL_SA_KEY_JSON_B64;
+  if (!b64) return null;
+  try {
+    const j = JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
+    return j.client_email && j.private_key ? j : null;
+  } catch {
+    return null;
+  }
+}
+
 export function gcalEnabled(): boolean {
-  return Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET && process.env.GCAL_REFRESH_TOKEN);
+  return Boolean(saKey() || (process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET && process.env.GCAL_REFRESH_TOKEN));
 }
 
 let cachedToken: { token: string; exp: number } | null = null;
@@ -17,16 +32,36 @@ let cachedToken: { token: string; exp: number } | null = null;
 async function accessToken(): Promise<string | null> {
   if (cachedToken && cachedToken.exp > Date.now() + 30_000) return cachedToken.token;
   try {
+    const sa = saKey();
+    const body = sa
+      ? (() => {
+          // JWT signé (service account) — RS256, scope events, valable 1 h
+          const b64u = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
+          const now = Math.floor(Date.now() / 1000);
+          const unsigned = `${b64u({ alg: "RS256", typ: "JWT" })}.${b64u({
+            iss: sa.client_email,
+            scope: "https://www.googleapis.com/auth/calendar.events",
+            aud: "https://oauth2.googleapis.com/token",
+            iat: now,
+            exp: now + 3600,
+          })}`;
+          const sig = createSign("RSA-SHA256").update(unsigned).sign(sa.private_key, "base64url");
+          return new URLSearchParams({
+            grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            assertion: `${unsigned}.${sig}`,
+          });
+        })()
+      : new URLSearchParams({
+          client_id: process.env.GOOGLE_OAUTH_CLIENT_ID!,
+          client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET!,
+          refresh_token: process.env.GCAL_REFRESH_TOKEN!,
+          grant_type: "refresh_token",
+        });
     const res = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       signal: AbortSignal.timeout(10_000),
-      body: new URLSearchParams({
-        client_id: process.env.GOOGLE_OAUTH_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET!,
-        refresh_token: process.env.GCAL_REFRESH_TOKEN!,
-        grant_type: "refresh_token",
-      }),
+      body,
     });
     if (!res.ok) {
       console.error("gcal token", res.status, await res.text().catch(() => ""));
