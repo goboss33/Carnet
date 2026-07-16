@@ -42,15 +42,20 @@ const TONE: Record<string, string> = {
   past: "bg-zinc-100 text-zinc-400",
 };
 
-function Card({ card, dragging }: { card: CardData; dragging?: boolean }) {
+function Card({ card, dragging, handleProps }: { card: CardData; dragging?: boolean; handleProps?: React.HTMLAttributes<HTMLSpanElement> }) {
   const router = useRouter();
   const av = avatar(card.name);
   const rel = fmtRel(card.eventDateISO ? new Date(card.eventDateISO) : null);
   return (
     <div className={cn("rounded-xl border border-zinc-200/80 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow", dragging && "rotate-1 shadow-lg ring-2 ring-(--color-brand)/30")}>
-      <div className="flex items-start gap-0.5 px-1.5 pt-2">
-        <span className="mt-1.5 cursor-grab touch-none text-zinc-300" aria-hidden>
-          <GripVertical className="size-3" />
+      <div className="flex items-start gap-0.5 px-1 pt-1">
+        <span
+          {...handleProps}
+          className="-m-0.5 flex min-h-10 min-w-7 cursor-grab touch-none items-center justify-center self-stretch rounded-md text-zinc-300 transition-colors hover:bg-zinc-100 hover:text-zinc-500 active:cursor-grabbing"
+          aria-label="Déplacer la carte"
+          role="button"
+        >
+          <GripVertical className="size-3.5" />
         </span>
         <Link href={`/commandes/${card.id}`} className="block min-w-0 flex-1 px-0.5 pb-1 pt-0.5">
           <div className="flex items-center gap-2.5">
@@ -120,8 +125,8 @@ function Card({ card, dragging }: { card: CardData; dragging?: boolean }) {
 function DraggableCard({ card }: { card: CardData }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: card.id });
   return (
-    <li ref={setNodeRef} {...listeners} {...attributes} className={cn(isDragging && "opacity-30")}>
-      <Card card={card} />
+    <li ref={setNodeRef} className={cn(isDragging && "opacity-30")}>
+      <Card card={card} handleProps={{ ...listeners, ...attributes } as React.HTMLAttributes<HTMLSpanElement>} />
     </li>
   );
 }
@@ -158,8 +163,8 @@ export default function PipelineBoard({ columns, cards }: { columns: ColumnData[
   const [local, setLocal] = useState(cards);
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 280, tolerance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 12 } })
   );
 
   // resync quand le serveur renvoie de nouvelles données
