@@ -3,8 +3,8 @@
 import { useActionState } from "react";
 import { updateContact, deleteContact } from "@/app/actions";
 
-const input = "w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-amber-600";
-const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-stone-500";
+const input = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
+const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
 
 type C = {
   id: string; firstName: string; lastName: string; phone: string; email: string;
@@ -21,7 +21,7 @@ export default function ContactForm({ contact, ordersCount }: { contact: C; orde
     if (!window.confirm(msg)) e.preventDefault();
   };
   return (
-    <form action={action} className="space-y-4 self-start rounded-2xl border border-stone-200 bg-white p-6">
+    <form action={action} className="space-y-4 self-start rounded-2xl border border-zinc-200 bg-white p-6">
       <div className="grid gap-3 sm:grid-cols-2">
         <label><span className={label}>Prénom *</span><input name="firstName" defaultValue={contact.firstName} required className={input} /></label>
         <label><span className={label}>Nom</span><input name="lastName" defaultValue={contact.lastName} className={input} /></label>
@@ -40,23 +40,23 @@ export default function ContactForm({ contact, ordersCount }: { contact: C; orde
         </label>
       </div>
       <label><span className={label}>Notes</span><textarea name="notes" rows={3} defaultValue={contact.notes} className={input} /></label>
-      <label className="flex items-center gap-2 text-sm text-stone-600">
-        <input type="checkbox" name="consentNewsletter" defaultChecked={contact.consentNewsletter} className="h-4 w-4 accent-amber-600" />
+      <label className="flex items-center gap-2 text-sm text-zinc-600">
+        <input type="checkbox" name="consentNewsletter" defaultChecked={contact.consentNewsletter} className="h-4 w-4 accent-(--color-brand)" />
         OK pour recevoir les nouvelles (newsletter)
       </label>
       {state?.error && <p className="text-sm font-medium text-red-600">{state.error}</p>}
       {state?.ok && <p className="text-sm font-medium text-emerald-700">Enregistré ✓</p>}
       <div className="flex items-center justify-between">
-        <button disabled={pending} className="rounded-lg bg-stone-900 px-5 py-2 text-sm font-semibold text-white hover:bg-stone-700 disabled:opacity-50">
+        <button disabled={pending} className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50">
           {pending ? "…" : "Enregistrer"}
         </button>
         <button
           formAction={deleteContact.bind(null, contact.id)}
           onClick={confirmDelete}
           title="Supprimer définitivement (avec ses commandes)"
-          className="text-sm text-stone-400 hover:text-red-600"
+          className="text-sm text-zinc-400 hover:text-red-600"
         >
-          🗑 Supprimer{ordersCount > 0 ? ` (+${ordersCount} cmd)` : ""}
+          Supprimer{ordersCount > 0 ? ` (+${ordersCount} cmd)` : ""}
         </button>
       </div>
     </form>

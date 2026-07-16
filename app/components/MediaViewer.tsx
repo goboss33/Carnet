@@ -38,7 +38,7 @@ export default function MediaViewer({
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/85 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-zinc-950/85 p-4 backdrop-blur-sm"
           onClick={() => setOpen(false)}
           role="dialog"
           aria-modal="true"

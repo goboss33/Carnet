@@ -8,8 +8,8 @@ import ConsignesField from "./ConsignesField";
 
 export const dynamic = "force-dynamic";
 
-const input = "w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-amber-600";
-const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-stone-500";
+const input = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
+const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
 
 export default async function Reglages() {
   const tenant = await currentTenant();
@@ -22,24 +22,24 @@ export default async function Reglages() {
   return (
     <Shell>
       <h1 className="mb-1 text-2xl font-bold tracking-tight">Réglages</h1>
-      <p className="mb-6 max-w-2xl text-sm text-stone-500">
+      <p className="mb-6 max-w-2xl text-sm text-zinc-500">
         Un champ laissé vide utilise la valeur par défaut (variable d'environnement ou réglage usine).
       </p>
 
       <form action={saveSettings} className="max-w-2xl space-y-6">
         {/* Compta */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Compta</h2>
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-zinc-600">Compta</h2>
           <label className="block max-w-xs">
             <span className={label}>Forfait déplacement (CHF/km)</span>
             <input name="kmRate" type="number" step="0.05" min="0" defaultValue={raw?.kmRate ?? ""} placeholder={String(eff.kmRate)} className={input} />
-            <span className="mt-1 block text-[11px] text-stone-400">Aller-retour compté ×2. À confirmer avec ta fiduciaire.</span>
+            <span className="mt-1 block text-[11px] text-zinc-400">Aller-retour compté ×2. À confirmer avec ta fiduciaire.</span>
           </label>
         </section>
 
         {/* Objectifs (Cap) */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Objectifs (Cap)</h2>
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-zinc-600">Objectifs (Cap)</h2>
           <div className="grid gap-4 sm:grid-cols-3">
             <label className="block">
               <span className={label}>CA mensuel (CHF)</span>
@@ -69,8 +69,8 @@ export default async function Reglages() {
         </section>
 
         {/* Paiement */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Paiement</h2>
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-zinc-600">Paiement</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <label>
               <span className={label}>Acompte par défaut (%)</span>
@@ -103,10 +103,10 @@ export default async function Reglages() {
         </section>
 
         {/* Assistant IA */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Assistant IA</h2>
-          <label className="mb-4 flex items-center gap-3 text-sm text-stone-700">
-            <input type="checkbox" name="assistantActive" defaultChecked={eff.assistantActive} className="h-4 w-4 accent-stone-900" />
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-zinc-600">Assistant IA</h2>
+          <label className="mb-4 flex items-center gap-3 text-sm text-zinc-700">
+            <input type="checkbox" name="assistantActive" defaultChecked={eff.assistantActive} className="h-4 w-4 accent-zinc-900" />
             Assistant actif (rédaction des messages par IA)
           </label>
           <label className="mb-4 block">
@@ -117,9 +117,9 @@ export default async function Reglages() {
         </section>
 
         {/* Automatismes (bot + crons) */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-6">
-          <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-stone-600">Automatismes</h2>
-          <p className="mb-4 text-xs text-stone-500">
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+          <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-zinc-600">Automatismes</h2>
+          <p className="mb-4 text-xs text-zinc-500">
             Tout ce que le bot fait pour toi, au fil de la vie d'une commande. Active, règle les délais, teste.
           </p>
           <AutomationsSection
@@ -158,21 +158,21 @@ export default async function Reglages() {
               productionLeadDays: eff.productionLeadDays,
             }}
           />
-          <p className="mt-4 text-[11px] text-stone-400">
+          <p className="mt-4 text-[11px] text-zinc-400">
             Le token du bot et la liste des utilisateurs autorisés restent des variables d'environnement (sécurité).
           </p>
         </section>
 
         {/* Avis */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-stone-600">Avis clients</h2>
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-zinc-600">Avis clients</h2>
           <label>
             <span className={label}>Lien d'avis Google (mis dans les messages de demande d'avis)</span>
             <input name="reviewUrl" type="url" defaultValue={raw?.reviewUrl ?? ""} placeholder={eff.reviewUrl || "https://g.page/r/…"} className={input} />
           </label>
         </section>
 
-        <button className="rounded-lg bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-stone-700">
+        <button className="rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700">
           Enregistrer les réglages
         </button>
       </form>

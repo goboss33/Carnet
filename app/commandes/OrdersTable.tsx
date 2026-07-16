@@ -1,103 +1,149 @@
 "use client";
 
-/* Table de l'historique avec sélection multiple → « payé en entier » en lot.
-   Pratique pour solder d'un coup les commandes importées (toutes marquées
-   « reste à encaisser » faute d'info de paiement à l'import). */
+/* Table de l'historique — tri par colonne, sélection multiple (« payé en
+   entier » en lot, pratique pour solder l'import), menu d'actions par ligne. */
 
 import Link from "next/link";
-import { useState } from "react";
-import { markManyPaidInFull } from "@/app/actions";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ExternalLink, Copy, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { markManyPaidInFull, duplicateOrder, deleteOrder } from "@/app/actions";
+import { Table, THead, TR, TD, TH, EmptyState } from "@/components/ui/table";
+import { Badge, STATUS_BADGE } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useSort, SortableTH, RowMenu, useConfirm } from "@/components/ui/table-kit";
+import { Archive } from "lucide-react";
 
 export type Row = {
   id: string;
   name: string;
   occasion: string;
   date: string;
-  statusLabel: string;
-  statusCls: string;
+  dateISO: string | null;
+  status: string;
   source: string;
   amount: string;
+  amountCents: number;
   due: string | null;
 };
 
-export default function OrdersTable({ rows }: { rows: Row[] }) {
-  const [sel, setSel] = useState<Record<string, boolean>>({});
-  const count = rows.reduce((n, r) => n + (sel[r.id] ? 1 : 0), 0);
-  const allChecked = rows.length > 0 && count === rows.length;
+const ACCESSORS = {
+  date: (r: Row) => r.dateISO,
+  name: (r: Row) => r.name.toLowerCase(),
+  occasion: (r: Row) => (r.occasion === "—" ? null : r.occasion.toLowerCase()),
+  status: (r: Row) => r.status,
+  amount: (r: Row) => r.amountCents,
+} as Record<string, (r: Row) => string | number | null>;
 
-  const toggleAll = () =>
-    setSel(allChecked ? {} : Object.fromEntries(rows.map((r) => [r.id, true])));
+export default function OrdersTable({ rows }: { rows: Row[] }) {
+  const router = useRouter();
+  const [sel, setSel] = useState<Record<string, boolean>>({});
+  const { sorted, sort, toggle } = useSort(rows, { key: "date", dir: "desc" }, ACCESSORS);
+  const { confirm, node } = useConfirm();
+
+  const count = useMemo(() => rows.reduce((n, r) => n + (sel[r.id] ? 1 : 0), 0), [rows, sel]);
+  const allChecked = rows.length > 0 && count === rows.length;
+  const toggleAll = () => setSel(allChecked ? {} : Object.fromEntries(rows.map((r) => [r.id, true])));
 
   return (
     <form action={markManyPaidInFull}>
+      {node}
       {count > 0 && (
-        <div className="sticky top-14 z-10 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5">
-          <span className="text-sm font-semibold text-amber-800">
+        <div className="sticky top-14 z-10 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-(--color-line) bg-(--color-brand-soft) px-4 py-2">
+          <span className="text-[13px] font-medium text-zinc-800">
             {count} commande{count > 1 ? "s" : ""} sélectionnée{count > 1 ? "s" : ""}
           </span>
-          <button className="rounded-lg bg-stone-900 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-stone-700">
-            💯 Marquer payé en entier
-          </button>
+          <Button size="sm">Marquer payé en entier</Button>
         </div>
       )}
-      <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="border-b border-stone-200 bg-stone-50 text-left text-[11px] uppercase tracking-wider text-stone-500">
-            <tr>
-              <th className="px-3 py-3">
-                <input
-                  type="checkbox"
-                  checked={allChecked}
-                  onChange={toggleAll}
-                  aria-label="Tout sélectionner"
-                  className="h-4 w-4 accent-stone-900"
-                />
-              </th>
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Client</th>
-              <th className="px-4 py-3">Occasion</th>
-              <th className="px-4 py-3">Statut</th>
-              <th className="px-4 py-3 text-right">Montant</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
-                <td className="px-3 py-2.5">
+      <Table>
+        <THead>
+          <tr>
+            <TH className="w-10">
+              <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Tout sélectionner" className="size-4 accent-(--color-brand)" />
+            </TH>
+            <SortableTH label="Événement" k="date" sort={sort} onToggle={toggle} />
+            <SortableTH label="Cliente" k="name" sort={sort} onToggle={toggle} />
+            <SortableTH label="Occasion" k="occasion" sort={sort} onToggle={toggle} />
+            <SortableTH label="Statut" k="status" sort={sort} onToggle={toggle} />
+            <SortableTH label="Montant" k="amount" sort={sort} onToggle={toggle} className="text-right" align="right" />
+            <TH className="w-10" />
+          </tr>
+        </THead>
+        <tbody>
+          {sorted.map((r) => {
+            const b = STATUS_BADGE[r.status] ?? STATUS_BADGE.LEAD;
+            return (
+              <TR key={r.id}>
+                <TD className="w-10">
                   <input
                     type="checkbox"
                     name="ids"
                     value={r.id}
                     checked={!!sel[r.id]}
                     onChange={(e) => setSel((s) => ({ ...s, [r.id]: e.target.checked }))}
-                    className="h-4 w-4 accent-stone-900"
+                    className="size-4 accent-(--color-brand)"
                   />
-                </td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-stone-500">{r.date}</td>
-                <td className="px-4 py-2.5">
-                  <Link href={`/commandes/${r.id}`} className="font-semibold hover:underline">{r.name}</Link>
-                  <span className="ml-1.5 text-xs text-stone-400">{r.source}</span>
-                </td>
-                <td className="px-4 py-2.5 text-stone-600">{r.occasion}</td>
-                <td className="px-4 py-2.5">
-                  <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${r.statusCls}`}>{r.statusLabel}</span>
-                </td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right">
-                  <span className="font-semibold">{r.amount}</span>
-                  {r.due && (
-                    <span className="ml-1.5 rounded bg-amber-50 px-1 py-0.5 text-[10px] font-semibold text-amber-700">reste {r.due}</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-stone-400">Aucune commande ne correspond.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                </TD>
+                <TD className="whitespace-nowrap tabular-nums text-zinc-500">{r.date}</TD>
+                <TD>
+                  <Link href={`/commandes/${r.id}`} className="font-medium text-zinc-900 hover:underline">{r.name}</Link>
+                  {r.source ? <span className="ml-1.5 text-xs text-zinc-400">{r.source}</span> : null}
+                </TD>
+                <TD>{r.occasion}</TD>
+                <TD><Badge variant={b.variant}>{b.label}</Badge></TD>
+                <TD className="whitespace-nowrap text-right">
+                  <span className="font-medium tabular-nums text-zinc-900">{r.amount}</span>
+                  {r.due && <Badge variant="warning" className="ml-1.5">reste {r.due}</Badge>}
+                </TD>
+                <TD className="w-10">
+                  <RowMenu
+                    actions={[
+                      { label: "Ouvrir la fiche", icon: <ExternalLink />, href: `/commandes/${r.id}` },
+                      {
+                        label: "Dupliquer",
+                        icon: <Copy />,
+                        onSelect: async () => {
+                          const res = await duplicateOrder(r.id);
+                          if (res.error) toast.error(res.error);
+                          else {
+                            toast.success("Commande dupliquée (nouveau lead).");
+                            if (res.id) router.push(`/commandes/${res.id}`);
+                          }
+                        },
+                      },
+                      {
+                        label: "Supprimer",
+                        icon: <Trash2 />,
+                        destructive: true,
+                        separatorBefore: true,
+                        onSelect: () =>
+                          confirm({
+                            title: `Supprimer la commande de ${r.name}`,
+                            desc: "La fiche, son historique et ses relances disparaissent. Cette action est définitive.",
+                            confirmLabel: "Supprimer",
+                            action: async () => {
+                              await deleteOrder(r.id);
+                              router.refresh();
+                            },
+                          }),
+                      },
+                    ]}
+                  />
+                </TD>
+              </TR>
+            );
+          })}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={7}>
+                <EmptyState icon={<Archive />} title="Aucune commande ne correspond" hint="Élargis la période ou réinitialise les filtres." />
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </Table>
     </form>
   );
 }

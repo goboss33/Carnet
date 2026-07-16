@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { acceptApplication, declineApplication } from "@/lib/partners";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma, currentTenant } from "@/lib/db";
@@ -362,6 +363,20 @@ export async function togglePartnerActive(id: string) {
 }
 
 /** Supprime définitivement un partenaire — refusé s'il a des commandes rattachées. */
+export async function acceptPartnerApplication(id: string) {
+  const tenant = await currentTenant();
+  const r = await acceptApplication(tenant.id, id);
+  revalidatePath("/partenaires");
+  return r.error ? { error: r.error } : {};
+}
+
+export async function declinePartnerApplication(id: string) {
+  const tenant = await currentTenant();
+  const r = await declineApplication(tenant.id, id);
+  revalidatePath("/partenaires");
+  return r.error ? { error: r.error } : {};
+}
+
 export async function deletePartner(id: string) {
   const count = await prisma.order.count({ where: { partnerId: id } });
   if (count > 0) return; // sécurité : ne pas casser l'attribution des commandes
@@ -549,6 +564,39 @@ export async function deleteContact(id: string) {
   revalidatePath("/contacts");
   revalidatePath("/");
   redirect("/contacts");
+}
+
+export async function duplicateOrder(orderId: string): Promise<{ error?: string; id?: string }> {
+  const tenant = await currentTenant();
+  const src = await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id } });
+  if (!src) return { error: "Commande introuvable." };
+  const copy = await prisma.order.create({
+    data: {
+      tenantId: tenant.id,
+      contactId: src.contactId,
+      status: "LEAD",
+      source: src.source,
+      sourceDetail: src.sourceDetail,
+      occasion: src.occasion,
+      celebrant: src.celebrant,
+      celebrantAge: src.celebrantAge,
+      parts: src.parts,
+      tiers: src.tiers,
+      biscuit: src.biscuit,
+      fourrages: src.fourrages,
+      style: src.style,
+      themeNote: src.themeNote,
+      deliveryMode: src.deliveryMode,
+      deliveryAddress: src.deliveryAddress,
+      priceQuoted: src.priceQuoted,
+      revenueCategory: src.revenueCategory,
+      notes: src.notes,
+      activities: { create: { type: "SYSTEM", body: "Créée par duplication d'une commande existante." } },
+    },
+  });
+  revalidatePath("/commandes");
+  revalidatePath("/");
+  return { id: copy.id };
 }
 
 export async function deleteOrder(orderId: string) {

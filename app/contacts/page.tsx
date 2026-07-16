@@ -1,106 +1,58 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
-import { fmtDate } from "@/lib/statuts";
-import { SOURCE_BADGE, avatar } from "@/lib/ui";
+import { fmtDate, SOURCES } from "@/lib/statuts";
 import Shell from "@/app/components/Shell";
-import type { Prisma } from "@prisma/client";
+import ContactsTable, { type Row } from "./ContactsTable";
+import { Upload, Plus } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
 
-const COLS = [
-  { id: "nom", label: "Nom" },
-  { id: "commande", label: "Date" },
-] as const;
-
-export default async function Contacts({ searchParams }: { searchParams: Promise<{ tri?: string; dir?: string }> }) {
-  const { tri = "commande", dir = "desc" } = await searchParams;
-  const d: "asc" | "desc" = dir === "asc" ? "asc" : "desc";
-  const orderBy: Prisma.ContactOrderByWithRelationInput =
-    tri === "nom" ? { firstName: d } : tri === "canal" ? { source: d } : { createdAt: d };
-
+export default async function Contacts() {
   const tenant = await currentTenant();
   const contacts = await prisma.contact.findMany({
     where: { tenantId: tenant.id },
-    include: { orders: { orderBy: { eventDate: "desc" }, take: 1 } },
-    orderBy,
+    include: {
+      orders: { orderBy: { eventDate: "desc" }, take: 1 },
+      _count: { select: { orders: true } },
+    },
+    orderBy: { createdAt: "desc" },
   });
 
-  /* Tri par date d'événement de la dernière commande (agrégat non trié par Prisma -> JS) */
-  if (tri === "commande") {
-    contacts.sort((a, b) => {
-      const ta = a.orders[0]?.eventDate?.getTime() ?? -Infinity;
-      const tb = b.orders[0]?.eventDate?.getTime() ?? -Infinity;
-      return d === "asc" ? ta - tb : tb - ta;
-    });
-  }
-
-  const arrow = (c: string) => (tri === c ? (d === "asc" ? " ↑" : " ↓") : "");
-  const flip = (c: string) => (tri === c && d === "desc" ? "asc" : "desc");
+  const rows: Row[] = contacts.map((c) => {
+    const o = c.orders[0];
+    return {
+      id: c.id,
+      name: `${c.firstName} ${c.lastName}`.trim(),
+      phone: c.phone,
+      sourceLabel: SOURCES.find((s) => s.id === c.source)?.label ?? "",
+      orderId: o?.id ?? null,
+      occasion: o?.occasion ?? "",
+      dateLabel: o?.eventDate ? fmtDate(o.eventDate) : "—",
+      dateISO: o?.eventDate ? o.eventDate.toISOString() : null,
+      price: o?.priceQuoted ?? null,
+      ordersCount: c._count.orders,
+    };
+  });
 
   return (
     <Shell>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">
-          Contacts <span className="text-base font-semibold text-stone-400">({contacts.length})</span>
-        </h1>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Contacts</h1>
+          <p className="mt-0.5 text-[13px] text-zinc-500">{contacts.length} fiche{contacts.length > 1 ? "s" : ""}</p>
+        </div>
         <div className="flex gap-2">
-          <Link href="/import" className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-600 hover:border-stone-500">
-            ⬆ Importer
+          <Link href="/import" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+            <Upload /> Importer
           </Link>
-          <Link href="/nouveau" className="rounded-lg bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-700">
-            + Nouvelle fiche
+          <Link href="/nouveau" className={cn(buttonVariants({ variant: "brand", size: "sm" }))}>
+            <Plus /> Nouvelle fiche
           </Link>
         </div>
       </div>
-
-      <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead className="border-b border-stone-200 bg-stone-50 text-left text-[11px] uppercase tracking-wider text-stone-500">
-            <tr>
-              <th className="px-4 py-3">
-                <Link href={`/contacts?tri=nom&dir=${flip("nom")}`} className="hover:text-stone-800">Nom{arrow("nom")}</Link>
-              </th>
-              <th className="px-4 py-3">Mobile</th>
-              <th className="px-4 py-3">Occasion</th>
-              <th className="px-4 py-3">
-                <Link href={`/contacts?tri=commande&dir=${flip("commande")}`} className="hover:text-stone-800">Date{arrow("commande")}</Link>
-              </th>
-              <th className="px-4 py-3 text-right">Prix</th>
-            </tr>
-          </thead>
-          <tbody>
-            {contacts.map((c) => {
-              const av = avatar(`${c.firstName} ${c.lastName}`);
-              const src = SOURCE_BADGE[c.source] ?? SOURCE_BADGE.AUTRE;
-              const o = c.orders[0];
-              return (
-                <tr key={c.id} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
-                  <td className="px-4 py-2.5">
-                    <Link href={`/contacts/${c.id}`} className="flex items-center gap-2.5 font-semibold hover:underline">
-                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${av.color}`}>
-                        {av.initials}
-                      </span>
-                      {c.firstName} {c.lastName}
-                      <span className="text-xs opacity-70" title={src.label} aria-label={src.label}>{src.emoji}</span>
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap">{c.phone || "—"}</td>
-                  <td className="max-w-[260px] truncate px-4 py-2.5 text-stone-600" title={o?.occasion || ""}>
-                    {o ? (
-                      <Link href={`/commandes/${o.id}`} className="hover:underline">{o.occasion || "—"}</Link>
-                    ) : "—"}
-                  </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap text-stone-500">{o ? fmtDate(o.eventDate) : "—"}</td>
-                  <td className="px-4 py-2.5 text-right font-semibold">{o?.priceQuoted ? `CHF ${o.priceQuoted}` : "—"}</td>
-                </tr>
-              );
-            })}
-            {contacts.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-stone-400">Aucun contact — crée ta première fiche.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <ContactsTable rows={rows} />
     </Shell>
   );
 }

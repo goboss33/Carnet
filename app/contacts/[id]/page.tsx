@@ -25,7 +25,7 @@ export default async function ContactFiche({ params }: { params: Promise<{ id: s
         <span className={`flex h-12 w-12 items-center justify-center rounded-full text-base font-bold ${av.color}`}>{av.initials}</span>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{contact.firstName} {contact.lastName}</h1>
-          <p className="text-sm text-stone-500">
+          <p className="text-sm text-zinc-500">
             {contact.orders.length} commande{contact.orders.length > 1 ? "s" : ""} · CHF {total} au total · client depuis {fmtDate(contact.createdAt)}
           </p>
         </div>
@@ -47,9 +47,9 @@ export default async function ContactFiche({ params }: { params: Promise<{ id: s
           ordersCount={contact.orders.length}
         />
 
-        <div className="rounded-2xl border border-stone-200 bg-white p-5">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Historique</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Historique</p>
             <NewOrderForm contactId={contact.id} />
           </div>
           <ul className="space-y-2">
@@ -57,17 +57,17 @@ export default async function ContactFiche({ params }: { params: Promise<{ id: s
               const st = STATUTS.find((s) => s.id === o.status);
               return (
                 <li key={o.id}>
-                  <Link href={`/commandes/${o.id}`} className="flex flex-wrap items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm transition-shadow hover:shadow-sm">
-                    <span className={`h-2 w-2 rounded-full ${st?.dot ?? "bg-stone-300"}`} />
+                  <Link href={`/commandes/${o.id}`} className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3 text-sm transition-shadow hover:shadow-sm">
+                    <span className={`h-2 w-2 rounded-full ${st?.dot ?? "bg-zinc-300"}`} />
                     <span className="font-semibold">{o.occasion || "—"}</span>
-                    <span className="text-stone-400">{fmtDate(o.eventDate)}</span>
-                    {o.partner && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">🤝 {o.partner.name}</span>}
+                    <span className="text-zinc-400">{fmtDate(o.eventDate)}</span>
+                    {o.partner && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">{o.partner.name}</span>}
                     <span className="ml-auto font-bold">{fmtCHF(o.priceQuoted)}</span>
                   </Link>
                 </li>
               );
             })}
-            {contact.orders.length === 0 && <li className="py-6 text-center text-sm text-stone-400">Aucune commande.</li>}
+            {contact.orders.length === 0 && <li className="py-6 text-center text-sm text-zinc-400">Aucune commande.</li>}
           </ul>
         </div>
       </div>

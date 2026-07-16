@@ -15,11 +15,11 @@ const STATUT: Record<string, { label: string; cls: string }> = {
   ACOMPTE_RECU: { label: "Acompte reçu", cls: "bg-violet-100 text-violet-700" },
   EN_PRODUCTION: { label: "En production", cls: "bg-orange-100 text-orange-700" },
   LIVRE: { label: "Livré", cls: "bg-emerald-100 text-emerald-700" },
-  ANNULE: { label: "Annulé", cls: "bg-stone-200 text-stone-500" },
+  ANNULE: { label: "Annulé", cls: "bg-zinc-200 text-zinc-500" },
 };
 const STATUT_IDS = Object.keys(STATUT) as OrderStatus[];
 
-const input = "rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm outline-none focus:border-amber-600";
+const input = "h-9 rounded-lg border border-zinc-300 bg-white px-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-(--color-brand)";
 
 export default async function Historique({
   searchParams,
@@ -55,16 +55,16 @@ export default async function Historique({
 
   const rows: Row[] = orders.map((o) => {
     const pay = paymentState(o);
-    const st = STATUT[o.status] ?? STATUT.LEAD;
     return {
       id: o.id,
       name: `${o.contact.firstName} ${o.contact.lastName}`.trim(),
       occasion: o.occasion || "—",
       date: o.eventDate ? fmtDate(o.eventDate) : "—",
-      statusLabel: st.label,
-      statusCls: st.cls,
+      dateISO: o.eventDate ? o.eventDate.toISOString() : null,
+      status: o.status,
       source: SOURCES.find((s) => s.id === o.source)?.label ?? "",
       amount: fmtCHF(o.priceQuoted),
+      amountCents: o.priceQuoted ?? 0,
       due: o.status !== "ANNULE" && !pay.isPaid && pay.dueCents > 0 ? chf(pay.dueCents) : null,
     };
   });
@@ -72,8 +72,8 @@ export default async function Historique({
   return (
     <Shell>
       <div className="mb-5 flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Historique</h1>
-        <span className="text-sm text-stone-500">
+        <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Historique</h1>
+        <span className="text-[13px] text-zinc-500">
           {orders.length} commande{orders.length > 1 ? "s" : ""} · {fmtCHF(total)}
           {orders.length >= 300 ? " · 300 max" : ""}
         </span>
@@ -95,13 +95,13 @@ export default async function Historique({
           ))}
           <option value="all">Toutes années</option>
         </select>
-        <button className="rounded-lg bg-stone-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-stone-700">Filtrer</button>
+        <button className="h-9 rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white transition-colors hover:bg-zinc-700">Filtrer</button>
         {(q || occasion || statut || sp.annee) && (
-          <Link href="/commandes" className="text-sm text-stone-400 hover:text-stone-700">Réinitialiser</Link>
+          <Link href="/commandes" className="text-sm text-zinc-400 transition-colors hover:text-zinc-700">Réinitialiser</Link>
         )}
       </form>
 
-      <p className="mb-2 text-xs text-stone-400">
+      <p className="mb-2 text-xs text-zinc-400">
         Astuce : coche des commandes (ou « tout sélectionner ») pour les marquer payées en entier — pratique pour solder l’historique importé.
       </p>
 

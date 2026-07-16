@@ -4,16 +4,16 @@ import { useActionState } from "react";
 import { createLead } from "@/app/actions";
 import ShellClient from "@/app/components/ShellClient";
 
-const input = "w-full rounded-lg border border-stone-300 px-3.5 py-2.5 text-[15px] outline-none focus:border-amber-600";
-const label = "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-stone-500";
+const input = "w-full rounded-lg border border-zinc-300 px-3.5 py-2.5 text-[15px] outline-none focus:border-(--color-brand)";
+const label = "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500";
 
 export default function Nouveau() {
   const [state, action, pending] = useActionState(createLead, undefined);
   return (
     <ShellClient>
       <h1 className="mb-1 text-2xl font-bold tracking-tight">Nouvelle fiche</h1>
-      <p className="mb-6 text-sm text-stone-500">30 secondes, promis — seuls le prénom et le canal comptent, le reste peut attendre.</p>
-      <form action={action} className="max-w-2xl space-y-5 rounded-2xl border border-stone-200 bg-white p-7">
+      <p className="mb-6 text-sm text-zinc-500">30 secondes, promis — seuls le prénom et le canal comptent, le reste peut attendre.</p>
+      <form action={action} className="max-w-2xl space-y-5 rounded-2xl border border-zinc-200 bg-white p-7">
         <div className="grid gap-4 sm:grid-cols-2">
           <label><span className={label}>Prénom *</span><input name="firstName" required className={input} /></label>
           <label><span className={label}>Nom</span><input name="lastName" className={input} /></label>
@@ -38,7 +38,7 @@ export default function Nouveau() {
         </div>
         <label><span className={label}>Notes</span><textarea name="notes" rows={3} className={input} placeholder="Thème, contraintes, contexte de la demande…" /></label>
         {state?.error && <p className="text-sm font-medium text-red-600">{state.error}</p>}
-        <button disabled={pending} className="rounded-lg bg-stone-900 px-6 py-2.5 font-semibold text-white transition-colors hover:bg-stone-700 disabled:opacity-50">
+        <button disabled={pending} className="rounded-lg bg-zinc-900 px-6 py-2.5 font-semibold text-white transition-colors hover:bg-zinc-700 disabled:opacity-50">
           {pending ? "Création…" : "Créer la fiche"}
         </button>
       </form>

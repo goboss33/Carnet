@@ -40,20 +40,20 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
     <Shell>
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <h1 className="text-2xl font-bold tracking-tight">Compta — année</h1>
-        <nav className="flex items-center gap-1 text-sm font-semibold text-stone-500">
-          <Link href={`/compta/annee?y=${year - 1}`} className="rounded-md px-2 py-1 hover:bg-stone-100">←</Link>
-          <span className="w-16 text-center text-stone-800">{year}</span>
-          <Link href={`/compta/annee?y=${year + 1}`} className="rounded-md px-2 py-1 hover:bg-stone-100">→</Link>
+        <nav className="flex items-center gap-1 text-sm font-semibold text-zinc-500">
+          <Link href={`/compta/annee?y=${year - 1}`} className="rounded-md px-2 py-1 hover:bg-zinc-100">←</Link>
+          <span className="w-16 text-center text-zinc-800">{year}</span>
+          <Link href={`/compta/annee?y=${year + 1}`} className="rounded-md px-2 py-1 hover:bg-zinc-100">→</Link>
         </nav>
         <div className="ml-auto flex gap-2">
-          <Link href="/compta" className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-600 hover:border-stone-500">Vue mensuelle</Link>
-          <a href={`/api/compta/export?y=${year}`} className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-600 hover:border-stone-500">⬇ Export {year}</a>
+          <Link href="/compta" className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-600 hover:border-zinc-500">Vue mensuelle</Link>
+          <a href={`/api/compta/export?y=${year}`} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-600 hover:border-zinc-500">⬇ Export {year}</a>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
         <table className="w-full text-sm">
-          <thead className="border-b border-stone-200 bg-stone-50 text-left text-[11px] uppercase tracking-wider text-stone-500">
+          <thead className="border-b border-zinc-200 bg-zinc-50 text-left text-[11px] uppercase tracking-wider text-zinc-500">
             <tr>
               <th className="px-4 py-3">Mois</th>
               <th className="px-4 py-3 text-right">Recettes</th>
@@ -63,7 +63,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
           </thead>
           <tbody>
             {months.map((m) => (
-              <tr key={m.i} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
+              <tr key={m.i} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50">
                 <td className="px-4 py-2.5 font-semibold capitalize">
                   <Link href={`/compta?m=${year}-${String(m.i + 1).padStart(2, "0")}`} className="hover:underline">{name(m.i)}</Link>
                 </td>
@@ -73,7 +73,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
               </tr>
             ))}
           </tbody>
-          <tfoot className="border-t-2 border-stone-300 bg-stone-50 font-bold">
+          <tfoot className="border-t-2 border-zinc-300 bg-zinc-50 font-bold">
             <tr>
               <td className="px-4 py-3">Total {year}</td>
               <td className="px-4 py-3 text-right text-emerald-700">{chf(totRev)}</td>
@@ -86,27 +86,27 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
 
       {/* Dossier — synthèse déclarable */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-stone-200 bg-white px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">Recettes {year}</p>
+        <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Recettes {year}</p>
           <p className="mt-1 text-xl font-bold text-emerald-700">{chf(totRev)}</p>
         </div>
-        <div className="rounded-2xl border border-stone-200 bg-white px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">Dépenses {year}</p>
+        <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Dépenses {year}</p>
           <p className="mt-1 text-xl font-bold text-red-700">{chf(totExp)}</p>
-          {vatYear > 0 && <p className="mt-0.5 text-xs text-stone-400">dont TVA {chf(vatYear)}</p>}
+          {vatYear > 0 && <p className="mt-0.5 text-xs text-zinc-400">dont TVA {chf(vatYear)}</p>}
         </div>
-        <div className="rounded-2xl border border-stone-200 bg-white px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">Frais de déplacement</p>
-          <p className="mt-1 text-xl font-bold text-stone-700">{chf(mileageYear)}</p>
-          <p className="mt-0.5 text-xs text-stone-400">forfait {s.kmRate} CHF/km, aller-retour</p>
+        <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Frais de déplacement</p>
+          <p className="mt-1 text-xl font-bold text-zinc-700">{chf(mileageYear)}</p>
+          <p className="mt-0.5 text-xs text-zinc-400">forfait {s.kmRate} CHF/km, aller-retour</p>
         </div>
-        <div className="rounded-2xl border border-stone-300 bg-stone-50 px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">Résultat imposable estimé</p>
+        <div className="rounded-2xl border border-zinc-300 bg-zinc-50 px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Résultat imposable estimé</p>
           <p className="mt-1 text-xl font-bold">{chf(totRev - totExp - mileageYear)}</p>
-          <p className="mt-0.5 text-xs text-stone-400">recettes − dépenses − déplacements</p>
+          <p className="mt-0.5 text-xs text-zinc-400">recettes − dépenses − déplacements</p>
         </div>
       </div>
-      <p className="mt-3 text-xs text-stone-400">
+      <p className="mt-3 text-xs text-zinc-400">
         Le forfait kilométrique et l’assujettissement TVA sont à confirmer avec ta fiduciaire. Export CSV complet en haut de page.
       </p>
     </Shell>

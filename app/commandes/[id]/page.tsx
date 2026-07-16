@@ -15,8 +15,8 @@ import type { OrderStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-const input = "w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-amber-600";
-const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-stone-500";
+const input = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
+const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
 
 export default async function Commande({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -43,7 +43,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
         <h1 className="text-2xl font-bold tracking-tight">
           {c.firstName} {c.lastName}
         </h1>
-        <span className="text-sm text-stone-500">
+        <span className="text-sm text-zinc-500">
           {SOURCES.find((s) => s.id === order.source)?.label} · créé le {fmtDate(order.createdAt)}
         </span>
         <div className="ml-auto flex flex-wrap gap-1.5">
@@ -52,8 +52,8 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               <button
                 className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                   order.status === s.id
-                    ? "border-stone-900 bg-stone-900 text-white"
-                    : "border-stone-300 text-stone-500 hover:border-stone-500"
+                    ? "border-zinc-900 bg-zinc-900 text-white"
+                    : "border-zinc-300 text-zinc-500 hover:border-zinc-500"
                 }`}
               >
                 {s.label}
@@ -76,7 +76,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         {/* -------- commande -------- */}
-        <form action={updateOrder.bind(null, order.id)} className="space-y-5 rounded-2xl border border-stone-200 bg-white p-6">
+        <form action={updateOrder.bind(null, order.id)} className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-6">
           <div className="grid gap-4 sm:grid-cols-3">
             <label><span className={label}>Occasion</span><input name="occasion" defaultValue={order.occasion} className={input} /></label>
             <label><span className={label}>Date de l'événement</span><input name="eventDate" type="date" defaultValue={d(order.eventDate)} className={input} /></label>
@@ -99,11 +99,11 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           </div>
           <label><span className={label}>Notes internes</span><textarea name="notes" rows={3} defaultValue={order.notes} className={input} /></label>
           {order.fourrages.length > 0 && (
-            <p className="text-sm text-stone-500">Fourrages demandés : <span className="font-medium text-stone-700">{order.fourrages.join(" + ")}</span></p>
+            <p className="text-sm text-zinc-500">Fourrages demandés : <span className="font-medium text-zinc-700">{order.fourrages.join(" + ")}</span></p>
           )}
           {order.inspirationPhotos.length > 0 && (
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Photos d’inspiration</p>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Photos d’inspiration</p>
               <div className="flex flex-wrap gap-2">
                 {order.inspirationPhotos.map((src, i) => (
                   <MediaViewer
@@ -111,7 +111,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                     src={`/api/receipts/${src}`}
                     kind="image"
                     title={`Inspiration ${i + 1}`}
-                    className="block h-24 w-24 overflow-hidden rounded-lg border border-stone-200 hover:border-stone-400"
+                    className="block h-24 w-24 overflow-hidden rounded-lg border border-zinc-200 hover:border-zinc-400"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={`/api/receipts/${src}`} alt={`Inspiration ${i + 1}`} className="h-full w-full object-cover" />
@@ -120,22 +120,22 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               </div>
             </div>
           )}
-          <button className="rounded-lg bg-stone-900 px-5 py-2 text-sm font-semibold text-white hover:bg-stone-700">
+          <button className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-700">
             Enregistrer
           </button>
         </form>
 
         {/* -------- contact + journal -------- */}
         <div className="space-y-5">
-          <div className="rounded-2xl border border-stone-200 bg-white p-5 text-sm">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Contact</p>
-              <Link href={`/contacts/${c.id}`} className="text-xs font-semibold text-stone-500 hover:text-stone-800">Fiche complète →</Link>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Contact</p>
+              <Link href={`/contacts/${c.id}`} className="text-xs font-semibold text-zinc-500 hover:text-zinc-800">Fiche complète →</Link>
             </div>
-            <Link href={`/contacts/${c.id}`} className="block text-[15px] font-bold text-stone-900 hover:underline">
+            <Link href={`/contacts/${c.id}`} className="block text-[15px] font-bold text-zinc-900 hover:underline">
               {c.firstName} {c.lastName}
             </Link>
-            <p className="mb-3 mt-0.5 text-xs text-stone-400">
+            <p className="mb-3 mt-0.5 text-xs text-zinc-400">
               {SOURCES.find((s) => s.id === c.source)?.label}
               {" · "}
               {c._count.orders > 1 ? `${c._count.orders} commandes` : "1re commande"}
@@ -143,11 +143,11 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               {c.createdAt.getFullYear()}
             </p>
             <dl className="space-y-1.5">
-              {c.phone && <div className="flex justify-between"><dt className="text-stone-500">Mobile</dt><dd><a className="font-medium hover:underline" href={`tel:${c.phone}`}>{c.phone}</a></dd></div>}
-              {c.email && <div className="flex justify-between"><dt className="text-stone-500">E-mail</dt><dd><a className="font-medium hover:underline" href={`mailto:${c.email}`}>{c.email}</a></dd></div>}
-              {c.instagram && <div className="flex justify-between"><dt className="text-stone-500">Instagram</dt><dd className="font-medium">{c.instagram}</dd></div>}
+              {c.phone && <div className="flex justify-between"><dt className="text-zinc-500">Mobile</dt><dd><a className="font-medium hover:underline" href={`tel:${c.phone}`}>{c.phone}</a></dd></div>}
+              {c.email && <div className="flex justify-between"><dt className="text-zinc-500">E-mail</dt><dd><a className="font-medium hover:underline" href={`mailto:${c.email}`}>{c.email}</a></dd></div>}
+              {c.instagram && <div className="flex justify-between"><dt className="text-zinc-500">Instagram</dt><dd className="font-medium">{c.instagram}</dd></div>}
             </dl>
-            {c.notes && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-stone-600">📝 {c.notes}</p>}
+            {c.notes && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-zinc-600">📝 {c.notes}</p>}
             {c.consentNewsletter && <p className="mt-2 text-[11px] font-semibold text-emerald-600">✓ Accepte la newsletter</p>}
             {c.phone && (
               <a
@@ -162,15 +162,15 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           </div>
 
           {/* -------- assistant IA -------- */}
-          <div className="rounded-2xl border border-stone-200 bg-white p-5 text-sm">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Assistant — réponse au client</p>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Assistant — réponse au client</p>
 
             {order.aiMessages.length > 0 && (
               <div className="mb-3 max-h-80 space-y-2 overflow-y-auto">
                 {order.aiMessages.map((m) => (
-                  <div key={m.id} className={`rounded-lg p-2.5 ${m.role === "assistant" ? "bg-stone-50" : "bg-amber-50"}`}>
-                    <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400">{m.role === "assistant" ? "Assistant" : "Toi"}</p>
-                    <p className="whitespace-pre-wrap text-stone-700">{m.content}</p>
+                  <div key={m.id} className={`rounded-lg p-2.5 ${m.role === "assistant" ? "bg-zinc-50" : "bg-amber-50"}`}>
+                    <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">{m.role === "assistant" ? "Assistant" : "Toi"}</p>
+                    <p className="whitespace-pre-wrap text-zinc-700">{m.content}</p>
                   </div>
                 ))}
               </div>
@@ -194,7 +194,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                 placeholder={order.aiMessages.length ? "Dis ce qu'il faut changer, ou pose une question…" : "(optionnel) une consigne pour le 1er jet…"}
                 className={input}
               />
-              <button className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-stone-700">
+              <button className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-zinc-700">
                 {order.aiMessages.length ? "Envoyer" : "✍️ Générer"}
               </button>
             </form>
@@ -202,17 +202,17 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           </div>
 
           {/* -------- paiement -------- */}
-          <div className="rounded-2xl border border-stone-200 bg-white p-5 text-sm">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Paiement</p>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Paiement</p>
             <dl className="space-y-1.5">
-              <div className="flex justify-between"><dt className="text-stone-500">Total</dt><dd className="font-medium">{fmtCHF(order.priceQuoted)}</dd></div>
-              <div className="flex justify-between"><dt className="text-stone-500">Acompte</dt><dd className="font-medium">{order.depositCents ? chf(order.depositCents) : "—"}{order.depositPaidAt ? ` · ${fmtDate(order.depositPaidAt)}` : ""}</dd></div>
-              <div className="flex justify-between"><dt className="text-stone-500">Solde</dt><dd className="font-medium">{order.balanceCents ? chf(order.balanceCents) : "—"}{order.balancePaidAt ? ` · ${fmtDate(order.balancePaidAt)}` : ""}</dd></div>
+              <div className="flex justify-between"><dt className="text-zinc-500">Total</dt><dd className="font-medium">{fmtCHF(order.priceQuoted)}</dd></div>
+              <div className="flex justify-between"><dt className="text-zinc-500">Acompte</dt><dd className="font-medium">{order.depositCents ? chf(order.depositCents) : "—"}{order.depositPaidAt ? ` · ${fmtDate(order.depositPaidAt)}` : ""}</dd></div>
+              <div className="flex justify-between"><dt className="text-zinc-500">Solde</dt><dd className="font-medium">{order.balanceCents ? chf(order.balanceCents) : "—"}{order.balancePaidAt ? ` · ${fmtDate(order.balancePaidAt)}` : ""}</dd></div>
             </dl>
             {order.status === "ANNULE" ? (
               pay.paidCents > 0 && (
-                <div className="mt-3 rounded-lg bg-stone-50 px-3 py-2">
-                  <p className="text-xs font-semibold text-stone-600">
+                <div className="mt-3 rounded-lg bg-zinc-50 px-3 py-2">
+                  <p className="text-xs font-semibold text-zinc-600">
                     Acompte conservé (annulation) : {chf(pay.paidCents)} — compté en recette.
                   </p>
                   <form action={refundDeposit.bind(null, order.id)} className="mt-1.5">
@@ -224,25 +224,25 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               )
             ) : (
               <>
-                <div className={`mt-3 flex items-center justify-between rounded-lg px-3 py-2 font-semibold ${pay.isPaid ? "bg-emerald-50 text-emerald-700" : pay.dueCents > 0 ? "bg-amber-50 text-amber-700" : "bg-stone-50 text-stone-500"}`}>
-                  <span>{pay.isPaid ? "✅ Soldé" : "Reste à encaisser"}</span>
+                <div className={`mt-3 flex items-center justify-between rounded-lg px-3 py-2 font-semibold ${pay.isPaid ? "bg-emerald-50 text-emerald-700" : pay.dueCents > 0 ? "bg-amber-50 text-amber-700" : "bg-zinc-50 text-zinc-500"}`}>
+                  <span>{pay.isPaid ? "Soldé" : "Reste à encaisser"}</span>
                   {!pay.isPaid && <span>{pay.hasTotal ? chf(pay.dueCents) : "—"}</span>}
                 </div>
                 <form action={recordPayment.bind(null, order.id)} className="mt-4 flex flex-wrap items-end gap-2">
                   <label className="min-w-24 flex-1">
-                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-stone-500">Acompte CHF</span>
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Acompte CHF</span>
                     <input name="depositChf" type="number" step="0.05" min="0" defaultValue={order.depositCents ? order.depositCents / 100 : ""} className={input} />
                   </label>
                   <label className="min-w-24 flex-1">
-                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-stone-500">Solde CHF</span>
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Solde CHF</span>
                     <input name="balanceChf" type="number" step="0.05" min="0" defaultValue={order.balanceCents ? order.balanceCents / 100 : ""} className={input} />
                   </label>
-                  <button className="rounded-lg bg-stone-900 px-3 py-2 text-sm font-semibold text-white hover:bg-stone-700">OK</button>
+                  <button className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-700">OK</button>
                 </form>
                 {order.priceQuoted && !pay.isPaid && (
                   <form action={markPaidInFull.bind(null, order.id)} className="mt-2">
-                    <button className="w-full rounded-lg border border-stone-300 py-1.5 text-xs font-semibold text-stone-500 hover:border-stone-500">
-                      💯 Marquer payé en entier
+                    <button className="w-full rounded-lg border border-zinc-300 py-1.5 text-xs font-semibold text-zinc-500 hover:border-zinc-500">
+                      Marquer payé en entier
                     </button>
                   </form>
                 )}
@@ -250,10 +250,10 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
             )}
           </div>
 
-          <div className="rounded-2xl border border-stone-200 bg-white p-5 text-sm">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Catégorie de revenu (Cap)</p>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Catégorie de revenu (Cap)</p>
             <form action={setRevenueCategory.bind(null, order.id)} className="mb-5 flex items-center gap-2">
-              <select name="revenueCategory" defaultValue={order.revenueCategory} className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-amber-600">
+              <select name="revenueCategory" defaultValue={order.revenueCategory} className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)">
                 <option value="SUR_MESURE">Sur-mesure</option>
                 <option value="COLLECTION">Collection / standard</option>
                 <option value="ATELIER">Atelier / cours</option>
@@ -261,40 +261,40 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                 <option value="DECORS">Décors / e-shop</option>
                 <option value="B2B">Entreprise (B2B)</option>
               </select>
-              <button className="shrink-0 rounded-lg bg-stone-900 px-3 py-2 text-sm font-semibold text-white hover:bg-stone-700">OK</button>
+              <button className="shrink-0 rounded-lg bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-700">OK</button>
             </form>
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500">Partenaire apporteur</p>
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Partenaire apporteur</p>
             <form action={setOrderPartner.bind(null, order.id)} className="flex items-center gap-2">
-              <select name="partnerId" defaultValue={order.partnerId ?? ""} className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-amber-600">
+              <select name="partnerId" defaultValue={order.partnerId ?? ""} className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)">
                 <option value="">— Aucun (client direct)</option>
                 {partners.map((pt) => (
                   <option key={pt.id} value={pt.id}>{pt.name} · {pt.ratePct} %</option>
                 ))}
               </select>
-              <button className="shrink-0 rounded-lg bg-stone-900 px-3 py-2 text-sm font-semibold text-white hover:bg-stone-700">OK</button>
+              <button className="shrink-0 rounded-lg bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-700">OK</button>
             </form>
             {order.partner && order.priceQuoted && (
-              <p className="mt-2 text-xs text-stone-500">
+              <p className="mt-2 text-xs text-zinc-500">
                 Commission : CHF {Math.round((order.priceQuoted * order.partner.ratePct) / 100)}
                 {order.commissionPaidAt ? ` · versée le ${order.commissionPaidAt.toLocaleDateString("fr-CH")}` : " · à verser après livraison"}
               </p>
             )}
           </div>
 
-          <div className="rounded-2xl border border-stone-200 bg-white p-5">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Journal</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Journal</p>
               <DeleteOrderButton orderId={order.id} name={`${c.firstName} ${c.lastName}`.trim()} />
             </div>
             <form action={addNote.bind(null, order.id)} className="mb-4 flex gap-2">
               <input name="body" placeholder="Ajouter une note…" className={input} />
-              <button className="shrink-0 rounded-lg bg-stone-900 px-3 text-sm font-semibold text-white hover:bg-stone-700">+</button>
+              <button className="shrink-0 rounded-lg bg-zinc-900 px-3 text-sm font-semibold text-white hover:bg-zinc-700">+</button>
             </form>
             <ul className="space-y-3 text-sm">
               {order.activities.map((a) => (
-                <li key={a.id} className="border-l-2 border-stone-200 pl-3">
-                  <p className={a.type === "NOTE" ? "text-stone-800" : "text-stone-500"}>{a.body}</p>
-                  <p className="mt-0.5 text-[11px] text-stone-400">{fmtDate(a.createdAt)}</p>
+                <li key={a.id} className="border-l-2 border-zinc-200 pl-3">
+                  <p className={a.type === "NOTE" ? "text-zinc-800" : "text-zinc-500"}>{a.body}</p>
+                  <p className="mt-0.5 text-[11px] text-zinc-400">{fmtDate(a.createdAt)}</p>
                 </li>
               ))}
             </ul>

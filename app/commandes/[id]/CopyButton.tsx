@@ -14,7 +14,7 @@ export default function CopyButton({ text }: { text: string }) {
           setTimeout(() => setOk(false), 1500);
         } catch {}
       }}
-      className="rounded-lg border border-stone-300 px-3 py-1.5 text-xs font-semibold text-stone-600 hover:border-stone-500"
+      className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-600 hover:border-zinc-500"
     >
       {ok ? "Copié ✓" : "Copier"}
     </button>
