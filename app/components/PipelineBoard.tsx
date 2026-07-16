@@ -135,11 +135,15 @@ function Column({ col, cards }: { col: ColumnData; cards: CardData[] }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
   return (
     <section ref={setNodeRef} className={cn("flex flex-col rounded-2xl bg-zinc-100/70 p-2 transition-colors", isOver && "bg-(--color-brand-soft) ring-2 ring-(--color-brand)/25")}>
-      <header className="flex items-baseline gap-2 px-2 py-2">
-        <span className={`h-2 w-2 shrink-0 self-center rounded-full ${col.dot}`} />
-        <h2 className="text-[13px] font-bold uppercase tracking-wide text-zinc-600">{col.label}</h2>
-        <span className="ml-auto text-xs font-semibold tabular-nums text-zinc-400">{col.count}</span>
-        {col.total > 0 && <span className="text-xs font-semibold tabular-nums text-zinc-500">· CHF {col.total.toLocaleString("fr-CH")}</span>}
+      <header className="px-2 py-2">
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${col.dot}`} />
+          <h2 className="truncate text-[12px] font-bold uppercase tracking-wide text-zinc-600">{col.label}</h2>
+          <span className="ml-auto shrink-0 rounded-md bg-white px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-zinc-500">{col.count}</span>
+        </div>
+        {col.total > 0 && (
+          <p className="mt-0.5 pl-4 text-[11px] font-medium tabular-nums text-zinc-400">CHF {col.total.toLocaleString("fr-CH")}</p>
+        )}
       </header>
       <ul className="min-h-16 space-y-2">
         {cards.length === 0 && (

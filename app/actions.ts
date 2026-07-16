@@ -659,6 +659,53 @@ export async function mergeContacts(
   return {};
 }
 
+export async function uploadInspirations(orderId: string, formData: FormData): Promise<{ error?: string; added?: number }> {
+  const tenant = await currentTenant();
+  const order = await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id } });
+  if (!order) return { error: "Commande introuvable." };
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  if (!files.length) return { error: "Aucune image." };
+  const sharp = (await import("sharp")).default;
+  const path = await import("path");
+  const { mkdir, writeFile } = await import("fs/promises");
+  const dir = path.resolve(process.env.RECEIPTS_DIR ?? "./data/receipts");
+  const rels: string[] = [];
+  for (const f of files.slice(0, 10)) {
+    if (f.size > 10_000_000 || !f.type.startsWith("image/")) continue;
+    try {
+      const buf = Buffer.from(await f.arrayBuffer());
+      const webp = await sharp(buf).rotate().resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+      const rel = path.join("inspirations", tenant.slug, order.id, `up-${Date.now()}-${rels.length + 1}.webp`);
+      await mkdir(path.dirname(path.join(dir, rel)), { recursive: true });
+      await writeFile(path.join(dir, rel), webp);
+      rels.push(rel);
+    } catch (e) {
+      console.error("upload inspiration:", e);
+    }
+  }
+  if (!rels.length) return { error: "Images illisibles ou trop lourdes (max 10 Mo)." };
+  await prisma.order.update({ where: { id: orderId }, data: { inspirationPhotos: { push: rels } } });
+  revalidatePath(`/commandes/${orderId}`);
+  return { added: rels.length };
+}
+
+export async function removeInspiration(orderId: string, rel: string): Promise<{ error?: string }> {
+  const tenant = await currentTenant();
+  const order = await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id } });
+  if (!order) return { error: "Commande introuvable." };
+  if (!order.inspirationPhotos.includes(rel)) return { error: "Photo introuvable." };
+  const path = await import("path");
+  const { unlink } = await import("fs/promises");
+  const dir = path.resolve(process.env.RECEIPTS_DIR ?? "./data/receipts");
+  await unlink(path.join(dir, rel)).catch(() => null);
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { inspirationPhotos: order.inspirationPhotos.filter((p) => p !== rel) },
+  });
+  revalidatePath(`/commandes/${orderId}`);
+  return {};
+}
+
 export async function deleteContact(id: string) {
   await prisma.order.deleteMany({ where: { contactId: id } }); // activités en cascade
   await prisma.contact.delete({ where: { id } }).catch(() => null);

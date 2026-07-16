@@ -1,4 +1,5 @@
 import Link from "next/link";
+import InspirationManager from "./InspirationManager";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { STATUTS, SOURCES, fmtCHF, fmtDate } from "@/lib/statuts";
@@ -80,7 +81,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           <div className="grid gap-4 sm:grid-cols-3">
             <label><span className={label}>Occasion</span><input name="occasion" defaultValue={order.occasion} className={input} /></label>
             <label><span className={label}>Date de l'événement</span><input name="eventDate" type="date" defaultValue={d(order.eventDate)} className={input} /></label>
-            <label><span className={label}>RDV de remise (retrait/livraison)</span><input name="handoverAt" type="datetime-local" defaultValue={order.handoverAt ? new Date(order.handoverAt.getTime() - order.handoverAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""} className={input} /></label>
+            <label><span className={label} title="Heure du retrait ou de la livraison">RDV de remise</span><input name="handoverAt" type="datetime-local" defaultValue={order.handoverAt ? new Date(order.handoverAt.getTime() - order.handoverAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""} className={input} /></label>
             <label><span className={label}>Prix (CHF)</span><input name="priceQuoted" type="number" defaultValue={order.priceQuoted ?? ""} className={input} /></label>
             <label><span className={label}>Fêté·e</span><input name="celebrant" defaultValue={order.celebrant} className={input} /></label>
             <label><span className={label}>Âge</span><input name="celebrantAge" type="number" defaultValue={order.celebrantAge ?? ""} className={input} /></label>
@@ -102,25 +103,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           {order.fourrages.length > 0 && (
             <p className="text-sm text-zinc-500">Fourrages demandés : <span className="font-medium text-zinc-700">{order.fourrages.join(" + ")}</span></p>
           )}
-          {order.inspirationPhotos.length > 0 && (
-            <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Photos d’inspiration</p>
-              <div className="flex flex-wrap gap-2">
-                {order.inspirationPhotos.map((src, i) => (
-                  <MediaViewer
-                    key={i}
-                    src={`/api/receipts/${src}`}
-                    kind="image"
-                    title={`Inspiration ${i + 1}`}
-                    className="block h-24 w-24 overflow-hidden rounded-lg border border-zinc-200 hover:border-zinc-400"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/api/receipts/${src}`} alt={`Inspiration ${i + 1}`} className="h-full w-full object-cover" />
-                  </MediaViewer>
-                ))}
-              </div>
-            </div>
-          )}
+          <InspirationManager orderId={order.id} photos={order.inspirationPhotos} />
           <button className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-700">
             Enregistrer
           </button>
