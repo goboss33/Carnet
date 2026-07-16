@@ -27,6 +27,7 @@ export type EffectiveSettings = {
   productionLeadDays: number;
   gcalSync: boolean;
   handoverLeadDays: number;
+  studioEnabled: boolean;
   reviewUrl: string;
   paymentDefault: "twint" | "virement";
   twintNumber: string;
@@ -69,6 +70,7 @@ export async function getSettings(tenantId: string): Promise<EffectiveSettings> 
     productionLeadDays: s?.productionLeadDays ?? 3,
     gcalSync: s?.gcalSync ?? true,
     handoverLeadDays: s?.handoverLeadDays ?? 2,
+    studioEnabled: s?.studioEnabled ?? false,
     reviewUrl: s?.reviewUrl || process.env.GOOGLE_REVIEW_URL || "",
     paymentDefault: s?.paymentDefault === "virement" ? "virement" : "twint",
     twintNumber: s?.twintNumber ?? "",

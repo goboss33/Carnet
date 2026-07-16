@@ -10,7 +10,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   KanbanSquare, Archive, Users, CalendarDays, Wallet, Handshake,
-  Compass, Settings, LogOut, Menu, X,
+  Compass, Settings, LogOut, Menu, X, Clapperboard,
 } from "lucide-react";
 import { logout } from "@/app/actions";
 import { cn } from "@/lib/ui";
@@ -27,17 +27,20 @@ const NAV = [
 
 function useBrandName() {
   const [name, setName] = useState("Carnet");
+  const [studio, setStudio] = useState(false);
   useEffect(() => {
     setName(document.documentElement.dataset.brandName || "Carnet");
+    setStudio(document.documentElement.dataset.studio === "1");
   }, []);
-  return name;
+  return { name, studio };
 }
 
-function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function NavLinks({ pathname, onNavigate, studio }: { pathname: string; onNavigate?: () => void; studio?: boolean }) {
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  const items = studio ? [...NAV.slice(0, 6), { href: "/studio", label: "Studio", Icon: Clapperboard }, ...NAV.slice(6)] : NAV;
   return (
     <>
-      {NAV.map(({ href, label, Icon }) => (
+      {items.map(({ href, label, Icon }) => (
         <Link
           key={href}
           href={href}
@@ -60,7 +63,7 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const brand = useBrandName();
+  const { name: brand, studio } = useBrandName();
 
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
@@ -81,7 +84,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           <span className="text-[15px] font-semibold tracking-tight text-zinc-900">{brand}</span>
         </Link>
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
-          <NavLinks pathname={pathname} />
+          <NavLinks pathname={pathname} studio={studio} />
         </nav>
         <div className="space-y-0.5 border-t border-(--color-line) p-3">
           <Link
@@ -127,7 +130,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-30 md:hidden">
           <div className="absolute inset-0 bg-zinc-950/25" onClick={() => setOpen(false)} />
           <nav className="absolute inset-x-0 top-14 space-y-0.5 border-b border-(--color-line) bg-white p-3 shadow-lg">
-            <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} />
+            <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} studio={studio} />
             <div className="my-2 h-px bg-(--color-line)" />
             <Link href="/reglages" onClick={() => setOpen(false)} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium text-zinc-500 hover:bg-zinc-100/70 hover:text-zinc-900">
               <Settings className="size-4 text-zinc-400" /> Réglages

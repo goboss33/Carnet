@@ -815,6 +815,7 @@ export async function saveSettings(formData: FormData) {
     cronFieldNudges: formData.get("cronFieldNudges") === "on",
     cronProduction: formData.get("cronProduction") === "on",
     gcalSync: formData.get("gcalSync") === "on",
+    studioEnabled: formData.get("studioEnabled") === "on",
     brandName: String(formData.get("brandName") ?? "").trim().slice(0, 40) || null,
     lexicon: (() => {
       const out: Record<string, string> = {};

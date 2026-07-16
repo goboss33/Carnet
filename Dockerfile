@@ -31,7 +31,7 @@ RUN npm install --prefix /prisma-cli --no-save --no-audit --no-fund prisma@6.19.
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
-RUN apk add --no-cache fontconfig \
+RUN apk add --no-cache fontconfig ffmpeg \
     && mkdir -p /usr/share/fonts/carnet /data/receipts \
     && chown -R nextjs:nodejs /data
 COPY --from=builder --chown=nextjs:nodejs /app/branding ./branding

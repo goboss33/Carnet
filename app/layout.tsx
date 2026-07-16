@@ -16,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const brand = await getBrand();
   return (
-    <html lang="fr-CH" style={{ ["--brand" as string]: brand.color }} data-brand-name={brand.name}>
+    <html lang="fr-CH" style={{ ["--brand" as string]: brand.color }} data-brand-name={brand.name} data-studio={brand.studio ? "1" : "0"}>
       <body className="min-h-screen antialiased">
         {children}
         <Toaster position="top-right" richColors closeButton toastOptions={{ style: { fontFamily: "var(--font-sans)" } }} />

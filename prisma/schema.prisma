@@ -51,6 +51,7 @@ model Settings {
   productionLeadDays Int?
   gcalSync           Boolean @default(true)
   handoverLeadDays   Int?
+  studioEnabled      Boolean @default(false)
   // marque blanche
   brandName          String?
   brandColor         String?
@@ -219,6 +220,75 @@ model Activity {
 }
 
 /// État de conversation du bot Telegram (webhook stateless)
+/* ------------------------------- Studio (contenu réseaux sociaux) ------ */
+
+enum StudioAssetKind {
+  VIDEO
+  PHOTO
+}
+
+model StudioAsset {
+  id         String          @id @default(cuid())
+  tenantId   String
+  kind       StudioAssetKind
+  filePath   String // relatif à RECEIPTS_DIR (studio/<slug>/assets/…)
+  thumbPath  String          @default("")
+  durationSec Float?
+  width      Int?
+  height     Int?
+  sizeBytes  Int             @default(0)
+  note       String          @default("")
+  source     String          @default("web") // web | bot | import
+  orderId    String? // liaison commande optionnelle
+  createdAt  DateTime        @default(now())
+  usages     StudioPostAsset[]
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, orderId])
+}
+
+enum StudioPostStatus {
+  BROUILLON
+  MONTAGE
+  MONTEE
+  PROGRAMMEE
+  PUBLIEE
+  ERREUR
+}
+
+model StudioPost {
+  id           String           @id @default(cuid())
+  tenantId     String
+  title        String           @default("")
+  template     String           @default("transformation") // transformation | compilation
+  status       StudioPostStatus @default(BROUILLON)
+  caption      String           @default("")
+  hashtags     String           @default("")
+  orderId      String? // contexte légende
+  outputPath   String           @default("") // mp4 monté
+  renderError  String           @default("")
+  scheduledFor DateTime?
+  publishedAt  DateTime?
+  platforms    Json? // { ig: true, yt: true, fb: true }
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  assets       StudioPostAsset[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, scheduledFor])
+}
+
+model StudioPostAsset {
+  postId   String
+  assetId  String
+  position Int
+  post     StudioPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  asset    StudioAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([postId, assetId])
+  @@index([postId, position])
+}
+
 /* Donnée manquante « snoozée » ou abandonnée (dette de fiche). */
 model FieldSnooze {
   id        String    @id @default(cuid())

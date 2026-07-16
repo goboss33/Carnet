@@ -1,5 +1,6 @@
 import Link from "next/link";
 import InspirationManager from "./InspirationManager";
+import StudioMedia from "./StudioMedia";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { STATUTS, SOURCES, fmtCHF, fmtDate } from "@/lib/statuts";
@@ -104,6 +105,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
             <p className="text-sm text-zinc-500">Fourrages demandés : <span className="font-medium text-zinc-700">{order.fourrages.join(" + ")}</span></p>
           )}
           <InspirationManager orderId={order.id} photos={order.inspirationPhotos} />
+          <StudioMedia orderId={order.id} />
           <button className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-700">
             Enregistrer
           </button>

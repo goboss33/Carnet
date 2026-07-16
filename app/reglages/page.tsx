@@ -58,6 +58,10 @@ export default async function Reglages() {
               <span className="mt-1 block text-[11px] text-zinc-400">Format #RRGGBB — appliquée après enregistrement.</span>
             </label>
           </div>
+          <label className="flex items-center gap-3 text-sm text-zinc-700">
+            <input type="checkbox" name="studioEnabled" defaultChecked={eff.studioEnabled} className="size-4 accent-(--color-brand)" />
+            Activer <b>Studio</b> — bibliothèque de médias et publications réseaux sociaux (montage automatique)
+          </label>
           <div>
             <p className="mb-1 text-[13px] font-semibold text-zinc-700">Lexique métier</p>
             <p className="mb-4 text-[11px] leading-relaxed text-zinc-400">

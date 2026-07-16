@@ -5,20 +5,21 @@
 --------------------------------------------------------------------------- */
 import { prisma, currentTenant } from "@/lib/db";
 
-export type Brand = { name: string; color: string };
+export type Brand = { name: string; color: string; studio: boolean };
 
-export const DEFAULT_BRAND: Brand = { name: "Carnet", color: "#4f46e5" };
+export const DEFAULT_BRAND: Brand = { name: "Carnet", color: "#4f46e5", studio: false };
 
 export async function getBrand(): Promise<Brand> {
   try {
     const tenant = await currentTenant();
     const s = await prisma.settings.findUnique({
       where: { tenantId: tenant.id },
-      select: { brandName: true, brandColor: true },
+      select: { brandName: true, brandColor: true, studioEnabled: true },
     });
     return {
       name: s?.brandName || DEFAULT_BRAND.name,
       color: /^#[0-9a-fA-F]{6}$/.test(s?.brandColor ?? "") ? (s!.brandColor as string) : DEFAULT_BRAND.color,
+      studio: s?.studioEnabled ?? false,
     };
   } catch {
     return DEFAULT_BRAND;
