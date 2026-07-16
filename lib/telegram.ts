@@ -15,7 +15,12 @@ export async function tg(method: string, payload: Record<string, unknown>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return res.json().catch(() => null);
+  const j = await res.json().catch(() => null);
+  if (j && j.ok === false) {
+    // refus Telegram (message trop long, HTML invalide, …) : visible dans les logs
+    console.error(`telegram ${method}:`, j.error_code, j.description);
+  }
+  return j;
 }
 
 export const say = (chatId: number | bigint, text: string, extra: Record<string, unknown> = {}) =>

@@ -21,20 +21,14 @@ import { paymentState } from "@/lib/payments";
 import { waLink } from "@/lib/wa";
 import { AUTOMATIONS } from "@/lib/automations";
 
-/* aide générée depuis le registre central (lib/automations.ts) */
-function helpText(): string {
+/* aide générée depuis le registre central — envoyée en plusieurs messages
+   (un par famille) pour rester sous la limite Telegram de 4096 caractères. */
+async function sendHelp(chatId: number) {
   const fam = (f: "cron" | "reaction" | "command", title: string) =>
-    [`<b>${title}</b>`, ...AUTOMATIONS.filter((a) => a.family === f).map((a) => `${a.emoji} <b>${a.name}</b> — ${a.desc} <i>(${a.trigger})</i>`)].join("\n");
-  return [
-    "<b>Carnet — aide</b>",
-    fam("command", "🎂 À la demande"),
-    "",
-    fam("cron", "⏰ Programmés (réglables dans Réglages → Automatismes)"),
-    "",
-    fam("reaction", "⚡ Réactions automatiques"),
-    "",
-    "/annule pour abandonner une saisie en cours.",
-  ].join("\n");
+    [`<b>${title}</b>`, ...AUTOMATIONS.filter((a) => a.family === f).map((a) => `${a.emoji} <b>${a.name}</b> — ${a.desc} <i>(${a.trigger})</i>`)].join("\n\n");
+  await say(chatId, "<b>Carnet — aide</b>\n\n" + fam("command", "🎂 À la demande"));
+  await say(chatId, fam("cron", "⏰ Programmés — réglables dans Réglages → Automatismes"));
+  await say(chatId, fam("reaction", "⚡ Réactions automatiques") + "\n\nBouton ✖ Annuler (ou /annule) pour abandonner une saisie en cours.");
 }
 
 import { getSettings } from "@/lib/settings";
@@ -1175,7 +1169,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       if (action === "scan") {
         await say(chatId, "📸 Envoie-moi simplement la <b>photo d'un ticket</b> ou un <b>PDF de facture</b> — n'importe quand, sans bouton. Je lis le montant, la date et la TVA, tu valides d'un tap.");
       } else if (action === "aide") {
-        await say(chatId, helpText());
+        await sendHelp(chatId);
       }
       return ok();
     }
@@ -1327,7 +1321,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
     return ok();
   }
   if (text === "/aide") {
-    await say(chatId, helpText());
+    await sendHelp(chatId);
     return ok();
   }
   // nouvelle commande — et compatibilité avec les anciens boutons
