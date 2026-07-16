@@ -236,9 +236,17 @@ export default function AutomationsSection({ toggles, raw, eff, live, texts }: P
                 <p className="text-xs text-zinc-500">{a.desc}</p>
                 <p className="mt-0.5 text-[11px] font-medium text-zinc-500">{a.trigger}</p>
               </div>
-              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
-                Toujours actif
-              </span>
+              {a.setting ? (
+                <label className="relative inline-flex cursor-pointer items-center" title="Actif / inactif (pense à Enregistrer)">
+                  <input type="checkbox" name={a.setting} defaultChecked={toggles[a.setting]} className="peer sr-only" />
+                  <span className="h-5 w-9 rounded-full bg-zinc-300 transition-colors peer-checked:bg-emerald-500" />
+                  <span className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
+                </label>
+              ) : (
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                  Toujours actif
+                </span>
+              )}
             </div>
           ))}
         </div>

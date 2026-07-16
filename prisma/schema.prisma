@@ -49,6 +49,8 @@ model Settings {
   fieldFollowupDays  Int?
   cronProduction     Boolean @default(true)
   productionLeadDays Int?
+  gcalSync           Boolean @default(true)
+  handoverLeadDays   Int?
   // marque blanche
   brandName          String?
   brandColor         String?
@@ -149,6 +151,8 @@ model Order {
 
   occasion        String      @default("")
   eventDate       DateTime?
+  handoverAt      DateTime? // RDV de remise (retrait ou livraison), heure comprise
+  gcalEventId     String      @default("") // événement Google Agenda lié
   celebrant       String      @default("")
   celebrantAge    Int?
   parts           Int?

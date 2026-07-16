@@ -80,6 +80,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           <div className="grid gap-4 sm:grid-cols-3">
             <label><span className={label}>Occasion</span><input name="occasion" defaultValue={order.occasion} className={input} /></label>
             <label><span className={label}>Date de l'événement</span><input name="eventDate" type="date" defaultValue={d(order.eventDate)} className={input} /></label>
+            <label><span className={label}>RDV de remise (retrait/livraison)</span><input name="handoverAt" type="datetime-local" defaultValue={order.handoverAt ? new Date(order.handoverAt.getTime() - order.handoverAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""} className={input} /></label>
             <label><span className={label}>Prix (CHF)</span><input name="priceQuoted" type="number" defaultValue={order.priceQuoted ?? ""} className={input} /></label>
             <label><span className={label}>Fêté·e</span><input name="celebrant" defaultValue={order.celebrant} className={input} /></label>
             <label><span className={label}>Âge</span><input name="celebrantAge" type="number" defaultValue={order.celebrantAge ?? ""} className={input} /></label>

@@ -97,6 +97,7 @@ export default async function Reglages() {
                 cronMonthly: eff.cronMonthly,
                 cronFieldNudges: eff.cronFieldNudges,
                 cronProduction: eff.cronProduction,
+                gcalSync: eff.gcalSync,
               }}
               raw={{
                 digestHour: raw?.digestHour ?? null,
@@ -109,6 +110,7 @@ export default async function Reglages() {
                 nudgeMaxPerEvening: raw?.nudgeMaxPerEvening ?? null,
                 fieldFollowupDays: raw?.fieldFollowupDays ?? null,
                 productionLeadDays: raw?.productionLeadDays ?? null,
+                handoverLeadDays: raw?.handoverLeadDays ?? null,
               }}
               eff={{
                 digestHour: eff.digestHour,
@@ -121,6 +123,7 @@ export default async function Reglages() {
                 nudgeMaxPerEvening: eff.nudgeMaxPerEvening,
                 fieldFollowupDays: eff.fieldFollowupDays,
                 productionLeadDays: eff.productionLeadDays,
+                handoverLeadDays: eff.handoverLeadDays,
               }}
             />
             <p className="mt-4 text-[11px] text-zinc-400">

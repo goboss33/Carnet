@@ -26,6 +26,8 @@ export default async function Contacts() {
       id: c.id,
       name: `${c.firstName} ${c.lastName}`.trim(),
       phone: c.phone,
+      email: c.email,
+      instagram: c.instagram,
       sourceLabel: SOURCES.find((s) => s.id === c.source)?.label ?? "",
       orderId: o?.id ?? null,
       occasion: o?.occasion ?? "",

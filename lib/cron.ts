@@ -233,7 +233,7 @@ async function eveningNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings
 /* 🧩 Données manquantes — fondu dans le créneau du soir, quota partagé. */
 async function fieldNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings>>, quota: number, dryRun = false) {
   const cooldown = Date.now() - s.nudgeCooldownDays * 86400000;
-  const pend = await pendingFields(t.id, 30);
+  const pend = await pendingFields(t.id, 30, s.handoverLeadDays);
   const fresh = pend.filter((p) => !p.order.lastNudgeAt || p.order.lastNudgeAt.getTime() < cooldown);
   // une seule question par fiche et par soir
   const seen = new Set<string>();

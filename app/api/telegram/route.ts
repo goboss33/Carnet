@@ -468,6 +468,13 @@ async function createFromConversation(chatId: number, tenantId: string, conv: Co
       sourceDetail: conv.referredBy ? `recommandée par ${conv.referredBy}` : "",
       occasion: conv.occasion ?? "",
       eventDate: conv.eventDate ? new Date(conv.eventDate + "T12:00:00Z") : null,
+      handoverAt: (() => {
+        if (!conv.eventDate || !conv.handoverTime) return null;
+        const m = conv.handoverTime.match(/^(\d{1,2})[h:](\d{2})$/);
+        if (!m) return null;
+        const dt = new Date(`${conv.eventDate}T${String(Number(m[1])).padStart(2, "0")}:${m[2]}:00`);
+        return isNaN(dt.getTime()) ? null : dt;
+      })(),
       celebrant: conv.celebrant ?? "",
       celebrantAge: conv.celebrantAge,
       parts: conv.parts,
@@ -498,6 +505,9 @@ async function createFromConversation(chatId: number, tenantId: string, conv: Co
     }
     if (rels.length) await prisma.order.update({ where: { id: order.id }, data: { inspirationPhotos: rels } });
   }
+
+  const { syncOrderEvent } = await import("@/lib/gcal");
+  void syncOrderEvent(order.id).catch(() => null);
 
   const miss = missingFor(order);
   const lines = [

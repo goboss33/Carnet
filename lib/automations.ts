@@ -130,10 +130,24 @@ export const AUTOMATIONS: Automation[] = [
     example: "🧩 As-tu pu obtenir le n° de mobile de Tamara ?\n[✍️ Renseigner] [⏰ Plus tard] [❌ Elle n'en aura pas]",
     setting: "cronFieldNudges",
     testKind: "fields",
-    delays: [{ name: "fieldFollowupDays", label: "Rappel après « plus tard »", unit: "j", min: 1, max: 14, def: 2 }],
+    delays: [
+      { name: "fieldFollowupDays", label: "Rappel après « plus tard »", unit: "j", min: 1, max: 14, def: 2 },
+      { name: "handoverLeadDays", label: "Réclamer l'heure de remise avant l'événement", unit: "j", min: 1, max: 14, def: 2 },
+    ],
     stage: 2,
   },
   /* ------------------------------------------------------ ⚡ réactions */
+  {
+    id: "gcal",
+    family: "reaction",
+    emoji: "📆",
+    icon: "CalendarCheck",
+    name: "Agenda Google synchronisé",
+    desc: "Dès l'acompte reçu, la remise apparaît dans ton agenda Google (journée entière tant que l'heure n'est pas fixée, puis créneau précis dès qu'elle l'est). Modifiée ou annulée dans Carnet = mise à jour dans l'agenda.",
+    trigger: "À l'acompte, puis à chaque changement de date/heure",
+    setting: "gcalSync",
+    stage: 2,
+  },
   {
     id: "capture",
     icon: "Inbox",

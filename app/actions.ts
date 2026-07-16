@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { syncOrderEvent } from "@/lib/gcal";
 import { acceptApplication, declineApplication } from "@/lib/partners";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -114,6 +115,7 @@ export async function advanceStatus(orderId: string) {
   });
   revalidatePath("/");
   revalidatePath(`/commandes/${orderId}`);
+  void syncOrderEvent(orderId).catch(() => null);
 }
 
 /** Déplacement pipeline (drag & drop / menu) — mêmes effets de bord que le
@@ -142,6 +144,7 @@ export async function moveOrderStatus(orderId: string, status: OrderStatus): Pro
   revalidatePath("/");
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/compta");
+  void syncOrderEvent(orderId).catch(() => null);
   return {};
 }
 
@@ -162,6 +165,7 @@ export async function setStatus(orderId: string, status: OrderStatus) {
 const orderPatch = z.object({
   occasion: z.string().default(""),
   eventDate: z.string().default(""),
+  handoverAt: z.string().default(""),
   celebrant: z.string().default(""),
   celebrantAge: z.coerce.number().int().optional(),
   parts: z.coerce.number().int().optional(),
@@ -182,6 +186,7 @@ export async function updateOrder(orderId: string, formData: FormData) {
     data: {
       occasion: d.occasion,
       eventDate: d.eventDate ? new Date(d.eventDate) : null,
+      handoverAt: d.handoverAt ? new Date(d.handoverAt) : null,
       celebrant: d.celebrant,
       celebrantAge: d.celebrantAge ?? null,
       parts: d.parts ?? null,
@@ -197,6 +202,7 @@ export async function updateOrder(orderId: string, formData: FormData) {
   });
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
+  void syncOrderEvent(orderId).catch(() => null);
 }
 
 export async function addNote(orderId: string, formData: FormData) {
@@ -588,6 +594,70 @@ export async function updateContact(id: string, _prev: { error?: string; ok?: bo
   return { ok: true };
 }
 
+/* ------------------------------------------------------------ bulk */
+export async function markManyDelivered(ids: string[]): Promise<{ error?: string }> {
+  const tenant = await currentTenant();
+  for (const id of ids.slice(0, 100)) {
+    await moveOrderStatus(id, "LIVRE").catch(() => null);
+  }
+  void tenant;
+  revalidatePath("/commandes");
+  revalidatePath("/");
+  return {};
+}
+
+export async function deleteManyOrders(ids: string[]): Promise<{ error?: string }> {
+  const tenant = await currentTenant();
+  await prisma.order.deleteMany({ where: { id: { in: ids.slice(0, 200) }, tenantId: tenant.id } });
+  revalidatePath("/commandes");
+  revalidatePath("/");
+  return {};
+}
+
+export async function deleteManyContacts(ids: string[]): Promise<{ error?: string }> {
+  const tenant = await currentTenant();
+  const safe = ids.slice(0, 200);
+  await prisma.order.deleteMany({ where: { contactId: { in: safe }, tenantId: tenant.id } });
+  await prisma.contact.deleteMany({ where: { id: { in: safe }, tenantId: tenant.id } });
+  revalidatePath("/contacts");
+  revalidatePath("/");
+  return {};
+}
+
+export async function mergeContacts(
+  keepId: string,
+  dropId: string,
+  patch: { firstName?: string; lastName?: string; phone?: string; email?: string; instagram?: string }
+): Promise<{ error?: string }> {
+  const tenant = await currentTenant();
+  if (keepId === dropId) return { error: "Sélectionne deux fiches différentes." };
+  const [keep, drop] = await Promise.all([
+    prisma.contact.findFirst({ where: { id: keepId, tenantId: tenant.id } }),
+    prisma.contact.findFirst({ where: { id: dropId, tenantId: tenant.id } }),
+  ]);
+  if (!keep || !drop) return { error: "Fiche introuvable." };
+  const notes = [keep.notes, drop.notes].filter(Boolean).join("\n---\n");
+  await prisma.$transaction([
+    prisma.order.updateMany({ where: { contactId: dropId, tenantId: tenant.id }, data: { contactId: keepId } }),
+    prisma.contact.update({
+      where: { id: keepId },
+      data: {
+        firstName: patch.firstName ?? keep.firstName,
+        lastName: patch.lastName ?? keep.lastName,
+        phone: patch.phone ?? keep.phone,
+        email: patch.email ?? keep.email,
+        instagram: patch.instagram ?? keep.instagram,
+        notes,
+        consentNewsletter: keep.consentNewsletter || drop.consentNewsletter,
+      },
+    }),
+    prisma.contact.delete({ where: { id: dropId } }),
+  ]);
+  revalidatePath("/contacts");
+  revalidatePath("/");
+  return {};
+}
+
 export async function deleteContact(id: string) {
   await prisma.order.deleteMany({ where: { contactId: id } }); // activités en cascade
   await prisma.contact.delete({ where: { id } }).catch(() => null);
@@ -696,6 +766,7 @@ export async function saveSettings(formData: FormData) {
     cronMonthly: formData.get("cronMonthly") === "on",
     cronFieldNudges: formData.get("cronFieldNudges") === "on",
     cronProduction: formData.get("cronProduction") === "on",
+    gcalSync: formData.get("gcalSync") === "on",
     brandName: String(formData.get("brandName") ?? "").trim().slice(0, 40) || null,
     lexicon: (() => {
       const out: Record<string, string> = {};
@@ -713,6 +784,7 @@ export async function saveSettings(formData: FormData) {
     nudgeMaxPerEvening: clampInt(num("nudgeMaxPerEvening"), 1, 10),
     fieldFollowupDays: clampInt(num("fieldFollowupDays"), 1, 14),
     productionLeadDays: clampInt(num("productionLeadDays"), 1, 14),
+    handoverLeadDays: clampInt(num("handoverLeadDays"), 1, 14),
     paymentDefault: formData.get("paymentDefault") === "virement" ? "virement" : "twint",
     twintNumber: String(formData.get("twintNumber") ?? "").trim(),
     accountHolder: String(formData.get("accountHolder") ?? "").trim(),

@@ -8,7 +8,9 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Copy, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { markManyPaidInFull, duplicateOrder, deleteOrder } from "@/app/actions";
+import { markManyPaidInFull, duplicateOrder, deleteOrder, markManyDelivered, deleteManyOrders } from "@/app/actions";
+import { downloadCSV } from "@/components/ui/table-kit";
+import { Download, PackageCheck } from "lucide-react";
 import { Table, THead, TR, TD, TH, EmptyState } from "@/components/ui/table";
 import { Badge, STATUS_BADGE } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,11 +52,64 @@ export default function OrdersTable({ rows }: { rows: Row[] }) {
     <form action={markManyPaidInFull}>
       {node}
       {count > 0 && (
-        <div className="sticky top-14 z-10 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-(--color-line) bg-(--color-brand-soft) px-4 py-2">
-          <span className="text-[13px] font-medium text-zinc-800">
+        <div className="sticky top-14 z-10 mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-(--color-line) bg-(--color-brand-soft) px-4 py-2 md:top-0">
+          <span className="mr-auto text-[13px] font-medium text-zinc-800">
             {count} commande{count > 1 ? "s" : ""} sélectionnée{count > 1 ? "s" : ""}
           </span>
-          <Button size="sm">Marquer payé en entier</Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const chosen = rows.filter((r) => sel[r.id]);
+              downloadCSV(
+                `commandes-selection-${new Date().toISOString().slice(0, 10)}.csv`,
+                ["date_evenement", "cliente", "occasion", "statut", "montant_chf"],
+                chosen.map((r) => [r.dateISO?.slice(0, 10) ?? "", r.name, r.occasion, STATUS_BADGE[r.status]?.label ?? r.status, r.amountCents])
+              );
+            }}
+          >
+            <Download /> Export CSV
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              confirm({
+                title: `Marquer ${count} commande${count > 1 ? "s" : ""} livrée${count > 1 ? "s" : ""}`,
+                desc: "Horodate la livraison (les demandes d'avis suivront pour les fiches éligibles).",
+                confirmLabel: "Marquer livrées",
+                action: async () => {
+                  await markManyDelivered(rows.filter((r) => sel[r.id]).map((r) => r.id));
+                  setSel({});
+                  router.refresh();
+                },
+              })
+            }
+          >
+            <PackageCheck /> Livrées
+          </Button>
+          <Button size="sm">Payé en entier</Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="destructive-outline"
+            onClick={() =>
+              confirm({
+                title: `Supprimer ${count} commande${count > 1 ? "s" : ""}`,
+                desc: "Fiches, historiques et relances disparaissent. Définitif.",
+                confirmLabel: "Supprimer",
+                action: async () => {
+                  await deleteManyOrders(rows.filter((r) => sel[r.id]).map((r) => r.id));
+                  setSel({});
+                  router.refresh();
+                },
+              })
+            }
+          >
+            Supprimer
+          </Button>
         </div>
       )}
       <Table>

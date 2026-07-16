@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
-import { chf, CATEGORIES, catLabel } from "@/lib/money";
+import { chf, CATEGORIES, catLabel, mileageCents } from "@/lib/money";
+import { getSettings } from "@/lib/settings";
 import { fmtCHF } from "@/lib/statuts";
 import { paymentState } from "@/lib/payments";
 import { updateExpense, createExpense, deleteExpense, purgeEmptyDrafts } from "@/app/actions";
@@ -34,6 +35,9 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
     prisma.order.findMany({ where: { tenantId: tenant.id, status: "ANNULE", cancelledAt: { gte: start, lt: end }, OR: [{ depositCents: { gt: 0 } }, { balanceCents: { gt: 0 } }] }, include: { contact: true }, orderBy: { cancelledAt: "desc" } }),
   ]);
 
+  const s = await getSettings(tenant.id);
+  const mileage = delivered.reduce((a, o) => a + (o.deliveryMode === "livraison" ? mileageCents(o.deliveryKm, s.kmRate) : 0), 0);
+  const kmTotal = delivered.reduce((a, o) => a + (o.deliveryMode === "livraison" && o.deliveryKm ? o.deliveryKm * 2 : 0), 0);
   const totalExp = expenses.reduce((a, e) => a + e.totalCents, 0);
   const keptRev = cancelledKept.reduce((a, o) => a + paymentState(o).paidCents, 0);
   const totalRev = delivered.reduce((a, o) => a + (o.priceQuoted ?? 0) * 100, 0) + keptRev;
@@ -68,7 +72,7 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
       </div>
 
       {/* Synthèse */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Recettes (livrées)</p>
           <p className="mt-1 text-2xl font-bold text-emerald-700">{chf(totalRev)}</p>
@@ -78,6 +82,11 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
           <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Dépenses</p>
           <p className="mt-1 text-2xl font-bold text-red-700">{chf(totalExp)}</p>
           <p className="mt-0.5 text-xs text-zinc-400">{expenses.length} ticket{expenses.length > 1 ? "s" : ""}</p>
+        </div>
+        <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Déplacements déductibles</p>
+          <p className="mt-1 text-2xl font-bold text-zinc-700">{chf(mileage)}</p>
+          <p className="mt-0.5 text-xs text-zinc-400">{kmTotal} km A/R · hors trésorerie, pour la fiduciaire</p>
         </div>
         <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Résultat du mois</p>
@@ -104,6 +113,11 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
                 <span className="w-12 shrink-0 text-zinc-400">{o.deliveredAt?.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</span>
                 <span className="font-semibold">{o.contact.firstName} {o.contact.lastName}</span>
                 <span className="text-zinc-500">{o.occasion || "—"}</span>
+                {o.deliveryMode === "livraison" && o.deliveryKm ? (
+                  <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-500" title={`Déduction ${chf(mileageCents(o.deliveryKm, s.kmRate))}`}>
+                    {o.deliveryKm * 2} km · {chf(mileageCents(o.deliveryKm, s.kmRate))}
+                  </span>
+                ) : null}
                 {!pay.isPaid && pay.dueCents > 0 && (
                   <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">reste {chf(pay.dueCents)}</span>
                 )}

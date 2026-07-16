@@ -201,6 +201,7 @@ export type ConversationData = {
   occasion: string | null;
   eventDate: string | null; // YYYY-MM-DD
   eventTime: string | null;
+  handoverTime: string | null; // HH:MM — heure de retrait/livraison convenue
   eventPlace: string | null;
   parts: number | null;
   flavors: string | null;
@@ -247,6 +248,7 @@ Extrais la demande de gâteau. Nous sommes le ${today}. Réponds UNIQUEMENT avec
   "occasion": "anniversaire" | "mariage" | "baptême" | autre texte court | null,
   "event_date": "YYYY-MM-DD (résous les dates relatives par rapport à aujourd'hui ; année suivante si la date est passée)" | null,
   "event_time": "HH:MM ou plage (ex. 15-18h)" | null,
+  "handover_time": "HH:MM — heure de RETRAIT ou de LIVRAISON convenue avec la pâtissière (différente de l'heure de la fête)" | null,
   "event_place": "lieu de la fête" | null,
   "parts": nombre de parts/invités | null,
   "flavors": "saveurs/fourrages évoqués, texte court" | null,
@@ -285,6 +287,7 @@ export async function analyzeConversation(parts: GeminiPart[]): Promise<Conversa
     occasion: str(j.occasion, 60),
     eventDate: typeof j.event_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(j.event_date) ? j.event_date : null,
     eventTime: str(j.event_time, 30),
+    handoverTime: typeof j.handover_time === "string" && /^\d{1,2}[h:]\d{2}$/.test(j.handover_time.trim()) ? j.handover_time.trim() : null,
     eventPlace: str(j.event_place, 120),
     parts: num(j.parts),
     flavors: str(j.flavors, 160),

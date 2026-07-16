@@ -148,7 +148,7 @@ export async function automationsLive(tenantId: string): Promise<Record<string, 
   ];
 
   /* ------------------------------------------------- 🧩 données manquantes */
-  const pend = await pendingFields(tenantId, 30);
+  const pend = await pendingFields(tenantId, 30, s.handoverLeadDays);
   const snoozes = await prisma.fieldSnooze.findMany({
     where: { tenantId, dismissed: false, remindAt: { gt: new Date() } },
   });

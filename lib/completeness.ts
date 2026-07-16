@@ -14,8 +14,9 @@ export type MissingField = {
 
 const RANK: Record<string, number> = { LEAD: 0, DEVIS_ENVOYE: 1, ACOMPTE_RECU: 2, EN_PRODUCTION: 3, LIVRE: 4, ANNULE: -1 };
 
-/** Les manques d'une commande, par ordre d'importance. */
-export function missingFor(order: Order & { contact: Contact }): MissingField[] {
+/** Les manques d'une commande, par ordre d'importance.
+    handoverLeadDays : fenêtre (jours avant l'événement) où l'heure de remise devient exigée. */
+export function missingFor(order: Order & { contact: Contact }, handoverLeadDays = 2): MissingField[] {
   const r = RANK[order.status] ?? 0;
   const out: MissingField[] = [];
   if (r < 0) return out; // annulée : on ne réclame rien
@@ -27,6 +28,13 @@ export function missingFor(order: Order & { contact: Contact }): MissingField[] 
     if (!order.occasion) out.push({ field: "occasion", label: "occasion", ask: "C'est pour quelle occasion chez {name} ? (anniversaire, mariage, baptême…)" });
   }
   if (r >= 2) {
+    if (
+      !order.handoverAt &&
+      order.eventDate &&
+      order.eventDate.getTime() < Date.now() + handoverLeadDays * 86400000 &&
+      order.eventDate.getTime() > Date.now() - 86400000
+    )
+      out.push({ field: "handoverAt", label: "heure de remise", ask: "À quelle heure est prévu le retrait/la livraison chez {name} ? (ex. 13h30)" });
     if (!order.contact.phone) out.push({ field: "phone", label: "téléphone", ask: "As-tu pu obtenir le n° de mobile de {name} ? (ex. +41 79 …)" });
     if (order.deliveryMode === "livraison" && !order.deliveryAddress)
       out.push({ field: "deliveryAddress", label: "adresse de livraison", ask: "Quelle est l'adresse de livraison pour {name} ?" });
@@ -37,7 +45,7 @@ export function missingFor(order: Order & { contact: Contact }): MissingField[] 
 export type PendingField = { order: Order & { contact: Contact }; miss: MissingField };
 
 /** Les manques « mûrs » d'un tenant : hors snooze actif, hors abandon, fiches actives. */
-export async function pendingFields(tenantId: string, limit = 10): Promise<PendingField[]> {
+export async function pendingFields(tenantId: string, limit = 10, handoverLeadDays = 2): Promise<PendingField[]> {
   const orders = await prisma.order.findMany({
     where: { tenantId, status: { in: ["DEVIS_ENVOYE", "ACOMPTE_RECU", "EN_PRODUCTION"] }, cancelledAt: null },
     include: { contact: true },
@@ -53,7 +61,7 @@ export async function pendingFields(tenantId: string, limit = 10): Promise<Pendi
   );
   const out: PendingField[] = [];
   for (const o of orders) {
-    for (const m of missingFor(o)) {
+    for (const m of missingFor(o, handoverLeadDays)) {
       if (blocked.has(`${o.id}:${m.field}`)) continue;
       out.push({ order: o, miss: m });
       if (out.length >= limit) return out;
@@ -96,6 +104,19 @@ export async function fillField(tenantId: string, orderId: string, field: string
   if (field === "occasion") {
     await prisma.order.update({ where: { id: orderId }, data: { occasion: text.slice(0, 60) } });
     return `occasion : ${text.slice(0, 60)}`;
+  }
+  if (field === "handoverAt") {
+    const m = text.match(/(\d{1,2})\s*[h:.]\s*(\d{2})?/);
+    if (!m || !order.eventDate) return null;
+    const h = Number(m[1]);
+    const mi = Number(m[2] ?? 0);
+    if (h > 23 || mi > 59) return null;
+    const d = new Date(order.eventDate);
+    d.setHours(h, mi, 0, 0);
+    await prisma.order.update({ where: { id: orderId }, data: { handoverAt: d } });
+    const { syncOrderEvent } = await import("@/lib/gcal");
+    void syncOrderEvent(orderId).catch(() => null);
+    return `remise : ${d.toLocaleDateString("fr-CH")} à ${String(h).padStart(2, "0")}h${String(mi).padStart(2, "0")}`;
   }
   if (field === "deliveryAddress") {
     await prisma.order.update({ where: { id: orderId }, data: { deliveryAddress: text.slice(0, 200) } });
