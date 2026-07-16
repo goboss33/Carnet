@@ -12,8 +12,13 @@ export async function POST(req: NextRequest) {
   const s = await getSettings(tenant.id);
   if (!s.studioEnabled) return NextResponse.json({ error: "Studio désactivé." }, { status: 403 });
 
-  const form = await req.formData().catch(() => null);
-  if (!form) return NextResponse.json({ error: "Requête invalide (fichier trop lourd pour le proxy ?)" }, { status: 400 });
+  const len = req.headers.get("content-length");
+  console.log(`studio upload: content-length=${len ?? "?"} type=${req.headers.get("content-type")?.slice(0, 60)}`);
+  const form = await req.formData().catch((e) => {
+    console.error("studio upload formData a échoué:", e?.message ?? e, `(content-length=${len})`);
+    return null;
+  });
+  if (!form) return NextResponse.json({ error: "Lecture du fichier impossible côté serveur — regarde les logs du conteneur (ligne « studio upload »)." }, { status: 400 });
   const orderId = String(form.get("orderId") ?? "") || null;
   const files = form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   if (!files.length) return NextResponse.json({ error: "Aucun fichier." }, { status: 400 });
