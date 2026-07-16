@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { testTriggerAction } from "@/app/actions";
 import { AUTOMATIONS, LIFECYCLE, type Automation } from "@/lib/automations";
+import { AutomationIcon } from "@/lib/automation-icons";
 
 const inputCls =
   "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
@@ -31,10 +32,10 @@ function Lifecycle() {
                 {step}
               </span>
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              <div className="flex h-5 gap-1 text-sm leading-none">
+              <div className="flex h-5 items-center gap-1.5">
                 {byStage(i).map((a) => (
-                  <span key={a.id} title={`${a.name} — ${a.trigger}`} className="cursor-help">
-                    {a.emoji}
+                  <span key={a.id} title={`${a.name} — ${a.trigger}`} className="cursor-help text-zinc-400 transition-colors hover:text-(--color-brand)">
+                    <AutomationIcon name={a.icon} className="size-3.5" />
                   </span>
                 ))}
               </div>
@@ -75,7 +76,9 @@ function CronCard({
   return (
     <div className="rounded-xl border border-zinc-200 px-4 py-3">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="text-lg" aria-hidden>{a.emoji}</span>
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-(--color-brand-soft)" aria-hidden>
+          <AutomationIcon name={a.icon} className="size-4 text-(--color-brand)" />
+        </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">{a.name}</p>
           <p className="text-xs text-zinc-500">{a.desc}</p>
@@ -203,7 +206,9 @@ export default function AutomationsSection({ toggles, raw, eff, live }: Props) {
         <div className="space-y-2.5">
           {reactions.map((a) => (
             <div key={a.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3">
-              <span className="text-lg" aria-hidden>{a.emoji}</span>
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100" aria-hidden>
+                <AutomationIcon name={a.icon} className="size-4 text-zinc-500" />
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">{a.name}</p>
                 <p className="text-xs text-zinc-500">{a.desc}</p>
@@ -225,7 +230,7 @@ export default function AutomationsSection({ toggles, raw, eff, live }: Props) {
         <div className="overflow-hidden rounded-xl border border-zinc-200">
           {commands.map((a, i) => (
             <div key={a.id} className={`flex items-center gap-3 px-4 py-2.5 ${i > 0 ? "border-t border-zinc-100" : ""}`}>
-              <span aria-hidden>{a.emoji}</span>
+              <span aria-hidden className="text-zinc-400"><AutomationIcon name={a.icon} className="size-4" /></span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">
                   {a.name} <span className="ml-1 text-[11px] font-medium text-zinc-400">{a.trigger}</span>

@@ -10,6 +10,7 @@ import { NEXT_STATUS } from "@/lib/statuts";
 import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
 import { getSettings } from "@/lib/settings";
 import type { OrderStatus, Source } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 /* ------------------------------------------------------------ auth */
 
@@ -667,6 +668,13 @@ export async function saveSettings(formData: FormData) {
     cronFieldNudges: formData.get("cronFieldNudges") === "on",
     cronProduction: formData.get("cronProduction") === "on",
     brandName: String(formData.get("brandName") ?? "").trim().slice(0, 40) || null,
+    lexicon: (() => {
+      const out: Record<string, string> = {};
+      for (const [k, v] of formData.entries()) {
+        if (k.startsWith("lex_") && typeof v === "string" && v.trim()) out[k.slice(4)] = v.trim().slice(0, 60);
+      }
+      return Object.keys(out).length ? out : Prisma.JsonNull;
+    })(),
     brandColor: /^#[0-9a-fA-F]{6}$/.test(String(formData.get("brandColor") ?? "")) ? String(formData.get("brandColor")) : null,
     reviewDelayDays: clampInt(num("reviewDelayDays"), 1, 14),
     quoteFollowupDays: clampInt(num("quoteFollowupDays"), 1, 30),
