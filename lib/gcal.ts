@@ -104,23 +104,26 @@ export async function syncOrderEvent(orderId: string): Promise<void> {
     if (!shouldExist) return;
 
     const name = `${o.contact.firstName} ${o.contact.lastName}`.trim();
-    const mode = o.deliveryMode === "livraison" ? "Livraison" : "Retrait atelier";
+    const isDelivery = o.deliveryMode === "livraison";
+    const mode = isDelivery ? "Livraison" : "Retrait atelier";
     const body: Record<string, unknown> = {
       summary: `${mode} — ${name}${o.occasion ? ` (${o.occasion})` : ""}`,
+      ...(isDelivery && o.deliveryAddress ? { location: o.deliveryAddress } : {}),
       description: [
         o.parts ? `${o.parts} parts` : "",
         o.priceQuoted ? `CHF ${o.priceQuoted}` : "",
-        o.deliveryMode === "livraison" && o.deliveryAddress ? `Adresse : ${o.deliveryAddress}` : "",
         `${process.env.APP_URL ?? ""}/commandes/${o.id}`,
       ].filter(Boolean).join("\n"),
+      // PATCH Google : toujours annuler explicitement l'autre forme (date vs dateTime),
+      // sinon la bascule journée entière → horaire est refusée/ignorée.
       ...(o.handoverAt
         ? {
-            start: { dateTime: o.handoverAt.toISOString(), timeZone: "Europe/Zurich" },
-            end: { dateTime: new Date(o.handoverAt.getTime() + 30 * 60000).toISOString(), timeZone: "Europe/Zurich" },
+            start: { dateTime: o.handoverAt.toISOString(), timeZone: "Europe/Zurich", date: null },
+            end: { dateTime: new Date(o.handoverAt.getTime() + 30 * 60000).toISOString(), timeZone: "Europe/Zurich", date: null },
           }
         : {
-            start: { date: dateStr(o.eventDate!) },
-            end: { date: dateStr(plusDays(o.eventDate!, 1)) },
+            start: { date: dateStr(o.eventDate!), dateTime: null },
+            end: { date: dateStr(plusDays(o.eventDate!, 1)), dateTime: null },
           }),
     };
 
