@@ -7,7 +7,8 @@
 export type Automation = {
   id: string;
   family: "cron" | "reaction" | "command";
-  emoji: string;
+  emoji: string; // Telegram (le bot garde ses emojis)
+  icon: string; // nom d'icône Lucide (web)
   name: string;
   desc: string;
   trigger: string; // quand ça se déclenche, en français
@@ -32,6 +33,7 @@ export const AUTOMATIONS: Automation[] = [
   /* ------------------------------------------------------ ⏰ programmés */
   {
     id: "digest",
+    icon: "Sun",
     family: "cron",
     emoji: "☀️",
     name: "Digest du matin",
@@ -44,6 +46,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "nudges",
+    icon: "Moon",
     family: "cron",
     emoji: "🌙",
     name: "Relances du soir",
@@ -62,6 +65,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "reviews",
+    icon: "MessageSquareHeart",
     family: "cron",
     emoji: "💬",
     name: "Machine à avis",
@@ -75,6 +79,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "birthday",
+    icon: "Cake",
     family: "cron",
     emoji: "🎂",
     name: "Relance anniversaire",
@@ -88,6 +93,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "production",
+    icon: "ChefHat",
     family: "cron",
     emoji: "🥣",
     name: "Passage en production",
@@ -101,6 +107,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "monthly",
+    icon: "TrendingUp",
     family: "cron",
     emoji: "📈",
     name: "Bilan mensuel (Cap)",
@@ -112,6 +119,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "fields",
+    icon: "Puzzle",
     family: "cron",
     emoji: "🧩",
     name: "Données manquantes",
@@ -126,6 +134,7 @@ export const AUTOMATIONS: Automation[] = [
   /* ------------------------------------------------------ ⚡ réactions */
   {
     id: "capture",
+    icon: "Inbox",
     family: "reaction",
     emoji: "📥",
     name: "Capture de conversation",
@@ -136,6 +145,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "partner-apply",
+    icon: "Handshake",
     family: "reaction",
     emoji: "🤝",
     name: "Candidature partenaire",
@@ -146,6 +156,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "notif-devis",
+    icon: "BellRing",
     family: "reaction",
     emoji: "🔔",
     name: "Notification de demande",
@@ -155,6 +166,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "acompte-chain",
+    icon: "Coins",
     family: "reaction",
     emoji: "💰",
     name: "Suivi d'acompte",
@@ -164,6 +176,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "known-client",
+    icon: "UserCheck",
     family: "reaction",
     emoji: "👋",
     name: "Détection cliente connue",
@@ -173,6 +186,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "assistant",
+    icon: "Sparkles",
     family: "reaction",
     emoji: "🤖",
     name: "Assistant IA — réponse au devis",
@@ -183,6 +197,7 @@ export const AUTOMATIONS: Automation[] = [
   /* --------------------------------------------------- 🎂 à la demande */
   {
     id: "new-order",
+    icon: "CirclePlus",
     family: "command",
     emoji: "🎂",
     name: "Nouvelle commande",
@@ -191,6 +206,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "scan",
+    icon: "ScanLine",
     family: "command",
     emoji: "📸",
     name: "Scan de justificatif",
@@ -199,6 +215,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "week",
+    icon: "CalendarDays",
     family: "command",
     emoji: "📅",
     name: "Cette semaine",
@@ -207,6 +224,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "expenses",
+    icon: "Wallet",
     family: "command",
     emoji: "💰",
     name: "Dépenses du mois",
@@ -215,6 +233,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     id: "menu",
+    icon: "LayoutGrid",
     family: "command",
     emoji: "☰",
     name: "Menu",

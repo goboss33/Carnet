@@ -49,6 +49,10 @@ model Settings {
   fieldFollowupDays  Int?
   cronProduction     Boolean @default(true)
   productionLeadDays Int?
+  // marque blanche
+  brandName          String?
+  brandColor         String?
+  lexicon            Json?
   reviewUrl         String   @default("")
   // paiement
   paymentDefault    String   @default("twint") // twint | virement

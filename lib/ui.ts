@@ -34,3 +34,11 @@ export function fmtRel(d?: Date | null): { text: string; tone: "urgent" | "soon"
   if (days <= 7) return { text: `J-${days}`, tone: "soon" };
   return { text: d.toLocaleDateString("fr-CH", { day: "2-digit", month: "short" }), tone: "normal" };
 }
+
+/* ------------------------------------------------------------- cn (design system) */
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}

@@ -618,6 +618,8 @@ export async function saveSettings(formData: FormData) {
     cronMonthly: formData.get("cronMonthly") === "on",
     cronFieldNudges: formData.get("cronFieldNudges") === "on",
     cronProduction: formData.get("cronProduction") === "on",
+    brandName: String(formData.get("brandName") ?? "").trim().slice(0, 40) || null,
+    brandColor: /^#[0-9a-fA-F]{6}$/.test(String(formData.get("brandColor") ?? "")) ? String(formData.get("brandColor")) : null,
     reviewDelayDays: clampInt(num("reviewDelayDays"), 1, 14),
     quoteFollowupDays: clampInt(num("quoteFollowupDays"), 1, 30),
     leadFollowupHours: clampInt(num("leadFollowupHours"), 1, 168),

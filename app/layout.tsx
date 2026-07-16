@@ -1,16 +1,26 @@
 import type { Metadata } from "next";
+import "@fontsource-variable/inter";
 import "./globals.css";
+import { Toaster } from "sonner";
+import { getBrand } from "@/lib/brand";
 
-export const metadata: Metadata = {
-  title: "Carnet — back-office",
-  description: "Commandes, contacts et relances des artisans.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const brand = await getBrand();
+  return {
+    title: `${brand.name} — back-office`,
+    description: "Commandes, contacts et relances des artisans.",
+    robots: { index: false, follow: false },
+  };
+}
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const brand = await getBrand();
   return (
-    <html lang="fr-CH">
-      <body className="min-h-screen antialiased">{children}</body>
+    <html lang="fr-CH" style={{ ["--brand" as string]: brand.color }} data-brand-name={brand.name}>
+      <body className="min-h-screen antialiased">
+        {children}
+        <Toaster position="top-right" richColors closeButton toastOptions={{ style: { fontFamily: "var(--font-sans)" } }} />
+      </body>
     </html>
   );
 }

@@ -1,28 +1,66 @@
 "use client";
 
 /* ---------------------------------------------------------------------------
-   Shell — en-tête d'application : nav desktop + burger/drawer mobile.
+   Shell — sidebar fixe (desktop) + topbar/drawer (mobile).
+   Le nom de marque vient de <html data-brand-name> (réglages du tenant).
 --------------------------------------------------------------------------- */
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import {
+  KanbanSquare, Archive, Users, CalendarDays, Wallet, Handshake,
+  Compass, Settings, LogOut, Menu, X,
+} from "lucide-react";
 import { logout } from "@/app/actions";
+import { cn } from "@/lib/ui";
 
 const NAV = [
-  { href: "/", label: "Pipeline", emoji: "📋" },
-  { href: "/commandes", label: "Historique", emoji: "🗂" },
-  { href: "/contacts", label: "Contacts", emoji: "👥" },
-  { href: "/agenda", label: "Agenda", emoji: "📅" },
-  { href: "/compta", label: "Compta", emoji: "💰" },
-  { href: "/partenaires", label: "Partenaires", emoji: "🤝" },
-  { href: "/cap", label: "Cap", emoji: "📈" },
-  { href: "/reglages", label: "Réglages", emoji: "⚙️" },
+  { href: "/", label: "Pipeline", Icon: KanbanSquare },
+  { href: "/commandes", label: "Historique", Icon: Archive },
+  { href: "/contacts", label: "Contacts", Icon: Users },
+  { href: "/agenda", label: "Agenda", Icon: CalendarDays },
+  { href: "/compta", label: "Compta", Icon: Wallet },
+  { href: "/partenaires", label: "Partenaires", Icon: Handshake },
+  { href: "/cap", label: "Cap", Icon: Compass },
 ];
+
+function useBrandName() {
+  const [name, setName] = useState("Carnet");
+  useEffect(() => {
+    setName(document.documentElement.dataset.brandName || "Carnet");
+  }, []);
+  return name;
+}
+
+function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  return (
+    <>
+      {NAV.map(({ href, label, Icon }) => (
+        <Link
+          key={href}
+          href={href}
+          onClick={onNavigate}
+          className={cn(
+            "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium transition-colors",
+            isActive(href)
+              ? "bg-zinc-100 text-zinc-900"
+              : "text-zinc-500 hover:bg-zinc-100/70 hover:text-zinc-900"
+          )}
+        >
+          <Icon className={cn("size-4", isActive(href) ? "text-(--color-brand)" : "text-zinc-400 group-hover:text-zinc-600")} />
+          {label}
+        </Link>
+      ))}
+    </>
+  );
+}
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const brand = useBrandName();
 
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
@@ -30,85 +68,80 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
-  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  const settingsActive = pathname.startsWith("/reglages");
 
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-40 border-b border-stone-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-5">
-          <Link href="/" className="text-lg font-bold tracking-tight">
-            Carnet<span className="text-amber-600">.</span>
-          </Link>
-
-          {/* Nav desktop */}
-          <nav className="hidden items-center gap-1 text-sm font-medium text-stone-600 md:flex">
-            {NAV.map((n) => (
-              <Link
-                key={n.href}
-                href={n.href}
-                className={`rounded-md px-3 py-1.5 transition-colors ${
-                  isActive(n.href) ? "bg-stone-100 font-semibold text-stone-900" : "hover:bg-stone-100 hover:text-stone-900"
-                }`}
-              >
-                {n.label}
-              </Link>
-            ))}
-          </nav>
-
-          <form action={logout} className="ml-auto hidden md:block">
-            <button className="text-sm text-stone-400 transition-colors hover:text-stone-700">Déconnexion</button>
-          </form>
-
-          {/* Burger mobile */}
-          <button
-            onClick={() => setOpen(true)}
-            aria-label="Ouvrir le menu"
-            className="ml-auto flex h-10 w-10 items-center justify-center rounded-lg border border-stone-200 md:hidden"
+    <div className="min-h-screen md:pl-56">
+      {/* -------------------------------------------------- sidebar desktop */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-56 flex-col border-r border-(--color-line) bg-white md:flex">
+        <Link href="/" className="flex h-14 items-center gap-2 border-b border-(--color-line) px-4">
+          <span className="flex size-6 items-center justify-center rounded-md bg-(--color-brand) text-[13px] font-bold text-white">
+            {brand.charAt(0).toUpperCase()}
+          </span>
+          <span className="text-[15px] font-semibold tracking-tight text-zinc-900">{brand}</span>
+        </Link>
+        <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
+          <NavLinks pathname={pathname} />
+        </nav>
+        <div className="space-y-0.5 border-t border-(--color-line) p-3">
+          <Link
+            href="/reglages"
+            className={cn(
+              "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium transition-colors",
+              settingsActive ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:bg-zinc-100/70 hover:text-zinc-900"
+            )}
           >
-            <svg width="18" height="14" viewBox="0 0 18 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M1 1h16M1 7h16M1 13h16" />
-            </svg>
+            <Settings className={cn("size-4", settingsActive ? "text-(--color-brand)" : "text-zinc-400 group-hover:text-zinc-600")} />
+            Réglages
+          </Link>
+          <form action={logout}>
+            <button className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium text-zinc-500 transition-colors hover:bg-zinc-100/70 hover:text-zinc-900">
+              <LogOut className="size-4 text-zinc-400 group-hover:text-zinc-600" />
+              Déconnexion
+            </button>
+          </form>
+        </div>
+      </aside>
+
+      {/* -------------------------------------------------- topbar mobile */}
+      <header className="sticky top-0 z-40 border-b border-(--color-line) bg-white/90 backdrop-blur md:hidden">
+        <div className="flex h-14 items-center justify-between px-4">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="flex size-6 items-center justify-center rounded-md bg-(--color-brand) text-[13px] font-bold text-white">
+              {brand.charAt(0).toUpperCase()}
+            </span>
+            <span className="text-[15px] font-semibold tracking-tight text-zinc-900">{brand}</span>
+          </Link>
+          <button
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
+            className="rounded-lg p-2 text-zinc-600 transition-colors hover:bg-zinc-100"
+          >
+            {open ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
         </div>
       </header>
 
-      {/* Drawer mobile */}
+      {/* drawer mobile */}
       {open && (
-        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-[2px]" onClick={() => setOpen(false)} />
-          <div className="absolute inset-y-0 right-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-2xl">
-            <div className="flex h-14 items-center justify-between border-b border-stone-100 px-5">
-              <p className="text-lg font-bold">Carnet<span className="text-amber-600">.</span></p>
-              <button onClick={() => setOpen(false)} aria-label="Fermer" className="flex h-9 w-9 items-center justify-center rounded-lg text-xl text-stone-400">
-                ×
+        <div className="fixed inset-0 z-30 md:hidden">
+          <div className="absolute inset-0 bg-zinc-950/25" onClick={() => setOpen(false)} />
+          <nav className="absolute inset-x-0 top-14 space-y-0.5 border-b border-(--color-line) bg-white p-3 shadow-lg">
+            <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} />
+            <div className="my-2 h-px bg-(--color-line)" />
+            <Link href="/reglages" onClick={() => setOpen(false)} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium text-zinc-500 hover:bg-zinc-100/70 hover:text-zinc-900">
+              <Settings className="size-4 text-zinc-400" /> Réglages
+            </Link>
+            <form action={logout}>
+              <button className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium text-zinc-500 hover:bg-zinc-100/70 hover:text-zinc-900">
+                <LogOut className="size-4 text-zinc-400" /> Déconnexion
               </button>
-            </div>
-            <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-              {NAV.map((n) => (
-                <Link
-                  key={n.href}
-                  href={n.href}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3.5 text-[15px] font-semibold transition-colors ${
-                    isActive(n.href) ? "bg-stone-900 text-white" : "text-stone-700 hover:bg-stone-100"
-                  }`}
-                >
-                  <span aria-hidden>{n.emoji}</span>
-                  {n.label}
-                </Link>
-              ))}
-            </nav>
-            <div className="border-t border-stone-100 p-3">
-              <form action={logout}>
-                <button className="w-full rounded-xl px-4 py-3 text-left text-[15px] font-semibold text-stone-400 hover:bg-stone-50 hover:text-stone-700">
-                  Déconnexion
-                </button>
-              </form>
-            </div>
-          </div>
+            </form>
+          </nav>
         </div>
       )}
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-5 sm:py-8">{children}</main>
+      <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 md:py-8">{children}</main>
     </div>
   );
 }
