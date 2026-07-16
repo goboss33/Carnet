@@ -17,6 +17,8 @@ type Props = {
   eff: Record<string, number>;
   /** état live par automatisme (id → lignes), calculé côté serveur */
   live?: Record<string, string[]>;
+  /** champs texte rattachés à un automatisme (ex. reviewUrl) : raw = valeur DB, eff = effective */
+  texts?: Record<string, { raw: string; eff: string }>;
 };
 
 /* ---------------------------------------------------- frise cycle de vie */
@@ -63,6 +65,7 @@ function CronCard({
   result,
   onTest,
   liveLines,
+  texts,
 }: {
   a: Automation;
   toggles: Record<string, boolean>;
@@ -72,6 +75,7 @@ function CronCard({
   result: { kind: string; ok: boolean; message: string } | null;
   onTest: (kind: string) => void;
   liveLines?: string[];
+  texts?: Record<string, { raw: string; eff: string }>;
 }) {
   return (
     <div className="rounded-xl border border-zinc-200 px-4 py-3">
@@ -139,6 +143,24 @@ function CronCard({
         </div>
       ) : null}
 
+      {a.textFields?.length ? (
+        <div className="mt-3 space-y-3 border-t border-dashed border-zinc-200 pt-3">
+          {a.textFields.map((f) => (
+            <label key={f.name} className="block">
+              <span className="mb-1 block text-[11px] font-semibold text-zinc-500">{f.label}</span>
+              <input
+                name={f.name}
+                type="url"
+                defaultValue={texts?.[f.name]?.raw ?? ""}
+                placeholder={texts?.[f.name]?.eff || f.placeholder}
+                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none transition-colors focus:border-(--color-brand)"
+              />
+              {f.hint ? <span className="mt-1 block text-[11px] text-zinc-400">{f.hint}</span> : null}
+            </label>
+          ))}
+        </div>
+      ) : null}
+
       {a.example && (
         <details className="mt-2">
           <summary className="cursor-pointer text-[11px] font-medium text-zinc-400 hover:text-zinc-600">
@@ -154,7 +176,7 @@ function CronCard({
 }
 
 /* ------------------------------------------------------------- section */
-export default function AutomationsSection({ toggles, raw, eff, live }: Props) {
+export default function AutomationsSection({ toggles, raw, eff, live, texts }: Props) {
   const [pending, start] = useTransition();
   const [result, setResult] = useState<{ kind: string; ok: boolean; message: string } | null>(null);
 
@@ -189,7 +211,7 @@ export default function AutomationsSection({ toggles, raw, eff, live }: Props) {
         </div>
         <div className="space-y-2.5">
           {crons.map((a) => (
-            <CronCard key={a.id} a={a} toggles={toggles} raw={raw} eff={eff} pending={pending} result={result} onTest={onTest} liveLines={live?.[a.id]} />
+            <CronCard key={a.id} a={a} toggles={toggles} raw={raw} eff={eff} pending={pending} result={result} onTest={onTest} liveLines={live?.[a.id]} texts={texts} />
           ))}
         </div>
         <p className="mt-2 text-[11px] text-zinc-400">

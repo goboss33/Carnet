@@ -88,6 +88,7 @@ export default async function Reglages() {
             </p>
             <AutomationsSection
               live={live}
+              texts={{ reviewUrl: { raw: raw?.reviewUrl ?? "", eff: eff.reviewUrl } }}
               toggles={{
                 cronDigest: eff.cronDigest,
                 cronEveningNudges: eff.cronEveningNudges,
@@ -123,11 +124,8 @@ export default async function Reglages() {
               }}
             />
             <p className="mt-4 text-[11px] text-zinc-400">
-              Le token du bot et la liste des utilisateurs autorisés restent des variables d'environnement (sécurité).
+              Le token du bot, la liste des utilisateurs autorisés et la clé Gemini restent des variables d'environnement (sécurité).
             </p>
-          <p className="mt-4 text-[11px] text-zinc-400">
-            Le token du bot et la liste des utilisateurs autorisés restent des variables d'environnement (sécurité).
-          </p>
         </CardBody>
       </Card>
     ),
@@ -222,24 +220,6 @@ export default async function Reglages() {
               <input name="assistantSignature" defaultValue={raw?.assistantSignature ?? ""} placeholder="À très vite, Annie — Maman Gâteau" className={input} />
             </label>
             <ConsignesField defaultValue={raw?.assistantInstructions ?? ""} />
-        </CardBody>
-      </Card>
-    ),
-    integrations: (
-      <Card>
-        <CardBody className="space-y-5 p-6">
-          <div>
-            <p className="mb-3 text-[13px] font-semibold text-zinc-700">Avis Google</p>
-
-              <label>
-                <span className={label}>Lien d'avis Google (mis dans les messages de demande d'avis)</span>
-                <input name="reviewUrl" type="url" defaultValue={raw?.reviewUrl ?? ""} placeholder={eff.reviewUrl || "https://g.page/r/…"} className={input} />
-              </label>
-          </div>
-          <div className="rounded-lg bg-zinc-50 px-4 py-3 text-[12px] leading-relaxed text-zinc-500">
-            <p className="font-medium text-zinc-600">Bot Telegram & IA</p>
-            <p>Token du bot, utilisateurs autorisés et clé Gemini vivent dans les variables d'environnement du serveur (sécurité) — rien à configurer ici.</p>
-          </div>
         </CardBody>
       </Card>
     ),

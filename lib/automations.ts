@@ -16,6 +16,7 @@ export type Automation = {
   setting?: string; // nom du toggle Settings (désactivable)
   testKind?: string; // testable via testTrigger
   delays?: { name: string; label: string; unit: string; min: number; max: number; def: number }[];
+  textFields?: { name: string; label: string; placeholder?: string; hint?: string }[];
   stage?: number; // index d'étape du cycle de vie (frise)
 };
 
@@ -75,6 +76,7 @@ export const AUTOMATIONS: Automation[] = [
     setting: "cronReviews",
     testKind: "reviews",
     delays: [{ name: "reviewDelayDays", label: "Demander l'avis après la livraison", unit: "j", min: 1, max: 14, def: 2 }],
+    textFields: [{ name: "reviewUrl", label: "Lien d'avis Google", placeholder: "https://g.page/r/…", hint: "Inséré dans les messages de demande d'avis envoyés aux clientes." }],
     stage: 5,
   },
   {

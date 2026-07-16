@@ -5,7 +5,7 @@
    l'onglet affiché. */
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Palette, Zap, Target, Wallet, Sparkles, Plug } from "lucide-react";
+import { Palette, Zap, Target, Wallet, Sparkles } from "lucide-react";
 
 const TABS = [
   { id: "perso", label: "Personnalisation", Icon: Palette },
@@ -13,7 +13,6 @@ const TABS = [
   { id: "objectifs", label: "Objectifs", Icon: Target },
   { id: "compta", label: "Compta & paiement", Icon: Wallet },
   { id: "assistant", label: "Assistant IA", Icon: Sparkles },
-  { id: "integrations", label: "Intégrations", Icon: Plug },
 ] as const;
 
 export default function SettingsTabs({ panels }: { panels: Record<string, React.ReactNode> }) {
