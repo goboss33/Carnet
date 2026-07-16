@@ -216,8 +216,8 @@ export const AUTOMATIONS: Automation[] = [
     icon: "CirclePlus",
     family: "command",
     emoji: "🎂",
-    name: "Nouvelle commande",
-    desc: "« C'est pour qui ? » — cliente existante proposée en boutons ou création, puis 4 à 6 questions.",
+    name: "Nouvelle demande",
+    desc: "« C'est pour qui ? » — cliente existante proposée en boutons ou création, puis 4 à 6 questions. Bouton ✖ Annuler à chaque étape.",
     trigger: "Bouton 🎂 du clavier",
   },
   {
@@ -253,7 +253,7 @@ export const AUTOMATIONS: Automation[] = [
     family: "command",
     emoji: "☰",
     name: "Menu",
-    desc: "Mon cap (résumé de progression), rappel scan, aide complète, lien Carnet.",
+    desc: "Compléter les fiches en attente (🧩, à la demande), la semaine, les dépenses, Mon cap, l'aide, le lien Carnet.",
     trigger: "Bouton ☰ du clavier",
   },
 ];

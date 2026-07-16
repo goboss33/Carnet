@@ -62,6 +62,18 @@ async function tick() {
     const s = await getSettings(t.id);
     if (hour === s.digestHour && lastRun.get(`${t.id}:digest`) !== today) {
       lastRun.set(`${t.id}:digest`, today);
+      // agenda : re-sync des commandes actives (recrée les événements supprimés à la main)
+      if (s.gcalSync) {
+        const { gcalEnabled, syncOrderEvent } = await import("@/lib/gcal");
+        if (gcalEnabled()) {
+          const actives = await prisma.order.findMany({
+            where: { tenantId: t.id, status: { in: ["ACOMPTE_RECU", "EN_PRODUCTION"] }, eventDate: { gte: new Date(Date.now() - 86400000) } },
+            select: { id: true },
+            take: 50,
+          });
+          for (const a of actives) await syncOrderEvent(a.id).catch(() => null);
+        }
+      }
       let switched: string[] = [];
       if (s.cronProduction) switched = (await autoProduction(t, s).catch((e) => { console.error("production:", e); return []; })) ?? [];
       if (s.cronDigest) await morningDigest(t, false, switched).catch((e) => console.error("digest:", e));
@@ -231,7 +243,7 @@ async function eveningNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings
 }
 
 /* 🧩 Données manquantes — fondu dans le créneau du soir, quota partagé. */
-async function fieldNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings>>, quota: number, dryRun = false) {
+export async function fieldNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings>>, quota: number, dryRun = false) {
   const cooldown = Date.now() - s.nudgeCooldownDays * 86400000;
   const pend = await pendingFields(t.id, 30, s.handoverLeadDays);
   const fresh = pend.filter((p) => !p.order.lastNudgeAt || p.order.lastNudgeAt.getTime() < cooldown);

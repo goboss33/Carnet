@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------------------
-   Bot Telegram v3 — un seul flux « 🎂 Nouvelle commande ».
+   Bot Telegram v3 — un seul flux « 🎂 Nouvelle demande ».
    Le bot cherche le client par nom : existant → questions commande ;
    nouveau → canal + téléphone (anti-doublon) puis commande.
    Clavier figé à 4 boutons ; tout le reste vit dans ☰ Menu.
@@ -121,15 +121,18 @@ async function askNc(chatId: number, key: string) {
       ],
     ]);
   } else if (spec.skippable) {
-    await sayInline(chatId, spec.q, [[{ text: "⏭ Passer", callback_data: "nc:skip" }]]);
+    await sayInline(chatId, spec.q, [[
+      { text: "⏭ Passer", callback_data: "nc:skip" },
+      { text: "✖ Annuler", callback_data: "cancel:x" },
+    ]]);
   } else {
-    await say(chatId, spec.q);
+    await sayInline(chatId, spec.q, [[{ text: "✖ Annuler", callback_data: "cancel:x" }]]);
   }
 }
 
 async function startNc(chatId: number, tenantId: string) {
   await setStep(chatId, tenantId, "nc:who", {});
-  await say(chatId, "🎂 <b>Nouvelle commande</b>\n" + QUESTIONS.who.q);
+  await sayInline(chatId, "🎂 <b>Nouvelle demande</b>\n" + QUESTIONS.who.q, [[{ text: "✖ Annuler", callback_data: "cancel:x" }]]);
 }
 
 async function advanceNc(chatId: number, tenantId: string, currentKey: string, draft: Draft) {
@@ -152,7 +155,7 @@ async function finishNc(chatId: number, tenantId: string, draft: Draft) {
 
   if (!contactId) {
     if (!draft.firstName) {
-      await say(chatId, "Il me faut au moins un prénom — relance 🎂 Nouvelle commande.");
+      await say(chatId, "Il me faut au moins un prénom — relance 🎂 Nouvelle demande.");
       return;
     }
     const phoneN = draft.phone ? normPhone(draft.phone) : "";
@@ -355,11 +358,11 @@ async function handleChatZip(chatId: number, tenantId: string, tenantSlug: strin
 async function presentConversation(chatId: number, tenantId: string, parts: GeminiPart[], pre?: { conv: ConversationData; photos: string[] }) {
   const conv = pre?.conv ?? (await analyzeConversation(parts));
   if (!conv) {
-    await say(chatId, "⚠️ Je n'ai pas réussi à analyser cette conversation. Réessaie, ou crée la fiche via 🎂 Nouvelle commande.");
+    await say(chatId, "⚠️ Je n'ai pas réussi à analyser cette conversation. Réessaie, ou crée la fiche via 🎂 Nouvelle demande.");
     return;
   }
   if (!conv.isRequest) {
-    await say(chatId, "🤷 Je n'ai pas reconnu de demande de gâteau dans cette conversation. Si je me trompe, crée la fiche via 🎂 Nouvelle commande.");
+    await say(chatId, "🤷 Je n'ai pas reconnu de demande de gâteau dans cette conversation. Si je me trompe, crée la fiche via 🎂 Nouvelle demande.");
     return;
   }
   const photos = pre?.photos ?? [];
@@ -696,8 +699,19 @@ async function monthExpenses(chatId: number, tenantId: string) {
   );
 }
 
-async function showMenu(chatId: number) {
+async function showMenu(chatId: number, tenantId?: string) {
+  let fillLabel = "🧩 Compléter les fiches";
+  if (tenantId) {
+    const { pendingFields } = await import("@/lib/completeness");
+    const n = (await pendingFields(tenantId, 15).catch(() => [])).length;
+    if (n > 0) fillLabel += ` (${n})`;
+  }
   await sayInline(chatId, "☰ <b>Menu</b>", [
+    [{ text: fillLabel, callback_data: "menu:fill" }],
+    [
+      { text: "📅 Cette semaine", callback_data: "menu:week" },
+      { text: "💰 Dépenses du mois", callback_data: "menu:expenses" },
+    ],
     [{ text: "📈 Mon cap", callback_data: "menu:cap" }],
     [{ text: "📸 Scanner un ticket / une facture", callback_data: "menu:scan" }],
     [{ text: "🔗 Ouvrir Carnet", url: `${process.env.APP_URL ?? "https://carnet.mamangateau.ch"}` } as never],
@@ -1001,7 +1015,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         await createFromConversation(chatId, tenant.id, conv, draft.photos ?? []);
       } else if (action === "fix") {
         await setStep(chatId, tenant.id, "cv:fix", { conv, photos: draft.photos });
-        await say(chatId, "✏️ Envoie la correction en texte libre — ex. « le prix c'est 195 », « tél +41 79 123 45 67 », « c'est un baptême », « 30 parts ». Plusieurs corrections d'un coup, ça marche aussi.");
+        await sayInline(chatId, "✏️ Envoie la correction en texte libre — ex. « le prix c'est 195 », « tél +41 79 123 45 67 », « c'est un baptême », « 30 parts ». Plusieurs corrections d'un coup, ça marche aussi.", [[{ text: "✖ Annuler", callback_data: "cancel:x" }]]);
       } else {
         await setStep(chatId, tenant.id, "idle", {});
         if (draft.photos?.length) {
@@ -1077,7 +1091,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         await answerCallback(cb.id);
         const miss = missingFor(order).find((m) => m.field === field);
         await setStep(chatId, tenant.id, `fill:${orderId}:${field}`, {});
-        await say(chatId, `✍️ ${(miss?.ask ?? `Nouvelle valeur pour ${field} de {name} ?`).replace("{name}", `<b>${name}</b>`)}\n<i>(/annule pour laisser tomber)</i>`);
+        await sayInline(chatId, `✍️ ${(miss?.ask ?? `Nouvelle valeur pour ${field} de {name} ?`).replace("{name}", `<b>${name}</b>`)}`, [[{ text: "✖ Annuler", callback_data: "cancel:x" }]]);
       } else if (action === "later") {
         const st = await getSettings(tenant.id);
         await snoozeField(tenant.id, orderId, field, st.fieldFollowupDays);
@@ -1088,6 +1102,13 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         await answerCallback(cb.id, "Je ne redemanderai plus");
         await editMessage(chatId, mid, `❌ Compris — je ne redemanderai plus cette info pour ${name}.`);
       }
+      return ok();
+    }
+
+    if (ns === "cancel") {
+      await setStep(chatId, tenant.id, "idle", {});
+      await answerCallback(cb.id, "Annulé");
+      await editMessage(chatId, mid, "✖ Saisie annulée — le clavier reste à ta disposition.");
       return ok();
     }
 
@@ -1127,6 +1148,30 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         ].join("\n"));
         return ok();
       }
+      if (action === "fill") {
+        await answerCallback(cb.id);
+        const { fieldNudges } = await import("@/lib/cron");
+        const s2 = await getSettings(tenant.id);
+        const { pendingFields } = await import("@/lib/completeness");
+        const n = (await pendingFields(tenant.id, 15, s2.handoverLeadDays)).length;
+        if (!n) {
+          await say(chatId, "🧩 Toutes les fiches actives sont complètes. ✔️");
+        } else {
+          await say(chatId, `🧩 C'est parti — ${n} info${n > 1 ? "s" : ""} à compléter, je te pose les questions :`);
+          await fieldNudges(tenant, s2, Math.min(n, 8));
+        }
+        return ok();
+      }
+      if (action === "week") {
+        await answerCallback(cb.id);
+        await weekSummary(chatId, tenant.id);
+        return ok();
+      }
+      if (action === "expenses") {
+        await answerCallback(cb.id);
+        await monthExpenses(chatId, tenant.id);
+        return ok();
+      }
       if (action === "scan") {
         await say(chatId, "📸 Envoie-moi simplement la <b>photo d'un ticket</b> ou un <b>PDF de facture</b> — n'importe quand, sans bouton. Je lis le montant, la date et la TVA, tu valides d'un tap.");
       } else if (action === "aide") {
@@ -1147,7 +1192,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       } else if (action === "fix") {
         await answerCallback(cb.id);
         await setStep(chatId, tenant.id, `fix:${rest[0]}`, {});
-        await say(chatId, "✏️ Envoie la correction : un <b>montant</b> (34.50), un <b>commerçant</b> (Coop), une <b>date</b> (12.01.2026) — ou les trois d'un coup.");
+        await sayInline(chatId, "✏️ Envoie la correction : un <b>montant</b> (34.50), un <b>commerçant</b> (Coop), une <b>date</b> (12.01.2026) — ou les trois d'un coup.", [[{ text: "✖ Annuler", callback_data: "cancel:x" }]]);
       } else if (action === "cat") {
         await answerCallback(cb.id);
         const rows = [];
@@ -1212,7 +1257,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       } else if (action === "refine") {
         await answerCallback(cb.id);
         await setStep(chatId, tenant.id, `ai:chat:${orderId}`, {});
-        await say(chatId, "💬 Dis-moi ce qu'il faut changer, ou pose ta question. (<i>/annule</i> pour sortir)");
+        await sayInline(chatId, "💬 Dis-moi ce qu'il faut changer, ou pose ta question.", [[{ text: "✖ Annuler", callback_data: "cancel:x" }]]);
       } else if (action === "use") {
         await answerCallback(cb.id);
         const last = await prisma.aiMessage.findFirst({ where: { orderId, role: "assistant" }, orderBy: { createdAt: "desc" } });
@@ -1291,7 +1336,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
     return ok();
   }
   if (text.startsWith("☰") || text.toLowerCase() === "menu") {
-    await showMenu(chatId);
+    await showMenu(chatId, tenant.id);
     return ok();
   }
   if (text.startsWith("📸")) {
