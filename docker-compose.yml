@@ -29,6 +29,12 @@ services:
       DIGEST_HOUR: ${DIGEST_HOUR:-7}
       NUDGE_HOUR: ${NUDGE_HOUR:-20}
       GOOGLE_REVIEW_URL: ${GOOGLE_REVIEW_URL:-}
+      # Google Agenda (compte de service recommandé ; OAuth en secours)
+      GCAL_SA_KEY_JSON_B64: ${GCAL_SA_KEY_JSON_B64:-}
+      GCAL_CALENDAR_ID: ${GCAL_CALENDAR_ID:-primary}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GCAL_REFRESH_TOKEN: ${GCAL_REFRESH_TOKEN:-}
     volumes:
       - carnet-receipts:/data/receipts
     networks:
