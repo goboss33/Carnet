@@ -65,11 +65,18 @@ export default function StudioClient({ assets, posts, orders }: { assets: AssetR
     for (const f of Array.from(files)) fd.append("files", f);
     try {
       const res = await fetch("/api/studio/upload", { method: "POST", body: fd });
-      const j = await res.json();
+      if (res.status === 413) throw new Error("Le proxy refuse la taille du fichier — vérifie client_max_body_size dans Nginx Proxy Manager (host carnet).");
+      const raw = await res.text();
+      let j: { error?: string; results?: { ok: boolean; name: string; error?: string }[] };
+      try {
+        j = JSON.parse(raw);
+      } catch {
+        throw new Error(`Le proxy a intercepté la requête (réponse non-JSON, statut ${res.status}) — vérifie la config Advanced du host dans NPM.`);
+      }
       if (!res.ok) throw new Error(j.error ?? "Échec de l'upload");
-      const ko = (j.results as { ok: boolean; name: string; error?: string }[]).filter((r) => !r.ok);
+      const ko = (j.results ?? []).filter((r) => !r.ok);
       if (ko.length) toast.error(`${ko.length} fichier(s) refusé(s) : ${ko[0].error ?? ""}`);
-      else toast.success(`${j.results.length} média(s) ajouté(s) — compressés et prêts.`);
+      else toast.success(`${(j.results ?? []).length} média(s) ajouté(s) — compressés et prêts.`);
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Échec de l'upload (fichier trop lourd pour le proxy ?)");
