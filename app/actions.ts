@@ -160,6 +160,7 @@ export async function setStatus(orderId: string, status: OrderStatus) {
   revalidatePath("/");
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/compta");
+  void syncOrderEvent(orderId).catch(() => null);
 }
 
 const orderPatch = z.object({
