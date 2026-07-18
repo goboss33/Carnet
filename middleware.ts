@@ -26,5 +26,5 @@ export async function middleware(req: NextRequest) {
 export const config = {
   // api/studio/upload est HORS middleware : le middleware Next plafonne le body
   // à 10 Mo (uploads vidéo impossibles). La route fait sa propre auth (session).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|api/studio/upload|api/public).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|manifest.webmanifest|api/studio/upload|api/public).*)"],
 };
