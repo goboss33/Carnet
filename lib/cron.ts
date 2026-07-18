@@ -60,6 +60,11 @@ async function tick() {
   const tenants = await prisma.tenant.findMany();
   for (const t of tenants) {
     const s = await getSettings(t.id);
+    // 📰 pages du site programmées — à la minute près
+    if (s.cronJournal) {
+      const { runJournalPublisher } = await import("@/lib/journal");
+      await runJournalPublisher(t).catch((e) => console.error("journal:", e));
+    }
     if (hour === s.digestHour && lastRun.get(`${t.id}:digest`) !== today) {
       lastRun.set(`${t.id}:digest`, today);
       // agenda : re-sync des commandes actives (recrée les événements supprimés à la main)
@@ -489,6 +494,7 @@ export async function testTrigger(tenantId: string, kind: string): Promise<{ ok:
       case "fields": await fieldNudges(t, s, 99, true); break;
       case "production": await autoProduction(t, s, true); break;
       case "monthly": await monthlyReport(t, true); break;
+      case "journal": { const { runJournalPublisher } = await import("@/lib/journal"); await runJournalPublisher(t, true); break; }
       default: return { ok: false, message: `Déclencheur inconnu : ${kind}` };
     }
     return { ok: true, message: "Envoyé sur Telegram — regarde ton téléphone 📱" };

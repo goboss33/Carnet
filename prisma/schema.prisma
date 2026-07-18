@@ -52,6 +52,9 @@ model Settings {
   gcalSync           Boolean @default(true)
   handoverLeadDays   Int?
   studioEnabled      Boolean @default(false)
+  cronJournal        Boolean @default(true)
+  siteUrl            String  @default("") // URL publique du site vitrine (Journal)
+  sitePathPrefix     String  @default("") // segment des pages Journal côté site (défaut « creations »)
   // marque blanche
   brandName          String?
   brandColor         String?
@@ -244,6 +247,52 @@ model StudioAsset {
 
   @@index([tenantId, createdAt])
   @@index([tenantId, orderId])
+}
+
+/* ------------------------------- Journal (pages SEO du site vitrine) --- */
+
+enum JournalType {
+  CREATION // liée à une commande — galerie d'abord
+  ARTICLE  // conseil libre — texte d'abord
+}
+
+enum JournalStatus {
+  BROUILLON
+  PROGRAMMEE
+  PUBLIEE
+}
+
+enum JournalCategory {
+  ANNIVERSAIRE
+  MARIAGE
+  CUPCAKES
+  CONSEILS
+  ATELIER
+}
+
+model JournalEntry {
+  id              String          @id @default(cuid())
+  tenantId        String
+  type            JournalType     @default(CREATION)
+  status          JournalStatus   @default(BROUILLON)
+  category        JournalCategory @default(ANNIVERSAIRE)
+  orderId         String? // commande source (créations)
+  slug            String
+  title           String   @default("")
+  metaTitle       String   @default("")
+  metaDescription String   @default("")
+  keywords        String[] @default([])
+  story           String   @default("") // markdown
+  coverAssetId    String   @default("")
+  images          Json? // [{ assetId, alt }] — ordre d'affichage
+  scheduledFor    DateTime?
+  publishedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status, scheduledFor])
+  @@index([tenantId, publishedAt])
 }
 
 /* Donnée manquante « snoozée » ou abandonnée (dette de fiche). */

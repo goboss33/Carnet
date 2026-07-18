@@ -4,7 +4,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Clapperboard, Images, Upload, Trash2, Link2, X } from "lucide-react";
+import { Clapperboard, FileText, Images, Upload, Trash2, Link2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/table";
 import { useConfirm } from "@/components/ui/table-kit";
 import { cn } from "@/lib/ui";
 import { deleteStudioAsset, linkStudioAsset, purgeStudioAssets } from "./actions";
+import JournalSection, { type EntryRow, type OrderOption } from "./JournalSection";
 
 export type AssetRow = {
   id: string; kind: "VIDEO" | "PHOTO"; thumb: string; file: string;
@@ -23,7 +24,16 @@ export type AssetRow = {
 const fmtDur = (s: number | null) => (s ? `${Math.round(s)}s` : "");
 const fmtMb = (b: number) => `${(b / 1e6).toFixed(1)} Mo`;
 
-export default function StudioClient({ assets, orders }: { assets: AssetRow[]; orders: { id: string; label: string }[] }) {
+export default function StudioClient({
+  assets, orders, entries, siteBase, initialTab, pageOrderId,
+}: {
+  assets: AssetRow[];
+  orders: OrderOption[];
+  entries: EntryRow[];
+  siteBase: string | null;
+  initialTab: string;
+  pageOrderId: string | null;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const { confirm, node } = useConfirm();
@@ -62,12 +72,24 @@ export default function StudioClient({ assets, orders }: { assets: AssetRow[]; o
   };
 
   return (
-    <Tabs defaultValue="library">
+    <Tabs defaultValue={initialTab}>
       {node}
       <TabsList>
         <TabsTrigger value="library"><Images /> Bibliothèque</TabsTrigger>
+        <TabsTrigger value="pages"><FileText /> Pages du site</TabsTrigger>
         <TabsTrigger value="posts"><Clapperboard /> Publications</TabsTrigger>
       </TabsList>
+
+      {/* ============================================== PAGES DU SITE */}
+      <TabsContent value="pages" className="pt-5">
+        <JournalSection
+          entries={entries}
+          orders={orders}
+          photos={assets.filter((a) => a.kind === "PHOTO")}
+          siteBase={siteBase}
+          openWizardForOrder={pageOrderId}
+        />
+      </TabsContent>
 
       {/* ============================================== BIBLIOTHÈQUE */}
       <TabsContent value="library" className="pt-5">

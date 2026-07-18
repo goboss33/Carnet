@@ -816,6 +816,9 @@ export async function saveSettings(formData: FormData) {
     cronProduction: formData.get("cronProduction") === "on",
     gcalSync: formData.get("gcalSync") === "on",
     studioEnabled: formData.get("studioEnabled") === "on",
+    cronJournal: formData.get("cronJournal") === "on",
+    siteUrl: String(formData.get("siteUrl") ?? "").trim().replace(/\/$/, ""),
+    sitePathPrefix: String(formData.get("sitePathPrefix") ?? "").trim().toLowerCase().replace(/[^a-z0-9-]/g, ""),
     brandName: String(formData.get("brandName") ?? "").trim().slice(0, 40) || null,
     lexicon: (() => {
       const out: Record<string, string> = {};

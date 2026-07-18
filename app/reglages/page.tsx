@@ -60,8 +60,20 @@ export default async function Reglages() {
           </div>
           <label className="flex items-center gap-3 text-sm text-zinc-700">
             <input type="checkbox" name="studioEnabled" defaultChecked={eff.studioEnabled} className="size-4 accent-(--color-brand)" />
-            Activer <b>Studio</b> — bibliothèque de médias et publications réseaux sociaux (montage automatique)
+            Activer <b>Studio</b> — bibliothèque de médias, pages du site (Journal) et publications réseaux sociaux
           </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className={label}>URL du site vitrine</span>
+              <input name="siteUrl" defaultValue={raw?.siteUrl ?? ""} placeholder="https://mamangateau.ch" className={input} />
+              <span className="mt-1 block text-[11px] text-zinc-400">Pour les liens « Voir la page » et la mise à jour automatique du site à chaque publication.</span>
+            </label>
+            <label className="block">
+              <span className={label}>Segment des pages du Journal</span>
+              <input name="sitePathPrefix" defaultValue={raw?.sitePathPrefix ?? ""} placeholder="creations" className={input} />
+              <span className="mt-1 block text-[11px] text-zinc-400">Le dossier des pages sur le site : /creations chez une pâtissière, /chantiers chez un artisan…</span>
+            </label>
+          </div>
           <div>
             <p className="mb-1 text-[13px] font-semibold text-zinc-700">Lexique métier</p>
             <p className="mb-4 text-[11px] leading-relaxed text-zinc-400">
@@ -101,6 +113,7 @@ export default async function Reglages() {
                 cronMonthly: eff.cronMonthly,
                 cronFieldNudges: eff.cronFieldNudges,
                 cronProduction: eff.cronProduction,
+                cronJournal: eff.cronJournal,
                 gcalSync: eff.gcalSync,
               }}
               raw={{

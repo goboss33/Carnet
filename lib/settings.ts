@@ -28,6 +28,9 @@ export type EffectiveSettings = {
   gcalSync: boolean;
   handoverLeadDays: number;
   studioEnabled: boolean;
+  cronJournal: boolean;
+  siteUrl: string;
+  sitePathPrefix: string;
   reviewUrl: string;
   paymentDefault: "twint" | "virement";
   twintNumber: string;
@@ -71,6 +74,9 @@ export async function getSettings(tenantId: string): Promise<EffectiveSettings> 
     gcalSync: s?.gcalSync ?? true,
     handoverLeadDays: s?.handoverLeadDays ?? 2,
     studioEnabled: s?.studioEnabled ?? false,
+    cronJournal: s?.cronJournal ?? true,
+    siteUrl: (s?.siteUrl || process.env.SITE_URL || "").replace(/\/$/, ""),
+    sitePathPrefix: (s?.sitePathPrefix || "creations").replace(/^\/|\/$/g, ""),
     reviewUrl: s?.reviewUrl || process.env.GOOGLE_REVIEW_URL || "",
     paymentDefault: s?.paymentDefault === "virement" ? "virement" : "twint",
     twintNumber: s?.twintNumber ?? "",

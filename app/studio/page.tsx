@@ -3,11 +3,14 @@ import { getSettings } from "@/lib/settings";
 import { studioUsage } from "@/lib/studio/storage";
 import Shell from "@/app/components/Shell";
 import StudioClient, { type AssetRow } from "./StudioClient";
+import type { EntryRow } from "./JournalSection";
+import type { JournalImage } from "@/lib/journal";
 import { fmtDate } from "@/lib/statuts";
 
 export const dynamic = "force-dynamic";
 
-export default async function Studio() {
+export default async function Studio({ searchParams }: { searchParams: Promise<{ tab?: string; page?: string }> }) {
+  const sp = await searchParams;
   const tenant = await currentTenant();
   const s = await getSettings(tenant.id);
   if (!s.studioEnabled) {
@@ -21,15 +24,16 @@ export default async function Studio() {
     );
   }
 
-  const [assets, usage, orders] = await Promise.all([
+  const [assets, usage, orders, journal] = await Promise.all([
     prisma.studioAsset.findMany({ where: { tenantId: tenant.id }, orderBy: { createdAt: "desc" }, take: 200 }),
     studioUsage(tenant.id),
     prisma.order.findMany({
       where: { tenantId: tenant.id, status: { in: ["ACOMPTE_RECU", "EN_PRODUCTION", "LIVRE"] } },
       include: { contact: true },
       orderBy: { eventDate: "desc" },
-      take: 30,
+      take: 60,
     }),
+    prisma.journalEntry.findMany({ where: { tenantId: tenant.id }, orderBy: { updatedAt: "desc" }, take: 100 }),
   ]);
 
   const assetRows: AssetRow[] = assets.map((a) => ({
@@ -47,7 +51,30 @@ export default async function Studio() {
   const orderOptions = orders.map((o) => ({
     id: o.id,
     label: `${o.contact.firstName} ${o.contact.lastName} — ${o.occasion || "?"}${o.eventDate ? ` (${fmtDate(o.eventDate)})` : ""}`.trim(),
+    livre: o.status === "LIVRE",
   }));
+
+  const entryRows: EntryRow[] = journal.map((e) => ({
+    id: e.id,
+    type: e.type,
+    status: e.status,
+    category: e.category,
+    orderId: e.orderId,
+    slug: e.slug,
+    title: e.title,
+    metaTitle: e.metaTitle,
+    metaDescription: e.metaDescription,
+    keywords: e.keywords,
+    story: e.story,
+    coverAssetId: e.coverAssetId,
+    images: ((e.images as JournalImage[] | null) ?? []).map((i) => ({ assetId: i.assetId, alt: i.alt ?? "" })),
+    scheduledFor: e.scheduledFor ? e.scheduledFor.toISOString() : null,
+    publishedAt: e.publishedAt ? e.publishedAt.toISOString() : null,
+    updatedAt: e.updatedAt.toISOString(),
+  }));
+
+  const siteBase = s.siteUrl ? `${s.siteUrl}/${s.sitePathPrefix}` : null;
+  const initialTab = sp.page ? "pages" : sp.tab === "pages" ? "pages" : sp.tab === "posts" ? "posts" : "library";
 
   return (
     <Shell>
@@ -59,7 +86,7 @@ export default async function Studio() {
           </p>
         </div>
       </div>
-      <StudioClient assets={assetRows} orders={orderOptions} />
+      <StudioClient assets={assetRows} orders={orderOptions} entries={entryRows} siteBase={siteBase} initialTab={initialTab} pageOrderId={sp.page ?? null} />
     </Shell>
   );
 }

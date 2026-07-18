@@ -32,6 +32,17 @@ export async function automationsLive(tenantId: string): Promise<Record<string, 
     }),
     prisma.order.count({ where: { tenantId, status: "LEAD" } }),
   ]);
+  /* ---------------------------------------------------------- 📰 journal */
+  const jr = await prisma.journalEntry.findMany({
+    where: { tenantId, status: "PROGRAMMEE" },
+    orderBy: { scheduledFor: "asc" },
+    take: 3,
+  });
+  if (jr.length)
+    out.journal = jr.map((e) =>
+      `📰 « ${e.title || e.slug} » ${e.scheduledFor ? `le ${e.scheduledFor.toLocaleString("fr-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" })}` : "(sans date)"}`
+    );
+
   out.digest = [
     soon.length
       ? `🎂 Sorties d'atelier sous 3 j : ${names(soon.map((o) => o.contact.firstName))}`

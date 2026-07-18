@@ -107,6 +107,8 @@ export async function ingestAsset(opts: {
 export async function deleteAsset(tenantId: string, assetId: string): Promise<{ error?: string }> {
   const a = await prisma.studioAsset.findFirst({ where: { id: assetId, tenantId } });
   if (!a) return { error: "Média introuvable." };
+  const { journalAssetIds } = await import("@/lib/journal");
+  if ((await journalAssetIds(tenantId)).has(a.id)) return { error: "Utilisé dans une page du site — retire-le d'abord de la page." };
   const dir = studioDir();
   await unlink(path.join(dir, a.filePath)).catch(() => null);
   if (a.thumbPath) await unlink(path.join(dir, a.thumbPath)).catch(() => null);
@@ -122,9 +124,11 @@ export async function studioUsage(tenantId: string) {
 
 export async function purgeUnused(tenantId: string, months = 6): Promise<number> {
   const cutoff = new Date(Date.now() - months * 30 * 86400000);
-  const olds = await prisma.studioAsset.findMany({
+  const { journalAssetIds } = await import("@/lib/journal");
+  const inJournal = await journalAssetIds(tenantId);
+  const olds = (await prisma.studioAsset.findMany({
     where: { tenantId, createdAt: { lt: cutoff }, orderId: null },
-  });
+  })).filter((a) => !inJournal.has(a.id));
   for (const a of olds) await deleteAsset(tenantId, a.id).catch(() => null);
   return olds.length;
 }
