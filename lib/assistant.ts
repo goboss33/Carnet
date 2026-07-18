@@ -109,7 +109,7 @@ export async function generateDraft(
   }
 
   let usedAI = true;
-  let text = s.assistantActive ? await geminiGenerate({ system, contents, temperature: opts.regenerate ? 0.9 : 0.7 }) : null;
+  let text = s.assistantActive ? await geminiGenerate({ system, contents, temperature: opts.regenerate ? 0.9 : 0.7, kind: "assistant.reponse" }) : null;
   if (!text) {
     usedAI = false;
     text = [
@@ -133,6 +133,7 @@ export async function generateDraft(
 /** Propose une base de « consignes pour l'assistant » (bouton dans les réglages). */
 export async function generateConsignes(): Promise<string | null> {
   return geminiGenerate({
+    kind: "assistant.consignes",
     temperature: 0.6,
     contents: [
       {

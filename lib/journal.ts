@@ -132,6 +132,7 @@ Réponds UNIQUEMENT avec cet objet JSON :
     }],
     temperature: 0.4,
     maxOutputTokens: 4096,
+    kind: "journal.suggestion",
   });
   if (!out) return { error: "Gemini indisponible — réessaie dans un instant." };
   const j = extractJsonLoose(out);
@@ -174,6 +175,7 @@ Rappel : aucun fait inventé, aucun prix, aucun nom de famille. Tutoiement inter
     }],
     temperature: 0.6,
     maxOutputTokens: 8192,
+    kind: "journal.recit",
   });
   return out?.trim() || { error: "Gemini indisponible — réessaie dans un instant." };
 }

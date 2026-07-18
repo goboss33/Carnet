@@ -260,7 +260,13 @@ function Wizard({
   const [slug, setSlug] = useState(entry?.slug ?? "");
   const [slugState, setSlugState] = useState<"idle" | "checking" | "free" | "taken">(entry ? "free" : "idle");
   const [category, setCategory] = useState(entry?.category ?? "ANNIVERSAIRE");
-  const [keywords, setKeywords] = useState((entry?.keywords ?? []).join(", "));
+  const [keywords, setKeywords] = useState<string[]>(entry?.keywords ?? []);
+  const [kwInput, setKwInput] = useState("");
+  const addKw = (raw: string) => {
+    const parts = raw.split(",").map((k) => k.trim()).filter(Boolean);
+    if (parts.length) setKeywords((ks) => [...new Set([...ks, ...parts])].slice(0, 8));
+    setKwInput("");
+  };
   const [story, setStory] = useState(entry?.story ?? "");
   const [selected, setSelected] = useState<string[]>(entry?.images.map((i) => i.assetId) ?? []);
   const [alts, setAlts] = useState<Record<string, string>>(Object.fromEntries((entry?.images ?? []).map((i) => [i.assetId, i.alt])));
@@ -300,7 +306,7 @@ function Wizard({
       setTitle(r.title);
       if (r.slug) setSlug(r.slug);
       setCategory(r.category);
-      setKeywords(r.keywords.join(", "));
+      setKeywords(r.keywords);
       setMetaTitle(r.metaTitle);
       setMetaDescription(r.metaDescription);
       setAltIdeas(r.altIdeas);
@@ -310,7 +316,7 @@ function Wizard({
   const doStory = () =>
     start(async () => {
       setAi("story");
-      const r = await suggestStoryAction({ type, orderId, subject, title, keywords: keywords.split(",").map((k) => k.trim()).filter(Boolean) });
+      const r = await suggestStoryAction({ type, orderId, subject, title, keywords });
       setAi(null);
       if (typeof r !== "string") { toast.error(r.error); return; }
       setStory(r);
@@ -333,7 +339,7 @@ function Wizard({
       const payload: JournalPayload = {
         id: entry?.id,
         type, orderId, title, slug, category: category as JournalPayload["category"],
-        keywords: keywords.split(",").map((k) => k.trim()).filter(Boolean),
+        keywords,
         story,
         coverAssetId: cover,
         images: selected.map((assetId) => ({ assetId, alt: alts[assetId] ?? title })),
@@ -417,8 +423,28 @@ function Wizard({
                 </select>
               </div>
               <div>
-                <Label>Mots-clés visés (séparés par des virgules)</Label>
-                <Input value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="gâteau licorne Lausanne, …" />
+                <Label>Mots-clés visés</Label>
+                <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2 py-1.5">
+                  {keywords.map((k) => (
+                    <span key={k} className="inline-flex items-center gap-1 rounded-full bg-(--color-brand-soft) py-0.5 pl-2.5 pr-1 text-[12px] font-medium text-(--color-brand)">
+                      {k}
+                      <button type="button" aria-label={`Retirer ${k}`} onClick={() => setKeywords((ks) => ks.filter((x) => x !== k))} className="rounded-full p-0.5 hover:bg-black/10">
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    value={kwInput}
+                    onChange={(e) => setKwInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addKw(kwInput); }
+                      else if (e.key === "Backspace" && !kwInput) setKeywords((ks) => ks.slice(0, -1));
+                    }}
+                    onBlur={() => kwInput.trim() && addKw(kwInput)}
+                    placeholder={keywords.length ? "Ajouter…" : "gâteau licorne Lausanne…"}
+                    className="h-7 min-w-28 flex-1 bg-transparent text-[13px] outline-none placeholder:text-zinc-400"
+                  />
+                </div>
               </div>
             </div>
           </div>

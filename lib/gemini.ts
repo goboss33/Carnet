@@ -1,5 +1,19 @@
 /* Analyse d'un ticket de caisse via Gemini (API REST, clé du projet GCP). */
 
+/* ------------------------- Laboratoire IA : trace de chaque appel ------ */
+const TRIM = (x: string, n = 20000) => (x.length > n ? x.slice(0, n) + "\n… (tronqué)" : x);
+function logPrompt(kind: string, system: string, user: string, response: string | null, ok: boolean, ms: number) {
+  // fire-and-forget — le Lab ne doit jamais ralentir ni casser un appel
+  (async () => {
+    const { prisma } = await import("@/lib/db");
+    await prisma.promptLog.create({ data: { kind, system: TRIM(system), user: TRIM(user), response: TRIM(response ?? ""), ok, ms } });
+    if (Math.random() < 0.1) {
+      const old = await prisma.promptLog.findMany({ orderBy: { createdAt: "desc" }, skip: 100, select: { id: true } });
+      if (old.length) await prisma.promptLog.deleteMany({ where: { id: { in: old.map((o) => o.id) } } });
+    }
+  })().catch(() => null);
+}
+
 export type ReceiptData = {
   merchant: string;
   date: string | null; // ISO
@@ -56,19 +70,24 @@ function extractJson(raw: string): Record<string, unknown> | null {
 export async function analyzeReceipt(image: Buffer, mime = "image/webp"): Promise<ReceiptData | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
+  const t0 = Date.now();
+  const done = (r: ReceiptData | null) => {
+    logPrompt("recu.ocr", PROMPT, "[image du justificatif]", r ? JSON.stringify(r) : null, Boolean(r), Date.now() - t0);
+    return r;
+  };
   const model = process.env.GEMINI_MODEL || FALLBACK_MODEL;
   for (let attempt = 0; attempt < 2; attempt++) {
     const r = await callGemini(key, model, image, mime);
     if (r === "MODEL_GONE") break;
-    if (r) return r;
+    if (r) return done(r);
     console.warn(`gemini: tentative ${attempt + 1} sans résultat exploitable${attempt === 0 ? " → retry" : ""}`);
   }
   if ((process.env.GEMINI_MODEL || FALLBACK_MODEL) !== FALLBACK_MODEL) {
     console.warn(`gemini: fallback ${FALLBACK_MODEL}`);
     const r = await callGemini(key, FALLBACK_MODEL, image, mime);
-    return r === "MODEL_GONE" ? null : r;
+    return done(r === "MODEL_GONE" ? null : r);
   }
-  return null;
+  return done(null);
 }
 
 async function callGemini(key: string, model: string, image: Buffer, mime: string): Promise<ReceiptData | null | "MODEL_GONE"> {
@@ -146,10 +165,15 @@ export async function geminiGenerate(opts: {
   contents: { role: "user" | "model"; parts: GeminiPart[] }[];
   temperature?: number;
   maxOutputTokens?: number;
+  kind?: string; // étiquette pour le Laboratoire IA (Réglages → Assistant)
 }): Promise<string | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
   const model = process.env.GEMINI_MODEL || FALLBACK_MODEL;
+  const t0 = Date.now();
+  const userText = opts.contents
+    .map((c) => `[${c.role}] ` + c.parts.map((p) => ("text" in p ? p.text : "[image]")).join("\n"))
+    .join("\n---\n");
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
@@ -167,7 +191,9 @@ export async function geminiGenerate(opts: {
       }
     );
     if (!res.ok) {
-      console.error("gemini gen http", res.status, await res.text().catch(() => ""));
+      const errTxt = await res.text().catch(() => "");
+      console.error("gemini gen http", res.status, errTxt);
+      if (opts.kind) logPrompt(opts.kind, opts.system ?? "", userText, `HTTP ${res.status} ${errTxt}`, false, Date.now() - t0);
       return null;
     }
     const data = await res.json();
@@ -179,9 +205,11 @@ export async function geminiGenerate(opts: {
       .map((p: { text?: string }) => p.text ?? "")
       .join("")
       .trim();
+    if (opts.kind) logPrompt(opts.kind, opts.system ?? "", userText, text, Boolean(text), Date.now() - t0);
     return text || null;
   } catch (e) {
     console.error("gemini gen error", e);
+    if (opts.kind) logPrompt(opts.kind, opts.system ?? "", userText, String(e), false, Date.now() - t0);
     return null;
   }
 }
@@ -226,6 +254,7 @@ export async function classifyInbound(image: Buffer, mime: string): Promise<"rec
     }],
     temperature: 0,
     maxOutputTokens: 2048,
+    kind: "capture.tri",
   });
   const w = (out ?? "").toUpperCase();
   if (w.includes("CONV")) return "conversation";
@@ -269,6 +298,7 @@ export async function analyzeConversation(parts: GeminiPart[]): Promise<Conversa
     contents: [{ role: "user", parts }],
     temperature: 0,
     maxOutputTokens: 4096,
+    kind: "capture.analyse",
   });
   if (!out) return null;
   const j = extractJson(out);

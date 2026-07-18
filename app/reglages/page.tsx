@@ -6,6 +6,8 @@ import { saveSettings } from "@/app/actions";
 import Shell from "@/app/components/Shell";
 import AutomationsSection from "./AutomationsSection";
 import ConsignesField from "./ConsignesField";
+import PromptLab from "./PromptLab";
+import { PROMPT_TEMPLATES } from "@/lib/prompts";
 import SettingsTabs from "./SettingsTabs";
 import { Card, CardBody } from "@/components/ui/card";
 
@@ -32,10 +34,11 @@ const LEX_LABELS: Record<keyof Lexicon, string> = {
 
 export default async function Reglages() {
   const tenant = await currentTenant();
-  const [raw, eff, live] = await Promise.all([
+  const [raw, eff, live, promptLogs] = await Promise.all([
     prisma.settings.findUnique({ where: { tenantId: tenant.id } }),
     getSettings(tenant.id),
     automationsLive(tenant.id).catch(() => ({}) as Record<string, string[]>),
+    prisma.promptLog.findMany({ orderBy: { createdAt: "desc" }, take: 30 }).catch(() => []),
   ]);
   const lexRaw = (raw?.lexicon ?? {}) as Partial<Lexicon>;
 
@@ -251,6 +254,15 @@ export default async function Reglages() {
               <input name="assistantSignature" defaultValue={raw?.assistantSignature ?? ""} placeholder="À très vite, Annie — Maman Gâteau" className={input} />
             </label>
             <ConsignesField defaultValue={raw?.assistantInstructions ?? ""} />
+            <div className="mt-6 border-t border-zinc-100 pt-5">
+              <PromptLab
+                templates={PROMPT_TEMPLATES}
+                logs={promptLogs.map((l) => ({
+                  id: l.id, kind: l.kind, system: l.system, user: l.user, response: l.response,
+                  ok: l.ok, ms: l.ms, createdAt: l.createdAt.toISOString(),
+                }))}
+              />
+            </div>
         </CardBody>
       </Card>
     ),

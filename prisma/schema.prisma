@@ -302,6 +302,20 @@ model JournalEntry {
   @@index([tenantId, publishedAt])
 }
 
+/* Journal des appels IA — Laboratoire des prompts (ring ~100 entrées). */
+model PromptLog {
+  id        String   @id @default(cuid())
+  kind      String // journal.suggestion | assistant.reponse | capture.analyse | …
+  system    String   @default("")
+  user      String   @default("")
+  response  String   @default("")
+  ok        Boolean  @default(true)
+  ms        Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 /* Donnée manquante « snoozée » ou abandonnée (dette de fiche). */
 model FieldSnooze {
   id        String    @id @default(cuid())
