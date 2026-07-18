@@ -163,7 +163,6 @@ model Order {
   tiers           Int?
   biscuit         String      @default("")
   fourrages       String[]    @default([])
-  style           String      @default("")
   themeNote       String      @default("")
   extras          Json?
   inspirationPhotos String[]  @default([])

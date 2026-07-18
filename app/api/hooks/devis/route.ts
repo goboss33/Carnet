@@ -29,7 +29,7 @@ const payload = z.object({
     tiers: z.number().int().nullish(),
     biscuit: z.string().default(""),
     fourrages: z.array(z.string()).default([]),
-    style: z.string().default(""),
+    style: z.string().default(""), // rétrocompat ancien site — fallback si thème vide
     themeNote: z.string().default(""),
     deliveryMode: z.string().default("retrait"),
     deliveryAddress: z.string().default(""),
@@ -88,8 +88,7 @@ export async function POST(req: NextRequest) {
       tiers: o.tiers ?? null,
       biscuit: o.biscuit,
       fourrages: o.fourrages,
-      style: o.style,
-      themeNote: o.themeNote,
+      themeNote: o.themeNote || o.style,
       deliveryMode: o.deliveryMode,
       deliveryAddress: o.deliveryAddress,
       deliveryKm: o.deliveryKm ?? null,
@@ -136,7 +135,7 @@ export async function POST(req: NextRequest) {
     o.eventDate ? `📅 ${new Date(o.eventDate).toLocaleDateString("fr-CH")}` : "",
     `🔢 ${o.parts ?? "?"} parts${o.tiers ? ` · ${o.tiers} étage${o.tiers > 1 ? "s" : ""}` : ""}${o.priceQuoted ? ` · dès CHF ${o.priceQuoted}` : ""}`,
     gouts.length ? `🍰 ${esc(gouts.join(" · "))}` : "",
-    o.style || o.themeNote ? `🎨 ${esc([o.style, o.themeNote].filter(Boolean).join(" — "))}` : "",
+    o.themeNote || o.style ? `🎨 ${esc(o.themeNote || o.style)}` : "",
     o.deliveryMode === "livraison"
       ? `📍 Livraison — ${esc(o.deliveryAddress || "adresse ?")}${o.deliveryKm ? ` (${o.deliveryKm} km)` : ""}`
       : "📍 Retrait à l'atelier",

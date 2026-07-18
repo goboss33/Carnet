@@ -54,7 +54,7 @@ export async function generateDraft(
     order.celebrant ? `• Pour : ${order.celebrant}${order.celebrantAge ? ` (${order.celebrantAge} ans)` : ""}` : "",
     `• ${order.parts ?? "?"} parts${order.tiers ? ` · ${order.tiers} étage${order.tiers > 1 ? "s" : ""}` : ""}`,
     gouts.length ? `• ${gouts.join(" · ")}` : "",
-    order.style || order.themeNote ? `• ${[order.style, order.themeNote].filter(Boolean).join(" — ")}` : "",
+    order.themeNote ? `• ${order.themeNote}` : "",
     order.deliveryMode === "livraison"
       ? `• Livraison : ${order.deliveryAddress || "à préciser"}${order.deliveryKm ? ` (${order.deliveryKm} km)` : ""}`
       : "• Retrait à l'atelier (Pully)",
