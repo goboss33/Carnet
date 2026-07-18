@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
       return {
         slug: e.slug,
         type: e.type,
+        format: e.format,
         category: e.category,
         title: e.title,
         metaDescription: e.metaDescription,

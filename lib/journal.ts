@@ -149,6 +149,7 @@ export async function suggestStory(
   tenantId: string,
   input: {
     type: JournalType;
+    format?: "ARTICLE" | "VIDEO" | "DIAPORAMA";
     orderId?: string | null;
     subject?: string;
     title: string;
@@ -159,7 +160,9 @@ export async function suggestStory(
   }
 ): Promise<string | { error: string }> {
   const brief = input.orderId ? await orderBrief(tenantId, input.orderId) : null;
-  const bodyPhotos = input.photos ?? [];
+  const fmt = input.format ?? "ARTICLE";
+  // vidéo & diaporama : le visuel porte la page, le texte accompagne — pas de marqueurs
+  const bodyPhotos = fmt === "ARTICLE" ? (input.photos ?? []) : [];
 
   // Gemini VOIT les photos (vignettes) : placement [[photo:N]] + descriptions réelles
   const parts: GeminiPart[] = [];
@@ -176,7 +179,7 @@ Les photos ci-jointes iront DANS l'article. Insère chacune à l'endroit du réc
   parts.push({
     text: `Écris le corps de la page en MARKDOWN (pas de H1 — le titre existe déjà : « ${input.title} »).
 ${input.type === "CREATION"
-  ? `Récit d'une création réalisée. Brief factuel :\n${brief ?? "(aucun)"}\n\n2-4 paragraphes, 220-380 mots.`
+  ? `Récit d'une création réalisée. Brief factuel :\n${brief ?? "(aucun)"}\n\n${fmt === "VIDEO" ? "La page s'ouvre sur une VIDÉO de la création : écris un texte court qui l'accompagne (80-150 mots, 1-2 paragraphes, pas d'intertitre)." : fmt === "DIAPORAMA" ? "La page présente une GALERIE de photos : écris une introduction brève (60-120 mots, 1 paragraphe, pas d'intertitre)." : "2-4 paragraphes, 220-380 mots."}`
   : `Article conseil pratique sur : « ${input.subject ?? input.title} ». Intro courte puis sections concrètes, 350-550 mots. Repères chiffrés uniquement s'ils sont universellement vrais.`}
 Contexte de ciblage — DÉJÀ couvert par le titre, l'adresse et les métadonnées de la page, n'en force AUCUN dans le texte : ${input.keywords.join(", ") || "(libre)"}.${photosBlock}
 
@@ -229,6 +232,43 @@ Aucun prix, aucun nom de famille, pas de tutoiement.`,
   return out?.trim() || { error: "Gemini indisponible — réessaie dans un instant." };
 }
 
+/** Descriptions (alt) des photos sélectionnées — Gemini regarde les vignettes. */
+export async function suggestAlts(
+  tenantId: string,
+  assetIds: string[]
+): Promise<Record<string, string> | { error: string }> {
+  if (!assetIds.length) return {};
+  const assets = await prisma.studioAsset.findMany({ where: { tenantId, id: { in: assetIds } } });
+  const byId = new Map(assets.map((a) => [a.id, a]));
+  const { readAssetFile } = await import("@/lib/studio/storage");
+  const parts: GeminiPart[] = [{
+    text: `Pour chaque photo ci-jointe (numérotées), écris un texte alternatif pour Google Images : factuel, descriptif, 6-14 mots, français avec accents, sans point final, sans « photo de ». Décris ce que tu VOIS (sujet, couleurs, matières). Réponds UNIQUEMENT en JSON : {"alts": ["…", "…"]} dans l'ordre des photos.`,
+  }];
+  const ordered: string[] = [];
+  for (const id of assetIds) {
+    const a = byId.get(id);
+    if (!a) continue;
+    const buf = await readAssetFile(tenantId, a.thumbPath || a.filePath);
+    if (!buf) continue;
+    ordered.push(id);
+    parts.push({ text: `Photo ${ordered.length} :` }, { inline_data: { mime_type: "image/webp", data: buf.toString("base64") } });
+  }
+  if (!ordered.length) return { error: "Photos illisibles." };
+  const out = await geminiGenerate({
+    contents: [{ role: "user", parts }],
+    temperature: 0.3,
+    maxOutputTokens: 4096,
+    kind: "journal.alts",
+  });
+  if (!out) return { error: "Gemini indisponible — réessaie dans un instant." };
+  const j = extractJsonLoose(out);
+  const arr = Array.isArray(j?.alts) ? (j!.alts as unknown[]).map((x) => String(x).trim().slice(0, 140)) : [];
+  if (!arr.length) return { error: "Réponse IA illisible — réessaie." };
+  const res: Record<string, string> = {};
+  ordered.forEach((id, i) => { if (arr[i]) res[id] = arr[i]; });
+  return res;
+}
+
 /* ------------------------------------------------- publication + site */
 
 /** Prévient le site (ISR) — best effort, signé avec le HOOK_SECRET partagé. */
@@ -254,6 +294,7 @@ export async function publishEntry(tenantId: string, id: string): Promise<{ erro
   const e = await prisma.journalEntry.findFirst({ where: { id, tenantId } });
   if (!e) return { error: "Page introuvable." };
   if (!e.title || !e.slug || !e.story) return { error: "Titre, adresse et récit sont requis avant publication." };
+  if (e.format === "VIDEO" && !e.videoAssetId) return { error: "Choisis le clip principal avant de publier une page vidéo." };
   await prisma.journalEntry.update({
     where: { id },
     data: { status: "PUBLIEE", publishedAt: e.publishedAt ?? new Date(), scheduledFor: null },
@@ -304,11 +345,12 @@ export async function runJournalPublisher(t: Tenant, dryRun = false): Promise<nu
 export async function publishedAssetIds(tenantId: string): Promise<Set<string>> {
   const entries = await prisma.journalEntry.findMany({
     where: { tenantId, status: "PUBLIEE" },
-    select: { coverAssetId: true, images: true },
+    select: { coverAssetId: true, videoAssetId: true, images: true },
   });
   const ids = new Set<string>();
   for (const e of entries) {
     if (e.coverAssetId) ids.add(e.coverAssetId);
+    if (e.videoAssetId) ids.add(e.videoAssetId);
     for (const im of (e.images as JournalImage[] | null) ?? []) if (im?.assetId) ids.add(im.assetId);
   }
   return ids;
@@ -318,11 +360,12 @@ export async function publishedAssetIds(tenantId: string): Promise<Set<string>> 
 export async function journalAssetIds(tenantId: string): Promise<Set<string>> {
   const entries = await prisma.journalEntry.findMany({
     where: { tenantId },
-    select: { coverAssetId: true, images: true },
+    select: { coverAssetId: true, videoAssetId: true, images: true },
   });
   const ids = new Set<string>();
   for (const e of entries) {
     if (e.coverAssetId) ids.add(e.coverAssetId);
+    if (e.videoAssetId) ids.add(e.videoAssetId);
     for (const im of (e.images as JournalImage[] | null) ?? []) if (im?.assetId) ids.add(im.assetId);
   }
   return ids;

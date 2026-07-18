@@ -41,7 +41,7 @@ Réponds UNIQUEMENT avec cet objet JSON :
 
 [user]
 Écris le corps de la page en MARKDOWN (pas de H1 — le titre existe déjà : « {titre} »).
-{si création : « Récit d'une création réalisée. Brief factuel : {brief}. 2-4 paragraphes, 220-380 mots. »}
+{si création : « Récit d'une création réalisée. Brief factuel : {brief}. » + selon le format : ARTICLE « 2-4 paragraphes, 220-380 mots » · VIDEO « texte court accompagnant la vidéo, 80-150 mots, sans intertitre » · DIAPORAMA « intro brève 60-120 mots, sans intertitre »}
 {si article : « Article conseil pratique sur : « {sujet} ». Intro courte puis sections concrètes, 350-550 mots. »}
 Contexte de ciblage (DÉJÀ couvert par titre/adresse/métadonnées — n'en force aucun) : {mots-clés}.
 
@@ -59,6 +59,14 @@ Règles d'écriture impératives :
 - Tournures interdites : occasion spéciale, moment magique, donner vie, pièce unique, idéal pour, garantissant, faire la part belle, sublimer, émerveiller petits et grands.
 - Voix : Annie, artisane — première personne discrète, phrases courtes, chaleur sans emphase.
 Termine par UNE phrase d'appel à l'action vers le devis (sans lien). Aucun prix, aucun nom de famille, pas de tutoiement.`,
+  },
+  {
+    kind: "journal.alts",
+    label: "Journal — descriptions des photos (alt)",
+    where: "lib/journal.ts (suggestAlts)",
+    template: `[user]
+Pour chaque photo ci-jointe (numérotées), écris un texte alternatif pour Google Images : factuel, descriptif, 6-14 mots, français avec accents, sans point final, sans « photo de ». Décris ce que tu VOIS (sujet, couleurs, matières). Réponds UNIQUEMENT en JSON : {"alts": ["…"]} dans l'ordre.
+{+ les vignettes jointes}`,
   },
   {
     kind: "assistant.reponse",

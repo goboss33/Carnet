@@ -3,11 +3,11 @@
 /* Journal — onglet « Pages du site » : liste + parcours guidé en 4 étapes.
    Suggéré partout (IA), validé toujours (Annie). */
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Sparkles, ExternalLink, Trash2, Pencil, EyeOff,
-  ChevronLeft, ChevronRight, Star, Loader2, Lightbulb, Wrench, X,
+  ChevronLeft, ChevronRight, Star, Loader2, Lightbulb, Wrench, X, Play, Images, Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,12 +19,13 @@ import { useConfirm } from "@/components/ui/table-kit";
 import { cn } from "@/lib/ui";
 import type { AssetRow } from "./StudioClient";
 import {
-  suggestEntryAction, suggestStoryAction, checkSlugAction, ignoreGscQuery,
+  suggestEntryAction, suggestStoryAction, suggestAltsAction, checkSlugAction, ignoreGscQuery,
   saveJournalEntry, unpublishJournalEntry, deleteJournalEntry, type JournalPayload,
 } from "./journal-actions";
 
 export type EntryRow = {
   id: string; type: "CREATION" | "ARTICLE"; status: "BROUILLON" | "PROGRAMMEE" | "PUBLIEE";
+  format: "ARTICLE" | "VIDEO" | "DIAPORAMA"; videoAssetId: string; youtubeUrl: string;
   category: string; orderId: string | null; slug: string; title: string;
   metaTitle: string; metaDescription: string; keywords: string[]; story: string;
   coverAssetId: string; images: { assetId: string; alt: string }[];
@@ -91,11 +92,12 @@ function MdPreview({ md, photoThumbs = [] }: { md: string; photoThumbs?: string[
 
 /* ============================================================= section */
 export default function JournalSection({
-  entries, orders, photos, siteBase, openWizardForOrder, gscIdeas = [], gscReinforce = [],
+  entries, orders, photos, videos, siteBase, openWizardForOrder, gscIdeas = [], gscReinforce = [],
 }: {
   entries: EntryRow[];
   orders: OrderOption[];
   photos: AssetRow[];
+  videos: AssetRow[];
   siteBase: string | null; // ex. https://mamangateau.ch/creations
   openWizardForOrder: string | null; // ?page=<orderId> → wizard ouvert pré-rempli
   gscIdeas?: { query: string; impressions: number; position: number }[];
@@ -245,6 +247,7 @@ export default function JournalSection({
           defaultSubject={wizard.subject ?? null}
           orders={orders}
           photos={photos}
+          videos={videos}
           siteBase={siteBase}
           onClose={(refresh) => { setWizard(null); if (refresh) router.refresh(); }}
         />
@@ -257,22 +260,29 @@ export default function JournalSection({
 const STEPS = ["Sujet", "Photos", "Récit", "Publication"] as const;
 
 function Wizard({
-  entry, defaultOrderId, defaultSubject, orders, photos, siteBase, onClose,
+  entry, defaultOrderId, defaultSubject, orders, photos, videos, siteBase, onClose,
 }: {
   entry: EntryRow | null;
   defaultOrderId: string | null;
   defaultSubject: string | null;
   orders: OrderOption[];
   photos: AssetRow[];
+  videos: AssetRow[];
   siteBase: string | null;
   onClose: (refresh: boolean) => void;
 }) {
   const isPublished = entry?.status === "PUBLIEE";
+  const router = useRouter();
   const [step, setStep] = useState(0);
   const [pending, start] = useTransition();
   const [ai, setAi] = useState<null | "entry" | "story">(null);
 
   const [type, setType] = useState<"CREATION" | "ARTICLE">(entry?.type ?? (defaultSubject ? "ARTICLE" : "CREATION"));
+  const [format, setFormat] = useState<"ARTICLE" | "VIDEO" | "DIAPORAMA">(entry?.format ?? "ARTICLE");
+  const [videoAssetId, setVideoAssetId] = useState(entry?.videoAssetId ?? "");
+  const [youtubeUrl, setYoutubeUrl] = useState(entry?.youtubeUrl ?? "");
+  const [uploading, setUploading] = useState(false);
+  const uploadRef = useRef<HTMLInputElement>(null);
   const [orderId, setOrderId] = useState<string | null>(entry?.orderId ?? defaultOrderId);
   const [subject, setSubject] = useState(defaultSubject ?? "");
   const [title, setTitle] = useState(entry?.title ?? "");
@@ -337,7 +347,7 @@ function Wizard({
       setAi("story");
       const body = selected.filter((id) => id !== cover);
       const r = await suggestStoryAction({
-        type, orderId, subject, title, keywords,
+        type, format, orderId, subject, title, keywords,
         coverAlt: alts[cover] ?? "",
         photos: body.map((id) => ({ assetId: id, alt: alts[id] ?? "" })),
       });
@@ -362,7 +372,8 @@ function Wizard({
     start(async () => {
       const payload: JournalPayload = {
         id: entry?.id,
-        type, orderId, title, slug, category: category as JournalPayload["category"],
+        type, format, videoAssetId, youtubeUrl,
+        orderId, title, slug, category: category as JournalPayload["category"],
         keywords,
         story,
         coverAssetId: cover,
@@ -382,7 +393,7 @@ function Wizard({
 
   const stepOk = [
     type === "ARTICLE" ? (subject.trim().length > 2 || title.trim().length > 2) : !!orderId,
-    true, // photos optionnelles (article sans photo possible)
+    format !== "VIDEO" || !!videoAssetId, // vidéo : le clip principal est requis
     true,
     !!title.trim() && !!slug.trim() && slugState !== "taken",
   ][step];
@@ -417,6 +428,17 @@ function Wizard({
                   <span className="block text-[11px] text-zinc-500">{hint}</span>
                 </button>
               ))}
+            </div>
+            <div>
+              <Label>Format de la page</Label>
+              <div className="flex gap-2">
+                {([["ARTICLE", "Article illustré", "photos dans le récit", FileText], ["VIDEO", "Vidéo + texte", "le clip en vedette", Play], ["DIAPORAMA", "Diaporama", "la galerie d'abord", Images]] as const).map(([id, label, hint, Icon]) => (
+                  <button key={id} type="button" onClick={() => setFormat(id)} className={cn("flex-1 rounded-lg border px-3 py-2 text-left text-[13px]", format === id ? "border-(--color-brand) bg-(--color-brand-soft)" : "border-zinc-200 hover:border-zinc-300")}>
+                    <span className="flex items-center gap-1.5 font-medium text-zinc-900"><Icon className="size-3.5" /> {label}</span>
+                    <span className="block text-[11px] text-zinc-500">{hint}</span>
+                  </button>
+                ))}
+              </div>
             </div>
             {type === "CREATION" ? (
               <div>
@@ -477,9 +499,76 @@ function Wizard({
         {/* ---------------------------------------------- étape 2 : photos */}
         {step === 1 && (
           <div className="space-y-3">
-            <p className="text-[12px] text-zinc-500">
-              Choisis les photos dans l'ordre d'affichage — la ★ marque la couverture. {orderId ? "Celles de la commande sont en premier." : ""}
-            </p>
+            {format === "VIDEO" && (
+              <div>
+                <Label>Clip principal (en tête de page)</Label>
+                {videos.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-zinc-300 px-3 py-3 text-[13px] text-zinc-400">Aucun clip en bibliothèque — ajoute-le ci-dessous (bouton Ajouter, vidéo acceptée).</p>
+                ) : (
+                  <div className="grid max-h-40 grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-6">
+                    {[...videos.filter((v) => orderId && v.orderId === orderId), ...videos.filter((v) => !orderId || v.orderId !== orderId)].map((v) => (
+                      <button key={v.id} type="button" onClick={() => setVideoAssetId(videoAssetId === v.id ? "" : v.id)} className={cn("relative aspect-square overflow-hidden rounded-lg border-2 bg-zinc-100", videoAssetId === v.id ? "border-(--color-brand)" : "border-transparent hover:border-zinc-300")}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={v.thumb} alt="" className="h-full w-full object-cover" />
+                        <span className="absolute inset-0 flex items-center justify-center"><Play className="size-5 text-white drop-shadow" /></span>
+                        {v.durationSec ? <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1 text-[10px] text-white">{Math.round(v.durationSec)}s</span> : null}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="min-w-0 flex-1 text-[12px] text-zinc-500">
+                {format === "VIDEO" ? "Photos d'accompagnement (optionnel) — la ★ marque la couverture (l'affiche de la vidéo)." : "Choisis les photos dans l'ordre d'affichage — la ★ marque la couverture."} {orderId ? "Celles de la commande sont en premier." : ""}
+              </p>
+              <Button size="sm" variant="outline" disabled={uploading} onClick={() => uploadRef.current?.click()}>
+                <Upload /> {uploading ? "Envoi…" : "Ajouter"}
+              </Button>
+              <input
+                ref={uploadRef} type="file" multiple className="hidden"
+                accept={format === "VIDEO" ? "video/*,image/*" : "image/*"}
+                onChange={async (e) => {
+                  const files = e.target.files;
+                  if (!files?.length) return;
+                  setUploading(true);
+                  const fd = new FormData();
+                  if (orderId) fd.append("orderId", orderId);
+                  for (const f of Array.from(files)) fd.append("files", f);
+                  try {
+                    const res = await fetch("/api/studio/upload", { method: "POST", body: fd });
+                    const j = await res.json().catch(() => null);
+                    if (!res.ok) throw new Error(j?.error ?? "Échec de l'upload");
+                    toast.success("Média(s) ajouté(s) — compressés, la grille se met à jour.");
+                    router.refresh();
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "Échec de l'upload.");
+                  } finally {
+                    setUploading(false);
+                    if (uploadRef.current) uploadRef.current.value = "";
+                  }
+                }}
+              />
+              {selected.length > 0 && (
+                <Button
+                  size="sm" variant="outline" disabled={pending}
+                  onClick={() => start(async () => {
+                    setAi("entry");
+                    const r = await suggestAltsAction(selected);
+                    setAi(null);
+                    if ("error" in r) { toast.error(String(r.error)); return; }
+                    setAlts((a) => {
+                      const next = { ...a };
+                      for (const [id, alt] of Object.entries(r)) if (!next[id]?.trim()) next[id] = alt;
+                      return next;
+                    });
+                    toast.success("Descriptions suggérées — celles que tu as écrites sont conservées.");
+                  })}
+                >
+                  {ai === "entry" ? <Loader2 className="animate-spin" /> : <Sparkles />} Décrire les photos
+                </Button>
+              )}
+            </div>
             {sortedPhotos.length === 0 ? (
               <EmptyState icon={<FileText />} title="Aucune photo en bibliothèque" hint="Ajoute d'abord les photos dans l'onglet Bibliothèque (compressées automatiquement)." />
             ) : (
@@ -557,6 +646,12 @@ function Wizard({
               <Label>Description pour Google <span className="font-normal text-zinc-400">({metaDescription.length}/155)</span></Label>
               <Textarea rows={2} value={metaDescription} onChange={(e) => setMetaDescription(e.target.value)} />
             </div>
+            {format === "VIDEO" && (
+              <div>
+                <Label>URL YouTube <span className="font-normal text-zinc-400">(optionnel — remplace le lecteur natif par la vidéo YouTube)</span></Label>
+                <Input value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="https://youtu.be/…" />
+              </div>
+            )}
             {isPublished ? (
               <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[12px] text-emerald-700">La page est en ligne — « Mettre à jour le site » applique tes modifications immédiatement.</p>
             ) : (

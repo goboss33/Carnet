@@ -13,6 +13,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ slug: stri
   const imgs = (e.images as JournalImage[] | null) ?? [];
   const ids = [e.coverAssetId, ...imgs.map((i) => i.assetId)].filter(Boolean);
   const assets = await prisma.studioAsset.findMany({ where: { id: { in: ids }, kind: "PHOTO" } });
+  const video = e.videoAssetId
+    ? await prisma.studioAsset.findFirst({ where: { id: e.videoAssetId, tenantId: tenant.id, kind: "VIDEO" } })
+    : null;
   const byId = new Map(assets.map((a) => [a.id, a]));
   const toImg = (assetId: string, alt: string) => {
     const a = byId.get(assetId);
@@ -21,6 +24,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ slug: stri
   return NextResponse.json({
     slug: e.slug,
     type: e.type,
+    format: e.format,
+    youtubeUrl: e.youtubeUrl,
+    video: video
+      ? { path: `/api/public/journal-media/${video.filePath}`, width: video.width, height: video.height, durationSec: video.durationSec }
+      : null,
     category: e.category,
     title: e.title,
     metaTitle: e.metaTitle,

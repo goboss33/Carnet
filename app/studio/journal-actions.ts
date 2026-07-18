@@ -8,16 +8,22 @@ import {
   slugify, slugFree, suggestEntry, suggestStory, publishEntry, revalidateSite, publicUrl,
   type JournalImage,
 } from "@/lib/journal";
-import type { JournalCategory, JournalType } from "@prisma/client";
+import type { JournalCategory, JournalFormat, JournalType } from "@prisma/client";
 
 export async function suggestEntryAction(input: { type: JournalType; orderId?: string | null; subject?: string }) {
   const tenant = await currentTenant();
   return suggestEntry(tenant.id, input);
 }
 
-export async function suggestStoryAction(input: { type: JournalType; orderId?: string | null; subject?: string; title: string; keywords: string[]; coverAlt?: string; photos?: { assetId: string; alt: string }[] }) {
+export async function suggestStoryAction(input: { type: JournalType; format?: JournalFormat; orderId?: string | null; subject?: string; title: string; keywords: string[]; coverAlt?: string; photos?: { assetId: string; alt: string }[] }) {
   const tenant = await currentTenant();
   return suggestStory(tenant.id, input);
+}
+
+export async function suggestAltsAction(assetIds: string[]) {
+  const tenant = await currentTenant();
+  const { suggestAlts } = await import("@/lib/journal");
+  return suggestAlts(tenant.id, assetIds);
 }
 
 export async function checkSlugAction(slug: string, excludeId?: string): Promise<{ slug: string; free: boolean }> {
@@ -29,6 +35,9 @@ export async function checkSlugAction(slug: string, excludeId?: string): Promise
 export type JournalPayload = {
   id?: string;
   type: JournalType;
+  format: JournalFormat;
+  videoAssetId: string;
+  youtubeUrl: string;
   orderId?: string | null;
   title: string;
   slug: string;
@@ -62,6 +71,9 @@ export async function saveJournalEntry(p: JournalPayload): Promise<{ error?: str
 
   const base = {
     type: p.type,
+    format: p.format,
+    videoAssetId: p.format === "VIDEO" ? p.videoAssetId : "",
+    youtubeUrl: p.format === "VIDEO" ? p.youtubeUrl.trim().slice(0, 200) : "",
     orderId: p.type === "CREATION" ? (p.orderId || null) : null,
     title,
     slug,

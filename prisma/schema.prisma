@@ -263,6 +263,12 @@ enum JournalType {
   ARTICLE  // conseil libre — texte d'abord
 }
 
+enum JournalFormat {
+  ARTICLE // article illustré (photos dans le récit)
+  VIDEO // clip principal + texte court
+  DIAPORAMA // galerie en avant + texte minimal
+}
+
 enum JournalStatus {
   BROUILLON
   PROGRAMMEE
@@ -281,6 +287,7 @@ model JournalEntry {
   id              String          @id @default(cuid())
   tenantId        String
   type            JournalType     @default(CREATION)
+  format          JournalFormat   @default(ARTICLE)
   status          JournalStatus   @default(BROUILLON)
   category        JournalCategory @default(ANNIVERSAIRE)
   orderId         String? // commande source (créations)
@@ -291,6 +298,8 @@ model JournalEntry {
   keywords        String[] @default([])
   story           String   @default("") // markdown
   coverAssetId    String   @default("")
+  videoAssetId    String   @default("") // clip principal (format VIDEO)
+  youtubeUrl      String   @default("") // optionnel : façade YouTube à la place du lecteur natif
   images          Json? // [{ assetId, alt }] — ordre d'affichage
   scheduledFor    DateTime?
   publishedAt     DateTime?
