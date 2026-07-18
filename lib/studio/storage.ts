@@ -105,9 +105,8 @@ export async function ingestAsset(opts: {
 }
 
 export async function deleteAsset(tenantId: string, assetId: string): Promise<{ error?: string }> {
-  const a = await prisma.studioAsset.findFirst({ where: { id: assetId, tenantId }, include: { usages: true } });
+  const a = await prisma.studioAsset.findFirst({ where: { id: assetId, tenantId } });
   if (!a) return { error: "Média introuvable." };
-  if (a.usages.length) return { error: "Utilisé dans une publication — retire-le d'abord de la publication." };
   const dir = studioDir();
   await unlink(path.join(dir, a.filePath)).catch(() => null);
   if (a.thumbPath) await unlink(path.join(dir, a.thumbPath)).catch(() => null);
@@ -117,17 +116,14 @@ export async function deleteAsset(tenantId: string, assetId: string): Promise<{ 
 
 /** Espace occupé + purge des médias jamais utilisés plus vieux que N mois. */
 export async function studioUsage(tenantId: string) {
-  const [assets, renders] = await Promise.all([
-    prisma.studioAsset.aggregate({ where: { tenantId }, _sum: { sizeBytes: true }, _count: true }),
-    prisma.studioPost.count({ where: { tenantId, outputPath: { not: "" } } }),
-  ]);
-  return { bytes: assets._sum.sizeBytes ?? 0, count: assets._count, renders };
+  const assets = await prisma.studioAsset.aggregate({ where: { tenantId }, _sum: { sizeBytes: true }, _count: true });
+  return { bytes: assets._sum.sizeBytes ?? 0, count: assets._count };
 }
 
 export async function purgeUnused(tenantId: string, months = 6): Promise<number> {
   const cutoff = new Date(Date.now() - months * 30 * 86400000);
   const olds = await prisma.studioAsset.findMany({
-    where: { tenantId, createdAt: { lt: cutoff }, usages: { none: {} } },
+    where: { tenantId, createdAt: { lt: cutoff }, orderId: null },
   });
   for (const a of olds) await deleteAsset(tenantId, a.id).catch(() => null);
   return olds.length;
@@ -137,7 +133,6 @@ export async function readAssetFile(tenantId: string, rel: string): Promise<Buff
   // sécurité : le chemin doit rester sous studio/ et exister en DB
   if (rel.includes("..")) return null;
   const owned = await prisma.studioAsset.findFirst({ where: { tenantId, OR: [{ filePath: rel }, { thumbPath: rel }] } });
-  const post = owned ? null : await prisma.studioPost.findFirst({ where: { tenantId, outputPath: rel } });
-  if (!owned && !post) return null;
+  if (!owned) return null;
   return readFile(path.join(studioDir(), rel)).catch(() => null);
 }

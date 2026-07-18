@@ -2,7 +2,7 @@ import { prisma, currentTenant } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { studioUsage } from "@/lib/studio/storage";
 import Shell from "@/app/components/Shell";
-import StudioClient, { type AssetRow, type PostRow } from "./StudioClient";
+import StudioClient, { type AssetRow } from "./StudioClient";
 import { fmtDate } from "@/lib/statuts";
 
 export const dynamic = "force-dynamic";
@@ -21,14 +21,8 @@ export default async function Studio() {
     );
   }
 
-  const [assets, posts, usage, orders] = await Promise.all([
-    prisma.studioAsset.findMany({ where: { tenantId: tenant.id }, orderBy: { createdAt: "desc" }, take: 200, include: { usages: true } }),
-    prisma.studioPost.findMany({
-      where: { tenantId: tenant.id },
-      orderBy: [{ createdAt: "desc" }],
-      take: 60,
-      include: { assets: { include: { asset: true }, orderBy: { position: "asc" } } },
-    }),
+  const [assets, usage, orders] = await Promise.all([
+    prisma.studioAsset.findMany({ where: { tenantId: tenant.id }, orderBy: { createdAt: "desc" }, take: 200 }),
     studioUsage(tenant.id),
     prisma.order.findMany({
       where: { tenantId: tenant.id, status: { in: ["ACOMPTE_RECU", "EN_PRODUCTION", "LIVRE"] } },
@@ -47,22 +41,7 @@ export default async function Studio() {
     sizeBytes: a.sizeBytes,
     note: a.note,
     orderId: a.orderId,
-    used: a.usages.length > 0,
     createdAt: a.createdAt.toISOString(),
-  }));
-
-  const postRows: PostRow[] = posts.map((p) => ({
-    id: p.id,
-    title: p.title,
-    template: p.template,
-    status: p.status,
-    caption: p.caption,
-    hashtags: p.hashtags,
-    output: p.outputPath ? `/api/studio/media/${p.outputPath}` : null,
-    renderError: p.renderError,
-    scheduledFor: p.scheduledFor ? p.scheduledFor.toISOString() : null,
-    publishedAt: p.publishedAt ? p.publishedAt.toISOString() : null,
-    thumbs: p.assets.slice(0, 4).map((pa) => `/api/studio/media/${pa.asset.thumbPath || pa.asset.filePath}`),
   }));
 
   const orderOptions = orders.map((o) => ({
@@ -76,11 +55,11 @@ export default async function Studio() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Studio</h1>
           <p className="mt-0.5 text-[13px] text-zinc-500">
-            {usage.count} média{usage.count > 1 ? "s" : ""} · {(usage.bytes / 1e9).toFixed(2)} Go · {posts.length} publication{posts.length > 1 ? "s" : ""}
+            {usage.count} média{usage.count > 1 ? "s" : ""} · {(usage.bytes / 1e9).toFixed(2)} Go
           </p>
         </div>
       </div>
-      <StudioClient assets={assetRows} posts={postRows} orders={orderOptions} />
+      <StudioClient assets={assetRows} orders={orderOptions} />
     </Shell>
   );
 }
