@@ -77,6 +77,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
   const siteBase = s.siteUrl ? `${s.siteUrl}/${s.sitePathPrefix}` : null;
   const gsc = gscEnabled(s) ? await gscDigest(tenant.id, 90).catch(() => null) : null;
   const gscIdeas = (gsc?.ideas ?? []).slice(0, 6).map((i) => ({ query: i.query, impressions: i.impressions, position: i.position }));
+  const gscReinforce = (gsc?.reinforce ?? []).slice(0, 5).map((i) => ({ query: i.query, impressions: i.impressions, position: i.position, target: i.target ?? "" }));
   const initialTab = sp.page ? "pages" : sp.tab === "pages" ? "pages" : sp.tab === "posts" ? "posts" : "library";
 
   return (
@@ -89,7 +90,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
           </p>
         </div>
       </div>
-      <StudioClient assets={assetRows} orders={orderOptions} entries={entryRows} siteBase={siteBase} gscIdeas={gscIdeas} initialTab={initialTab} pageOrderId={sp.page ?? null} />
+      <StudioClient assets={assetRows} orders={orderOptions} entries={entryRows} siteBase={siteBase} gscIdeas={gscIdeas} gscReinforce={gscReinforce} initialTab={initialTab} pageOrderId={sp.page ?? null} />
     </Shell>
   );
 }

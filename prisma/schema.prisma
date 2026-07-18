@@ -60,6 +60,7 @@ model Settings {
   cronGsc            Boolean @default(true)
   gscCheckDays       Int? // fréquence de la vigie Search Console (jours)
   lastGscCheckAt     DateTime?
+  gscIgnored         Json? // requêtes écartées à la main (normalisées)
   siteUrl            String  @default("") // URL publique du site vitrine (Journal)
   sitePathPrefix     String  @default("") // segment des pages Journal côté site (défaut « creations »)
   // marque blanche

@@ -114,6 +114,18 @@ export async function unpublishJournalEntry(id: string): Promise<{ error?: strin
   return {};
 }
 
+export async function ignoreGscQuery(query: string): Promise<{ error?: string }> {
+  const tenant = await currentTenant();
+  const { normQuery, clearGscCache } = await import("@/lib/gsc");
+  const raw = await prisma.settings.findUnique({ where: { tenantId: tenant.id }, select: { gscIgnored: true } });
+  const list = new Set(((raw?.gscIgnored as string[] | null) ?? []).map(normQuery));
+  list.add(normQuery(query));
+  await prisma.settings.update({ where: { tenantId: tenant.id }, data: { gscIgnored: [...list] } });
+  clearGscCache(tenant.id);
+  revalidatePath("/studio");
+  return {};
+}
+
 export async function deleteJournalEntry(id: string): Promise<{ error?: string }> {
   const tenant = await currentTenant();
   const e = await prisma.journalEntry.findFirst({ where: { id, tenantId: tenant.id } });
