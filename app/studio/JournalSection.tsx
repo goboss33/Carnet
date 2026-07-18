@@ -53,18 +53,27 @@ const fmtDT = (iso: string | null) =>
 function inline(s: string) {
   return s.split(/\*\*(.+?)\*\*/g).map((p, i) => (i % 2 ? <b key={i}>{p}</b> : p));
 }
-function MdPreview({ md }: { md: string }) {
+function MdPreview({ md, photoThumbs = [] }: { md: string; photoThumbs?: string[] }) {
   return (
     <div className="space-y-2 text-[13px] leading-relaxed text-zinc-700">
       {md.split(/\n{2,}/).map((b, i) => {
-        if (b.startsWith("## ")) return <h3 key={i} className="pt-1 text-sm font-semibold text-zinc-900">{b.slice(3)}</h3>;
-        if (/^[-*] /m.test(b))
+        const t = b.trim();
+        const ph = t.match(/^\[\[photo:(\d+)\]\]$/);
+        if (ph) {
+          const src = photoThumbs[Number(ph[1]) - 1];
+          return src
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img key={i} src={src} alt="" className="mx-auto max-h-56 rounded-lg" />
+            : <p key={i} className="text-center text-[11px] text-zinc-400">📷 photo {ph[1]} (retirée)</p>;
+        }
+        if (t.startsWith("## ")) return <h3 key={i} className="pt-1 text-sm font-semibold text-zinc-900">{t.slice(3)}</h3>;
+        if (/^[-*] /m.test(t))
           return (
             <ul key={i} className="list-disc space-y-0.5 pl-5">
-              {b.split(/\n/).filter((l) => /^[-*] /.test(l)).map((l, k) => <li key={k}>{inline(l.slice(2))}</li>)}
+              {t.split(/\n/).filter((l) => /^[-*] /.test(l)).map((l, k) => <li key={k}>{inline(l.slice(2))}</li>)}
             </ul>
           );
-        return <p key={i}>{inline(b)}</p>;
+        return <p key={i}>{inline(t)}</p>;
       })}
     </div>
   );
@@ -316,7 +325,12 @@ function Wizard({
   const doStory = () =>
     start(async () => {
       setAi("story");
-      const r = await suggestStoryAction({ type, orderId, subject, title, keywords, photoNotes: selected.map((id) => alts[id]).filter(Boolean) });
+      const body = selected.filter((id) => id !== cover);
+      const r = await suggestStoryAction({
+        type, orderId, subject, title, keywords,
+        coverAlt: alts[cover] ?? "",
+        photos: body.map((id) => ({ assetId: id, alt: alts[id] ?? "" })),
+      });
       setAi(null);
       if (typeof r !== "string") { toast.error(r.error); return; }
       setStory(r);
@@ -508,7 +522,7 @@ function Wizard({
             <button type="button" className="text-[12px] font-medium text-(--color-brand)" onClick={() => setShowPreview((v) => !v)}>
               {showPreview ? "Masquer l'aperçu" : "Voir l'aperçu"}
             </button>
-            {showPreview && story && <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4"><MdPreview md={story} /></div>}
+            {showPreview && story && <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4"><MdPreview md={story} photoThumbs={selected.filter((id) => id !== cover).map((id) => photos.find((p) => p.id === id)?.thumb ?? "")} /></div>}
           </div>
         )}
 

@@ -7,7 +7,7 @@
 
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { geminiGenerate } from "@/lib/gemini";
+import { geminiGenerate, type GeminiPart } from "@/lib/gemini";
 import type { JournalCategory, JournalType, Tenant } from "@prisma/client";
 
 export type JournalImage = { assetId: string; alt: string };
@@ -147,22 +147,39 @@ Réponds UNIQUEMENT avec cet objet JSON :
 
 export async function suggestStory(
   tenantId: string,
-  input: { type: JournalType; orderId?: string | null; subject?: string; title: string; keywords: string[]; photoNotes?: string[] }
+  input: {
+    type: JournalType;
+    orderId?: string | null;
+    subject?: string;
+    title: string;
+    keywords: string[];
+    coverAlt?: string;
+    /** photos du corps de l'article (hors couverture), dans l'ordre choisi */
+    photos?: { assetId: string; alt: string }[];
+  }
 ): Promise<string | { error: string }> {
   const brief = input.orderId ? await orderBrief(tenantId, input.orderId) : null;
-  const photos = (input.photoNotes ?? []).filter(Boolean);
-  const out = await geminiGenerate({
-    system: SUGGEST_SYSTEM,
-    // GEMINI_STORY_MODEL (optionnel) : un modèle supérieur pour la seule plume du récit
-    model: process.env.GEMINI_STORY_MODEL || undefined,
-    contents: [{
-      role: "user",
-      parts: [{
-        text: `Écris le corps de la page en MARKDOWN (pas de H1 — le titre existe déjà : « ${input.title} »).
+  const bodyPhotos = input.photos ?? [];
+
+  // Gemini VOIT les photos (vignettes) : placement [[photo:N]] + descriptions réelles
+  const parts: GeminiPart[] = [];
+  const photosBlock = bodyPhotos.length
+    ? `
+
+Les photos ci-jointes iront DANS l'article. Insère chacune à l'endroit du récit qui s'y rapporte, sur une ligne seule, avec exactement ce format : [[photo:N]]
+- chaque photo au plus une fois, n'invente aucun numéro ;
+- la photo de couverture est déjà en tête de page — ne l'insère pas${input.coverAlt ? ` (elle montre : « ${input.coverAlt} »)` : ""} ;
+- le paragraphe voisin d'une photo doit parler de ce qu'elle montre : décris ce que tu VOIS (couleurs, matières, détails de modelage réels).`
+    : "";
+
+  parts.push({
+    text: `Écris le corps de la page en MARKDOWN (pas de H1 — le titre existe déjà : « ${input.title} »).
 ${input.type === "CREATION"
-  ? `Récit d'une création réalisée. Brief factuel :\n${brief ?? "(aucun)"}${photos.length ? `\nCe que montrent les photos de la page : ${photos.join(" · ")}` : ""}\n\n2-3 paragraphes + un "## " si utile. 220-350 mots.`
-  : `Article conseil pratique sur : « ${input.subject ?? input.title} ». Intro courte, 2-4 sections "## " concrètes, 350-550 mots. Repères chiffrés uniquement s'ils sont universellement vrais.`}
-Thèmes à couvrir naturellement : ${input.keywords.join(", ") || "(libres)"}.
+  ? `Récit d'une création réalisée. Brief factuel :\n${brief ?? "(aucun)"}\n\n2-4 paragraphes, 220-380 mots.`
+  : `Article conseil pratique sur : « ${input.subject ?? input.title} ». Intro courte puis sections concrètes, 350-550 mots. Repères chiffrés uniquement s'ils sont universellement vrais.`}
+Thèmes à couvrir naturellement : ${input.keywords.join(", ") || "(libres)"}.${photosBlock}
+
+Structure : 2-3 intertitres "## " SPÉCIFIQUES au sujet (une variante naturelle d'un thème peut y apparaître — jamais un mot-clé verbatim). Intertitres génériques interdits (« Des saveurs artisanales », « Un moment magique », « Une création unique »).
 
 Règles d'écriture impératives :
 - N'insère JAMAIS un mot-clé ou une requête telle quelle : français irréprochable, accents, formulations variées. Google comprend les variantes — le bourrage de mots-clés est interdit et contre-productif.
@@ -172,8 +189,32 @@ Règles d'écriture impératives :
 - Voix : Annie, artisane — première personne discrète (« j'ai modelé… »), phrases courtes, chaleur sans emphase ni jargon marketing.
 Termine par UNE phrase d'appel à l'action vers le devis en ligne (sans lien — il sera ajouté par le site).
 Aucun prix, aucun nom de famille, pas de tutoiement.`,
-      }],
-    }],
+  });
+
+  if (bodyPhotos.length) {
+    const assets = await prisma.studioAsset.findMany({
+      where: { tenantId, id: { in: bodyPhotos.map((p) => p.assetId) } },
+    });
+    const byId = new Map(assets.map((a) => [a.id, a]));
+    const { readAssetFile } = await import("@/lib/studio/storage");
+    for (const [i, p] of bodyPhotos.entries()) {
+      const a = byId.get(p.assetId);
+      if (!a) continue;
+      const buf = await readAssetFile(tenantId, a.thumbPath || a.filePath);
+      if (buf) {
+        parts.push(
+          { text: `Photo ${i + 1} — « ${p.alt || "sans description"} » :` },
+          { inline_data: { mime_type: "image/webp", data: buf.toString("base64") } }
+        );
+      }
+    }
+  }
+
+  const out = await geminiGenerate({
+    system: SUGGEST_SYSTEM,
+    // GEMINI_STORY_MODEL (optionnel) : un modèle supérieur pour la seule plume du récit
+    model: process.env.GEMINI_STORY_MODEL || undefined,
+    contents: [{ role: "user", parts }],
     temperature: 0.6,
     maxOutputTokens: 8192,
     kind: "journal.recit",
