@@ -32,18 +32,22 @@ async function dfsPost<T>(path: string, payload: object): Promise<T[] | null> {
       body: JSON.stringify([payload]),
     });
     if (!res.ok) {
-      console.error("dataforseo http", res.status, await res.text().catch(() => ""));
+      console.error("dataforseo http", path, res.status, await res.text().catch(() => ""));
       return null;
     }
     const j = await res.json();
     const task = j?.tasks?.[0];
     if (task?.status_code && task.status_code >= 40000) {
-      console.error("dataforseo task", task.status_code, task.status_message);
+      console.error("dataforseo task", path, task.status_code, task.status_message);
       return null;
     }
-    return (task?.result ?? []) as T[];
+    const result = (task?.result ?? []) as T[];
+    // diagnostic : combien d'items chaque endpoint rapporte réellement
+    const n = Array.isArray(result) ? result.reduce((acc: number, r) => acc + ((r as { items?: unknown[] })?.items?.length ?? (r ? 1 : 0)), 0) : 0;
+    console.log("dataforseo", path, "→", n, "items");
+    return result;
   } catch (e) {
-    console.error("dataforseo", e);
+    console.error("dataforseo", path, e);
     return null;
   }
 }
@@ -96,7 +100,6 @@ export async function keywordFindings(main: string, theme: string, occasion: str
       keyword: seed,
       location_code: LOCATION_CH,
       language_code: LANG,
-      include_seed_keyword: true,
       include_serp_info: false,
       limit: 30,
     }),
@@ -104,8 +107,8 @@ export async function keywordFindings(main: string, theme: string, occasion: str
       keyword: seed,
       location_code: LOCATION_CH,
       language_code: LANG,
-      depth: 1,
-      limit: 20,
+      include_serp_info: false,
+      limit: 30,
     }),
     dfsPost<AdsVolume>("keywords_data/google_ads/search_volume/live", {
       keywords: cityKws,
