@@ -76,28 +76,24 @@ async function orderBrief(tenantId: string, orderId: string): Promise<string | n
   ].filter(Boolean).join("\n");
 }
 
-/** Graines de mots-clés depuis les champs structurés — jamais d'IA ici. */
-export async function seedKeywords(
+/** Graine principale (phrase complète) depuis les champs structurés — jamais d'IA ici. */
+export async function seedPhrase(
   tenantId: string,
-  input: { type: JournalType; orderId?: string | null; subject?: string; category?: JournalCategory }
-): Promise<string[]> {
+  input: { type: JournalType; orderId?: string | null; subject?: string }
+): Promise<{ main: string; theme: string; occasion: string } | null> {
+  const sing = (w: string) => (w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w);
   if (input.type === "ARTICLE") {
-    const s = (input.subject ?? "").trim();
-    if (!s) return [];
-    return [s, /gateau|gâteau|cake/i.test(s) ? "" : `gâteau ${s}`].filter(Boolean);
+    const s = (input.subject ?? "").trim().toLowerCase();
+    if (!s) return null;
+    return { main: /gateau|gâteau|cake/.test(s) ? s : `gâteau ${s}`, theme: "", occasion: "anniversaire" };
   }
   const o = input.orderId ? await prisma.order.findFirst({ where: { id: input.orderId, tenantId } }) : null;
-  if (!o) return [];
-  const themes = o.themeNote.split(/[,·+/]| et /).map((t) => t.trim().toLowerCase()).filter((t) => t.length > 2).slice(0, 3);
-  const occ = (o.occasion || "").toLowerCase().includes("mariage") ? "mariage" : "anniversaire";
-  const seeds = new Set<string>();
-  for (const t of themes) {
-    seeds.add(`gâteau ${t}`);
-    seeds.add(`gâteau ${occ} ${t}`);
-  }
-  seeds.add(`gâteau ${occ}`);
-  if (themes[0]) seeds.add(`gâteau ${themes[0]} lausanne`);
-  return [...seeds].slice(0, 8);
+  if (!o) return null;
+  const occasion = (o.occasion || "").toLowerCase().includes("mariage") ? "mariage" : "anniversaire";
+  const theme = sing(
+    o.themeNote.split(/[,·+/]| et /)[0]?.trim().toLowerCase().split(" ").map(sing).join(" ") ?? ""
+  );
+  return { main: theme ? `gâteau ${occasion} ${theme}` : `gâteau ${occasion}`, theme, occasion };
 }
 
 const SUGGEST_SYSTEM = `Tu es le rédacteur SEO d'une cake designer artisanale à Pully (région Lausanne, Vaud, Suisse — zone : Lausanne, Pully, Lutry, Vevey, Montreux, Morges).

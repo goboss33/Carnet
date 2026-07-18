@@ -247,7 +247,7 @@ function Wizard({
   const [alts, setAlts] = useState<Record<string, string>>(Object.fromEntries((entry?.images ?? []).map((i) => [i.assetId, i.alt])));
   const [cover, setCover] = useState(entry?.coverAssetId ?? "");
   const [altIdeas, setAltIdeas] = useState<string[]>([]);
-  const [kwIdeas, setKwIdeas] = useState<{ keyword: string; volume: number }[]>([]);
+  const [kwFindings, setKwFindings] = useState<{ specific: { keyword: string; volume: number }[]; local: { keyword: string; volume: number }[]; advice: string | null } | null>(null);
   const [metaTitle, setMetaTitle] = useState(entry?.metaTitle ?? "");
   const [metaDescription, setMetaDescription] = useState(entry?.metaDescription ?? "");
   const [publishMode, setPublishMode] = useState<"draft" | "now" | "schedule">(entry?.status === "PROGRAMMEE" ? "schedule" : "draft");
@@ -294,8 +294,8 @@ function Wizard({
       const r = await findKeywordsAction({ type, orderId: type === "CREATION" ? orderId : null, subject });
       setAi(null);
       if ("error" in r) { toast.error(r.error); return; }
-      setKwIdeas((r.ideas ?? []).map((i) => ({ keyword: i.keyword, volume: i.volume })));
-      if (!r.ideas?.length) toast("Aucune idée renvoyée — la niche est très locale, tes mots-clés manuels feront l'affaire.");
+      setKwFindings(r.findings);
+      if (!r.findings.specific.length && !r.findings.local.length) toast("Aucune idée renvoyée — la niche est très locale, tes mots-clés manuels feront l'affaire.");
     });
 
   const doStory = () =>
@@ -418,28 +418,35 @@ function Wizard({
                 {ai === "story" ? <Loader2 className="animate-spin" /> : <Sparkles />} Suggérer titre & SEO
               </Button>
             </div>
-            {kwIdeas.length > 0 && (
-              <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 px-3 py-2.5">
-                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-                  Volumes de recherche (Suisse, /mois) — clique pour ajouter
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {kwIdeas.map((i) => {
-                    const active = keywords.includes(i.keyword);
-                    return (
-                      <button
-                        key={i.keyword} type="button"
-                        onClick={() => setKeywords((ks) => (active ? ks.filter((k) => k !== i.keyword) : [...ks, i.keyword].slice(0, 8)))}
-                        className={cn(
-                          "rounded-full border px-3 py-1 text-[12px] font-medium transition-colors",
-                          active ? "border-(--color-brand) bg-(--color-brand-soft) text-(--color-brand)" : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400"
-                        )}
-                      >
-                        {i.keyword} <span className={active ? "opacity-70" : "text-zinc-400"}>· {i.volume || "<10"}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+            {kwFindings && (kwFindings.specific.length > 0 || kwFindings.local.length > 0) && (
+              <div className="space-y-2.5 rounded-xl border border-zinc-200 bg-zinc-50/60 px-3 py-2.5">
+                {kwFindings.advice && (
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12px] font-medium text-amber-800">💡 {kwFindings.advice}</p>
+                )}
+                {([["Spécifiques au sujet", kwFindings.specific], ["Occasion + ville (gros volumes)", kwFindings.local]] as const).map(([label, list]) =>
+                  list.length ? (
+                    <div key={label}>
+                      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{label} — volumes /mois (Suisse), clique pour ajouter</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {list.map((i) => {
+                          const active = keywords.includes(i.keyword);
+                          return (
+                            <button
+                              key={i.keyword} type="button"
+                              onClick={() => setKeywords((ks) => (active ? ks.filter((k) => k !== i.keyword) : [...ks, i.keyword].slice(0, 8)))}
+                              className={cn(
+                                "rounded-full border px-3 py-1 text-[12px] font-medium transition-colors",
+                                active ? "border-(--color-brand) bg-(--color-brand-soft) text-(--color-brand)" : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400"
+                              )}
+                            >
+                              {i.keyword} <span className={active ? "opacity-70" : "text-zinc-400"}>· {i.volume || "<10"}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null
+                )}
               </div>
             )}
             <div>
