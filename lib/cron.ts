@@ -84,6 +84,7 @@ async function tick() {
       if (s.cronDigest) await morningDigest(t, false, switched).catch((e) => console.error("digest:", e));
       if (s.cronReviews) await reviewNudges(t, s).catch((e) => console.error("reviews:", e));
       if (s.cronBirthday) await birthdayNudges(t, s).catch((e) => console.error("birthday:", e));
+      if (s.cronThemes) await runThemeCheck(t).catch((e) => console.error("themes:", e));
     }
     if (hour === s.nudgeHour && lastRun.get(`${t.id}:nudge`) !== today) {
       lastRun.set(`${t.id}:nudge`, today);
@@ -443,6 +444,71 @@ function zurichHour(d: Date): number {
 /* ------------------------------------------------ test manuel du cron
    Envoie un message Telegram tout de suite et résume ce que voient les crons.
    Aucune écriture en base (pas de cooldown consommé). */
+
+/* ------------------------------------------------ 🎨 vigie des thèmes */
+/* Compare les thèmes saisis (themeNote) à la base de suggestions du site
+   (GET siteUrl/api/themes — source de vérité unique). Rapport Telegram,
+   jamais de modification automatique : l'ajout à la base reste un geste. */
+const normTheme = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+
+export async function runThemeCheck(t: Tenant, dryRun = false): Promise<void> {
+  const s = await getSettings(t.id);
+  const raw = await prisma.settings.findUnique({ where: { tenantId: t.id } });
+  const say = async (msg: string) => notifyAll(`${dryRun ? "🧪 " : ""}${msg}`);
+
+  if (!s.siteUrl) {
+    if (dryRun) await say("🎨 Vigie des thèmes : renseigne d'abord l'URL du site (Réglages → Personnalisation).");
+    return;
+  }
+  const windowMs = s.themeCheckDays * 86400000;
+  if (!dryRun) {
+    const last = raw?.lastThemeCheckAt?.getTime() ?? 0;
+    if (Date.now() - last < windowMs) return; // pas encore l'heure
+  }
+
+  let base: string[] = [];
+  try {
+    const res = await fetch(`${s.siteUrl}/api/themes`, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    base = ((await res.json())?.themes ?? []).map(String);
+  } catch (e) {
+    if (dryRun) await say(`🎨 Vigie des thèmes : le site ne répond pas (${e instanceof Error ? e.message : "?"}) — vérifie l'URL du site et le déploiement de /api/themes.`);
+    else console.error("vigie themes:", e);
+    return;
+  }
+  const known = base.map(normTheme).filter(Boolean);
+
+  const since = new Date(Date.now() - windowMs);
+  const orders = await prisma.order.findMany({
+    where: { tenantId: t.id, createdAt: { gte: since }, themeNote: { not: "" } },
+    select: { themeNote: true },
+  });
+
+  const missing = new Map<string, number>();
+  for (const o of orders) {
+    const n = normTheme(o.themeNote);
+    if (n.length < 3) continue;
+    // couvert si une suggestion connue est contenue dans la saisie (ou l'inverse)
+    const covered = known.some((k) => n.includes(k) || k.includes(n));
+    if (!covered) missing.set(n, (missing.get(n) ?? 0) + 1);
+  }
+
+  if (!dryRun) await prisma.settings.update({ where: { tenantId: t.id }, data: { lastThemeCheckAt: new Date() } }).catch(() => null);
+
+  if (missing.size === 0) {
+    if (dryRun) await say(`🎨 Vigie des thèmes : les ${orders.length} saisie(s) des ${s.themeCheckDays} derniers jours sont toutes couvertes par la base (${base.length} suggestions). Rien à ajouter.`);
+    return; // cron silencieux quand tout va bien
+  }
+  const top = [...missing.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  await say(
+    [
+      `🎨 <b>Vigie des thèmes</b> — ${missing.size} saisie(s) absente(s) des suggestions du configurateur :`,
+      ...top.map(([k, n]) => `• « ${k} »${n > 1 ? ` (${n}×)` : ""}`),
+      `\nSi pertinent, fais-les ajouter à la base du site (lib/data.ts) — demande à Claude, c'est deux minutes.`,
+    ].join("\n")
+  );
+}
+
 export async function cronSelfTest(tenantId: string): Promise<{ ok: boolean; message: string }> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const ids = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "").split(",").map((x) => x.trim()).filter(Boolean);
@@ -495,6 +561,7 @@ export async function testTrigger(tenantId: string, kind: string): Promise<{ ok:
       case "production": await autoProduction(t, s, true); break;
       case "monthly": await monthlyReport(t, true); break;
       case "journal": { const { runJournalPublisher } = await import("@/lib/journal"); await runJournalPublisher(t, true); break; }
+      case "themes": await runThemeCheck(t, true); break;
       default: return { ok: false, message: `Déclencheur inconnu : ${kind}` };
     }
     return { ok: true, message: "Envoyé sur Telegram — regarde ton téléphone 📱" };

@@ -814,6 +814,8 @@ export async function saveSettings(formData: FormData) {
     gcalSync: formData.get("gcalSync") === "on",
     studioEnabled: formData.get("studioEnabled") === "on",
     cronJournal: formData.get("cronJournal") === "on",
+    cronThemes: formData.get("cronThemes") === "on",
+    themeCheckDays: clampInt(num("themeCheckDays"), 7, 90),
     siteUrl: String(formData.get("siteUrl") ?? "").trim().replace(/\/$/, ""),
     sitePathPrefix: String(formData.get("sitePathPrefix") ?? "").trim().toLowerCase().replace(/[^a-z0-9-]/g, ""),
     brandName: String(formData.get("brandName") ?? "").trim().slice(0, 40) || null,

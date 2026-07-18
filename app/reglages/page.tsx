@@ -114,6 +114,7 @@ export default async function Reglages() {
                 cronFieldNudges: eff.cronFieldNudges,
                 cronProduction: eff.cronProduction,
                 cronJournal: eff.cronJournal,
+                cronThemes: eff.cronThemes,
                 gcalSync: eff.gcalSync,
               }}
               raw={{
@@ -127,6 +128,7 @@ export default async function Reglages() {
                 nudgeMaxPerEvening: raw?.nudgeMaxPerEvening ?? null,
                 fieldFollowupDays: raw?.fieldFollowupDays ?? null,
                 productionLeadDays: raw?.productionLeadDays ?? null,
+                themeCheckDays: raw?.themeCheckDays ?? null,
                 handoverLeadDays: raw?.handoverLeadDays ?? null,
               }}
               eff={{
@@ -140,6 +142,7 @@ export default async function Reglages() {
                 nudgeMaxPerEvening: eff.nudgeMaxPerEvening,
                 fieldFollowupDays: eff.fieldFollowupDays,
                 productionLeadDays: eff.productionLeadDays,
+                themeCheckDays: eff.themeCheckDays,
                 handoverLeadDays: eff.handoverLeadDays,
               }}
             />

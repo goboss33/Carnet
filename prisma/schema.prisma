@@ -53,6 +53,9 @@ model Settings {
   handoverLeadDays   Int?
   studioEnabled      Boolean @default(false)
   cronJournal        Boolean @default(true)
+  cronThemes         Boolean @default(true)
+  themeCheckDays     Int? // fréquence de la vigie des thèmes (jours)
+  lastThemeCheckAt   DateTime? // dernier passage de la vigie
   siteUrl            String  @default("") // URL publique du site vitrine (Journal)
   sitePathPrefix     String  @default("") // segment des pages Journal côté site (défaut « creations »)
   // marque blanche

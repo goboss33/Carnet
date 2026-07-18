@@ -29,6 +29,8 @@ export type EffectiveSettings = {
   handoverLeadDays: number;
   studioEnabled: boolean;
   cronJournal: boolean;
+  cronThemes: boolean;
+  themeCheckDays: number;
   siteUrl: string;
   sitePathPrefix: string;
   reviewUrl: string;
@@ -75,6 +77,8 @@ export async function getSettings(tenantId: string): Promise<EffectiveSettings> 
     handoverLeadDays: s?.handoverLeadDays ?? 2,
     studioEnabled: s?.studioEnabled ?? false,
     cronJournal: s?.cronJournal ?? true,
+    cronThemes: s?.cronThemes ?? true,
+    themeCheckDays: s?.themeCheckDays ?? 30,
     siteUrl: (s?.siteUrl || process.env.SITE_URL || "").replace(/\/$/, ""),
     sitePathPrefix: (s?.sitePathPrefix || "creations").replace(/^\/|\/$/g, ""),
     reviewUrl: s?.reviewUrl || process.env.GOOGLE_REVIEW_URL || "",
