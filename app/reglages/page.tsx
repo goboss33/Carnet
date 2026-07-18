@@ -63,7 +63,7 @@ export default async function Reglages() {
           </div>
           <label className="flex items-center gap-3 text-sm text-zinc-700">
             <input type="checkbox" name="studioEnabled" defaultChecked={eff.studioEnabled} className="size-4 accent-(--color-brand)" />
-            Activer <b>Studio</b> — bibliothèque de médias, pages du site (Journal) et publications réseaux sociaux
+            Activer <b>Contenu</b> — bibliothèque de médias, pages du site (Journal) et publications réseaux sociaux
           </label>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">

@@ -25,7 +25,7 @@ const fmtDur = (s: number | null) => (s ? `${Math.round(s)}s` : "");
 const fmtMb = (b: number) => `${(b / 1e6).toFixed(1)} Mo`;
 
 export default function StudioClient({
-  assets, orders, entries, siteBase, initialTab, pageOrderId, gscIdeas, gscReinforce,
+  assets, orders, entries, siteBase, initialTab, pageOrderId,
 }: {
   assets: AssetRow[];
   orders: OrderOption[];
@@ -33,8 +33,6 @@ export default function StudioClient({
   siteBase: string | null;
   initialTab: string;
   pageOrderId: string | null;
-  gscIdeas: { query: string; impressions: number; position: number }[];
-  gscReinforce: { query: string; impressions: number; position: number; target: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -91,8 +89,6 @@ export default function StudioClient({
           videos={assets.filter((a) => a.kind === "VIDEO")}
           siteBase={siteBase}
           openWizardForOrder={pageOrderId}
-          gscIdeas={gscIdeas}
-          gscReinforce={gscReinforce}
         />
       </TabsContent>
 

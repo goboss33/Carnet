@@ -5,7 +5,6 @@ import Shell from "@/app/components/Shell";
 import StudioClient, { type AssetRow } from "./StudioClient";
 import type { EntryRow } from "./JournalSection";
 import type { JournalImage } from "@/lib/journal";
-import { gscDigest, gscEnabled } from "@/lib/gsc";
 import { fmtDate } from "@/lib/statuts";
 
 export const dynamic = "force-dynamic";
@@ -18,8 +17,8 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
     return (
       <Shell>
         <div className="mx-auto max-w-md py-20 text-center">
-          <h1 className="text-xl font-semibold text-zinc-900">Studio est désactivé</h1>
-          <p className="mt-2 text-sm text-zinc-500">Active-le dans Réglages → Personnalisation pour gérer tes contenus réseaux sociaux.</p>
+          <h1 className="text-xl font-semibold text-zinc-900">Contenu est désactivé</h1>
+          <p className="mt-2 text-sm text-zinc-500">Active-le dans Réglages → Personnalisation pour gérer médias, pages du site et publications.</p>
         </div>
       </Shell>
     );
@@ -78,22 +77,20 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
   }));
 
   const siteBase = s.siteUrl ? `${s.siteUrl}/${s.sitePathPrefix}` : null;
-  const gsc = gscEnabled(s) ? await gscDigest(tenant.id, 90).catch(() => null) : null;
-  const gscIdeas = (gsc?.ideas ?? []).slice(0, 6).map((i) => ({ query: i.query, impressions: i.impressions, position: i.position }));
-  const gscReinforce = (gsc?.reinforce ?? []).slice(0, 5).map((i) => ({ query: i.query, impressions: i.impressions, position: i.position, target: i.target ?? "" }));
+
   const initialTab = sp.page ? "pages" : sp.tab === "pages" ? "pages" : sp.tab === "posts" ? "posts" : "library";
 
   return (
     <Shell>
       <div className="mb-5 flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Studio</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Contenu</h1>
           <p className="mt-0.5 text-[13px] text-zinc-500">
             {usage.count} média{usage.count > 1 ? "s" : ""} · {(usage.bytes / 1e9).toFixed(2)} Go
           </p>
         </div>
       </div>
-      <StudioClient assets={assetRows} orders={orderOptions} entries={entryRows} siteBase={siteBase} gscIdeas={gscIdeas} gscReinforce={gscReinforce} initialTab={initialTab} pageOrderId={sp.page ?? null} />
+      <StudioClient assets={assetRows} orders={orderOptions} entries={entryRows} siteBase={siteBase} initialTab={initialTab} pageOrderId={sp.page ?? null} />
     </Shell>
   );
 }

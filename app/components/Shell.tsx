@@ -37,7 +37,7 @@ function useBrandName() {
 
 function NavLinks({ pathname, onNavigate, studio }: { pathname: string; onNavigate?: () => void; studio?: boolean }) {
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
-  const items = studio ? [...NAV.slice(0, 6), { href: "/studio", label: "Studio", Icon: Clapperboard }, ...NAV.slice(6)] : NAV;
+  const items = studio ? [...NAV.slice(0, 6), { href: "/studio", label: "Contenu", Icon: Clapperboard }, ...NAV.slice(6)] : NAV;
   return (
     <>
       {items.map(({ href, label, Icon }) => (

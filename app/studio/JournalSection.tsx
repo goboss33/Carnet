@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Sparkles, ExternalLink, Trash2, Pencil, EyeOff,
-  ChevronLeft, ChevronRight, Star, Loader2, Lightbulb, Wrench, X, Play, Images, Upload,
+  ChevronLeft, ChevronRight, Star, Loader2, X, Play, Images, Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { useConfirm } from "@/components/ui/table-kit";
 import { cn } from "@/lib/ui";
 import type { AssetRow } from "./StudioClient";
 import {
-  suggestEntryAction, suggestStoryAction, suggestAltsAction, checkSlugAction, ignoreGscQuery,
+  suggestEntryAction, suggestStoryAction, suggestAltsAction, checkSlugAction,
   saveJournalEntry, unpublishJournalEntry, deleteJournalEntry, type JournalPayload,
 } from "./journal-actions";
 
@@ -94,7 +94,7 @@ function MdPreview({ md, photoThumbs = [] }: { md: string; photoThumbs?: string[
 
 /* ============================================================= section */
 export default function JournalSection({
-  entries, orders, photos, videos, siteBase, openWizardForOrder, gscIdeas = [], gscReinforce = [],
+  entries, orders, photos, videos, siteBase, openWizardForOrder,
 }: {
   entries: EntryRow[];
   orders: OrderOption[];
@@ -102,8 +102,6 @@ export default function JournalSection({
   videos: AssetRow[];
   siteBase: string | null; // ex. https://mamangateau.ch/creations
   openWizardForOrder: string | null; // ?page=<orderId> → wizard ouvert pré-rempli
-  gscIdeas?: { query: string; impressions: number; position: number }[];
-  gscReinforce?: { query: string; impressions: number; position: number; target: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -123,60 +121,6 @@ export default function JournalSection({
           </a>
         )}
       </div>
-
-      {(gscIdeas.length > 0 || gscReinforce.length > 0) && (
-        <div className="mb-4 space-y-3">
-          {gscIdeas.length > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
-              <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
-                <Lightbulb className="size-3.5" /> À créer — on te cherche, la page n'existe pas encore
-              </p>
-              <div className="space-y-1.5">
-                {gscIdeas.map((i) => (
-                  <div key={i.query} className="flex flex-wrap items-center gap-2 text-[13px]">
-                    <span className="min-w-0 flex-1 truncate text-zinc-700">« {i.query} »</span>
-                    <span className="text-[11px] text-zinc-400">{i.impressions} aff. · pos. {i.position}</span>
-                    <Button size="sm" variant="outline" onClick={() => setWizard({ entry: null, orderId: null, subject: i.query })}>
-                      Créer l'article
-                    </Button>
-                    <button
-                      type="button" disabled={pending} title="Ignorer pour toujours (marque tierce, hors sujet…)"
-                      onClick={() => start(async () => { await ignoreGscQuery(i.query); toast.success(`« ${i.query} » ignorée.`); router.refresh(); })}
-                      className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {gscReinforce.length > 0 && (
-            <div className="rounded-xl border border-sky-200 bg-sky-50/60 px-4 py-3">
-              <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-sky-700">
-                <Wrench className="size-3.5" /> À renforcer — une page existante doit mieux porter ces mots
-              </p>
-              <div className="space-y-1.5">
-                {gscReinforce.map((i) => (
-                  <div key={i.query} className="flex flex-wrap items-center gap-2 text-[13px]">
-                    <span className="min-w-0 flex-1 truncate text-zinc-700">« {i.query} »</span>
-                    <span className="text-[11px] text-zinc-400">{i.impressions} aff. · pos. {i.position}</span>
-                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">→ {i.target}</span>
-                    <button
-                      type="button" disabled={pending} title="Ignorer pour toujours"
-                      onClick={() => start(async () => { await ignoreGscQuery(i.query); toast.success(`« ${i.query} » ignorée.`); router.refresh(); })}
-                      className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 text-[11px] text-sky-700/70">Renforcer = ajuster titre/texte de la page visée (demande à Claude) — pas créer un doublon.</p>
-            </div>
-          )}
-        </div>
-      )}
 
       {entries.length === 0 ? (
         <EmptyState

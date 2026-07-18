@@ -1,4 +1,4 @@
-/* Carte latérale « Studio & Journal » — médias liés à la commande (upload
+/* Carte latérale « Contenu & Journal » — médias liés à la commande (upload
    direct) + état de la page du site. Gestion complète dans /studio. */
 import Link from "next/link";
 import { prisma } from "@/lib/db";
@@ -20,8 +20,8 @@ export default async function StudioPanel({ orderId }: { orderId: string }) {
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Studio & Journal</p>
-        <Link href="/studio" className="text-xs font-semibold text-zinc-500 hover:text-zinc-800">Studio →</Link>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Contenu & Journal</p>
+        <Link href="/studio" className="text-xs font-semibold text-zinc-500 hover:text-zinc-800">Contenu →</Link>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
