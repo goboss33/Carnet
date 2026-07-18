@@ -98,6 +98,15 @@ export async function suggestEntry(
   if (input.type === "CREATION" && !brief) return { error: "Commande introuvable." };
   const existing = await prisma.journalEntry.findMany({ where: { tenantId }, select: { slug: true }, take: 300 });
   const cats = JOURNAL_CATEGORIES.map((c) => c.id).join(" | ");
+  // requêtes Google réelles (Search Console) — ancre les mots-clés dans la vraie demande
+  let gscContext = "";
+  try {
+    const { gscDigest } = await import("@/lib/gsc");
+    const d = await gscDigest(tenantId, 90);
+    if (d?.topQueries.length) {
+      gscContext = `\n\nRequêtes Google réelles qui affichent déjà le site (impressions sur 90 j) — appuie-toi dessus quand c'est pertinent :\n${d.topQueries.slice(0, 15).map((q) => `- ${q.query} (${q.impressions})`).join("\n")}`;
+    }
+  } catch { /* GSC optionnel */ }
 
   const out = await geminiGenerate({
     system: SUGGEST_SYSTEM,
@@ -107,7 +116,7 @@ export async function suggestEntry(
         text: `${input.type === "CREATION" ? `Nouvelle page « création » à partir de cette commande livrée :\n${brief}` : `Nouvel article conseil sur le sujet : « ${input.subject ?? "" } »`}
 
 Slugs déjà pris (ta proposition doit être DIFFÉRENTE et se différencier par un angle réel — âge, thème précis, commune — jamais par un numéro) :
-${existing.map((e) => e.slug).join(", ") || "(aucun)"}
+${existing.map((e) => e.slug).join(", ") || "(aucun)"}${gscContext}
 
 Réponds UNIQUEMENT avec cet objet JSON :
 {

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Sparkles, ExternalLink, Trash2, Pencil, EyeOff,
-  ChevronLeft, ChevronRight, Star, Loader2,
+  ChevronLeft, ChevronRight, Star, Loader2, Lightbulb,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -72,18 +72,19 @@ function MdPreview({ md }: { md: string }) {
 
 /* ============================================================= section */
 export default function JournalSection({
-  entries, orders, photos, siteBase, openWizardForOrder,
+  entries, orders, photos, siteBase, openWizardForOrder, gscIdeas = [],
 }: {
   entries: EntryRow[];
   orders: OrderOption[];
   photos: AssetRow[];
   siteBase: string | null; // ex. https://mamangateau.ch/creations
   openWizardForOrder: string | null; // ?page=<orderId> → wizard ouvert pré-rempli
+  gscIdeas?: { query: string; impressions: number; position: number }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const { confirm, node } = useConfirm();
-  const [wizard, setWizard] = useState<{ entry: EntryRow | null; orderId: string | null } | null>(
+  const [wizard, setWizard] = useState<{ entry: EntryRow | null; orderId: string | null; subject?: string } | null>(
     openWizardForOrder ? { entry: null, orderId: openWizardForOrder } : null
   );
 
@@ -98,6 +99,25 @@ export default function JournalSection({
           </a>
         )}
       </div>
+
+      {gscIdeas.length > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+            <Lightbulb className="size-3.5" /> Idées venues de Google — on te cherche, la page n'existe pas encore
+          </p>
+          <div className="space-y-1.5">
+            {gscIdeas.map((i) => (
+              <div key={i.query} className="flex flex-wrap items-center gap-2 text-[13px]">
+                <span className="min-w-0 flex-1 truncate text-zinc-700">« {i.query} »</span>
+                <span className="text-[11px] text-zinc-400">{i.impressions} aff. · pos. {i.position}</span>
+                <Button size="sm" variant="outline" onClick={() => setWizard({ entry: null, orderId: null, subject: i.query })}>
+                  Créer l'article
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {entries.length === 0 ? (
         <EmptyState
@@ -167,6 +187,7 @@ export default function JournalSection({
         <Wizard
           entry={wizard.entry}
           defaultOrderId={wizard.orderId}
+          defaultSubject={wizard.subject ?? null}
           orders={orders}
           photos={photos}
           siteBase={siteBase}
@@ -181,10 +202,11 @@ export default function JournalSection({
 const STEPS = ["Sujet", "Photos", "Récit", "Publication"] as const;
 
 function Wizard({
-  entry, defaultOrderId, orders, photos, siteBase, onClose,
+  entry, defaultOrderId, defaultSubject, orders, photos, siteBase, onClose,
 }: {
   entry: EntryRow | null;
   defaultOrderId: string | null;
+  defaultSubject: string | null;
   orders: OrderOption[];
   photos: AssetRow[];
   siteBase: string | null;
@@ -195,9 +217,9 @@ function Wizard({
   const [pending, start] = useTransition();
   const [ai, setAi] = useState<null | "entry" | "story">(null);
 
-  const [type, setType] = useState<"CREATION" | "ARTICLE">(entry?.type ?? "CREATION");
+  const [type, setType] = useState<"CREATION" | "ARTICLE">(entry?.type ?? (defaultSubject ? "ARTICLE" : "CREATION"));
   const [orderId, setOrderId] = useState<string | null>(entry?.orderId ?? defaultOrderId);
-  const [subject, setSubject] = useState("");
+  const [subject, setSubject] = useState(defaultSubject ?? "");
   const [title, setTitle] = useState(entry?.title ?? "");
   const [slug, setSlug] = useState(entry?.slug ?? "");
   const [slugState, setSlugState] = useState<"idle" | "checking" | "free" | "taken">(entry ? "free" : "idle");

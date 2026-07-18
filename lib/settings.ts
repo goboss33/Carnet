@@ -31,6 +31,9 @@ export type EffectiveSettings = {
   cronJournal: boolean;
   cronThemes: boolean;
   themeCheckDays: number;
+  cronGsc: boolean;
+  gscCheckDays: number;
+  gscProperty: string;
   siteUrl: string;
   sitePathPrefix: string;
   reviewUrl: string;
@@ -79,6 +82,9 @@ export async function getSettings(tenantId: string): Promise<EffectiveSettings> 
     cronJournal: s?.cronJournal ?? true,
     cronThemes: s?.cronThemes ?? true,
     themeCheckDays: s?.themeCheckDays ?? 30,
+    cronGsc: s?.cronGsc ?? true,
+    gscCheckDays: s?.gscCheckDays ?? 14,
+    gscProperty: s?.gscProperty ?? "",
     siteUrl: (s?.siteUrl || process.env.SITE_URL || "").replace(/\/$/, ""),
     sitePathPrefix: (s?.sitePathPrefix || "creations").replace(/^\/|\/$/g, ""),
     reviewUrl: s?.reviewUrl || process.env.GOOGLE_REVIEW_URL || "",

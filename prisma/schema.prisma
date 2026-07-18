@@ -56,6 +56,10 @@ model Settings {
   cronThemes         Boolean @default(true)
   themeCheckDays     Int? // fréquence de la vigie des thèmes (jours)
   lastThemeCheckAt   DateTime? // dernier passage de la vigie
+  gscProperty        String  @default("") // propriété Search Console (vide = dérivée de siteUrl)
+  cronGsc            Boolean @default(true)
+  gscCheckDays       Int? // fréquence de la vigie Search Console (jours)
+  lastGscCheckAt     DateTime?
   siteUrl            String  @default("") // URL publique du site vitrine (Journal)
   sitePathPrefix     String  @default("") // segment des pages Journal côté site (défaut « creations »)
   // marque blanche

@@ -85,6 +85,7 @@ async function tick() {
       if (s.cronReviews) await reviewNudges(t, s).catch((e) => console.error("reviews:", e));
       if (s.cronBirthday) await birthdayNudges(t, s).catch((e) => console.error("birthday:", e));
       if (s.cronThemes) await runThemeCheck(t).catch((e) => console.error("themes:", e));
+      if (s.cronGsc) { const { runGscReport } = await import("@/lib/gsc"); await runGscReport(t).catch((e) => console.error("gsc:", e)); }
     }
     if (hour === s.nudgeHour && lastRun.get(`${t.id}:nudge`) !== today) {
       lastRun.set(`${t.id}:nudge`, today);
@@ -562,6 +563,7 @@ export async function testTrigger(tenantId: string, kind: string): Promise<{ ok:
       case "monthly": await monthlyReport(t, true); break;
       case "journal": { const { runJournalPublisher } = await import("@/lib/journal"); await runJournalPublisher(t, true); break; }
       case "themes": await runThemeCheck(t, true); break;
+      case "gsc": { const { runGscReport } = await import("@/lib/gsc"); await runGscReport(t, true); break; }
       default: return { ok: false, message: `Déclencheur inconnu : ${kind}` };
     }
     return { ok: true, message: "Envoyé sur Telegram — regarde ton téléphone 📱" };

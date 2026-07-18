@@ -69,6 +69,11 @@ export default async function Reglages() {
               <span className="mt-1 block text-[11px] text-zinc-400">Pour les liens « Voir la page » et la mise à jour automatique du site à chaque publication.</span>
             </label>
             <label className="block">
+              <span className={label}>Propriété Search Console</span>
+              <input name="gscProperty" defaultValue={raw?.gscProperty ?? ""} placeholder="(auto : sc-domain: + domaine du site)" className={input} />
+              <span className="mt-1 block text-[11px] text-zinc-400">Vide = déduite de l'URL du site. Le compte de service de l'agenda doit être ajouté comme utilisateur dans Search Console.</span>
+            </label>
+            <label className="block">
               <span className={label}>Segment des pages du Journal</span>
               <input name="sitePathPrefix" defaultValue={raw?.sitePathPrefix ?? ""} placeholder="creations" className={input} />
               <span className="mt-1 block text-[11px] text-zinc-400">Le dossier des pages sur le site : /creations chez une pâtissière, /chantiers chez un artisan…</span>
@@ -115,6 +120,7 @@ export default async function Reglages() {
                 cronProduction: eff.cronProduction,
                 cronJournal: eff.cronJournal,
                 cronThemes: eff.cronThemes,
+                cronGsc: eff.cronGsc,
                 gcalSync: eff.gcalSync,
               }}
               raw={{
@@ -129,6 +135,7 @@ export default async function Reglages() {
                 fieldFollowupDays: raw?.fieldFollowupDays ?? null,
                 productionLeadDays: raw?.productionLeadDays ?? null,
                 themeCheckDays: raw?.themeCheckDays ?? null,
+                gscCheckDays: raw?.gscCheckDays ?? null,
                 handoverLeadDays: raw?.handoverLeadDays ?? null,
               }}
               eff={{
@@ -143,6 +150,7 @@ export default async function Reglages() {
                 fieldFollowupDays: eff.fieldFollowupDays,
                 productionLeadDays: eff.productionLeadDays,
                 themeCheckDays: eff.themeCheckDays,
+                gscCheckDays: eff.gscCheckDays,
                 handoverLeadDays: eff.handoverLeadDays,
               }}
             />
