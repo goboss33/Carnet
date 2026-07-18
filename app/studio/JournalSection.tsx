@@ -423,7 +423,7 @@ function Wizard({
                 {kwFindings.advice && (
                   <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12px] font-medium text-amber-800">💡 {kwFindings.advice}</p>
                 )}
-                {([["Spécifiques au sujet", kwFindings.specific], ["Occasion + ville (gros volumes)", kwFindings.local]] as const).map(([label, list]) =>
+                {([["Spécifiques au sujet", kwFindings.specific], ["Génériques & villes (gros volumes)", kwFindings.local]] as const).map(([label, list]) =>
                   list.length ? (
                     <div key={label}>
                       <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{label} — volumes /mois (Suisse), clique pour ajouter</p>

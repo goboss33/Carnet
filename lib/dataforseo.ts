@@ -13,6 +13,8 @@ const CITIES = ["lausanne", "genève", "vevey", "montreux", "morges"];
 /* enseignes & intentions DIY — pas des clientes (elles cherchent une recette, pas une pâtissière) */
 const NOISE = /migros|coop|carrefour|lidl|aldi|manor|thermomix|marmiton|recette|facile|coloriage|dessin|tuto|maison\b/;
 
+const deaccent = (x: string) => x.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
 export function dfsEnabled(): boolean {
   return Boolean(process.env.DATAFORSEO_LOGIN && process.env.DATAFORSEO_PASSWORD);
 }
@@ -72,17 +74,21 @@ const toIdea = (it: LabsItem): KeywordIdea | null => {
 
 const cache = new Map<string, { at: number; f: KeywordFindings }>();
 
-/** Idées ancrées sur la phrase principale + variations locales + conseil. */
+/** Idées ancrées sur la phrase principale + variations locales + conseil.
+    Méthode calquée sur l'usage expert : seeds SANS accents, related sur la
+    phrase complète, pertinence avant volume, pivot keyword_ideas si le
+    thème+ville est mort. */
 export async function keywordFindings(main: string, theme: string, occasion: string): Promise<KeywordFindings | null> {
-  const seed = main.trim().toLowerCase();
+  const seed = deaccent(main);
+  const th = deaccent(theme);
   if (seed.length < 4) return { specific: [], local: [], advice: null };
-  const key = `${seed}|${theme}|${occasion}`;
+  const key = `${seed}|${th}|${occasion}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < 24 * 3600_000) return hit.f;
 
   const cityKws = [
-    ...CITIES.map((c) => `gâteau ${occasion} ${c}`),
-    ...(theme ? CITIES.slice(0, 3).map((c) => `gâteau ${theme} ${c}`) : []),
+    ...CITIES.map((c) => deaccent(`gateau ${occasion} ${c}`)),
+    ...(th ? CITIES.slice(0, 3).map((c) => deaccent(`gateau ${th} ${c}`)) : []),
   ];
 
   const [sugg, related, cities] = await Promise.all([
@@ -91,14 +97,15 @@ export async function keywordFindings(main: string, theme: string, occasion: str
       location_code: LOCATION_CH,
       language_code: LANG,
       include_seed_keyword: true,
-      limit: 25,
+      include_serp_info: false,
+      limit: 30,
     }),
     dfsPost<RelatedResult>("dataforseo_labs/google/related_keywords/live", {
-      keyword: theme ? `gâteau ${theme}` : seed,
+      keyword: seed,
       location_code: LOCATION_CH,
       language_code: LANG,
       depth: 1,
-      limit: 15,
+      limit: 20,
     }),
     dfsPost<AdsVolume>("keywords_data/google_ads/search_volume/live", {
       keywords: cityKws,
@@ -108,8 +115,10 @@ export async function keywordFindings(main: string, theme: string, occasion: str
   ]);
   if (!sugg && !related && !cities) return null;
 
+  // pertinence d'abord : contiennent le thème → « spécifiques » ; le reste → vivier générique
   const seen = new Set<string>();
   const specific: KeywordIdea[] = [];
+  const genericPool: KeywordIdea[] = [];
   const pool: (KeywordIdea | null)[] = [
     ...(sugg?.[0]?.items ?? []).map(toIdea),
     ...(related?.[0]?.items ?? []).map((r) => (r.keyword_data ? toIdea(r.keyword_data) : null)),
@@ -117,26 +126,48 @@ export async function keywordFindings(main: string, theme: string, occasion: str
   for (const i of pool) {
     if (!i || seen.has(i.keyword) || NOISE.test(i.keyword)) continue;
     seen.add(i.keyword);
-    specific.push(i);
+    if (th && deaccent(i.keyword).includes(th)) specific.push(i);
+    else genericPool.push(i);
   }
   specific.sort((a, b) => b.volume - a.volume);
+  genericPool.sort((a, b) => b.volume - a.volume);
 
-  const local: KeywordIdea[] = (cities ?? [])
+  const cityIdeas: KeywordIdea[] = (cities ?? [])
     .map((c) => ({ keyword: (c.keyword ?? "").toLowerCase(), volume: c.search_volume ?? 0, difficulty: null, intent: null }))
-    .filter((i) => i.keyword)
-    .sort((a, b) => b.volume - a.volume);
+    .filter((i) => i.keyword);
 
-  // conseil déterministe : thème+ville mort ? cible occasion+ville, le thème différencie la page
-  let advice: string | null = null;
-  if (theme) {
-    const themeCity = Math.max(0, ...local.filter((l) => l.keyword.includes(theme)).map((l) => l.volume));
-    const occCity = Math.max(0, ...local.filter((l) => !l.keyword.includes(theme)).map((l) => l.volume));
-    if (themeCity < 10 && occCity >= 50) {
-      advice = `« ${theme} + ville » n'a presque pas de volume : vise « gâteau ${occasion} + ville » (jusqu'à ${occCity}/mois) et laisse le thème « ${theme} » différencier le titre et le contenu de la page.`;
+  // pivot expert : thème+ville mort → keyword_ideas élargit vers les vrais volumes périphériques
+  const themeCityMax = Math.max(0, ...cityIdeas.filter((l) => th && deaccent(l.keyword).includes(th)).map((l) => l.volume));
+  if (th && themeCityMax < 10) {
+    const ideas = await dfsPost<LabsResult>("dataforseo_labs/google/keyword_ideas/live", {
+      keywords: CITIES.slice(0, 2).map((c) => deaccent(`gateau ${th} ${c}`)),
+      location_code: LOCATION_CH,
+      language_code: LANG,
+      include_serp_info: false,
+      limit: 20,
+    });
+    for (const it of ideas?.[0]?.items ?? []) {
+      const i = toIdea(it);
+      if (!i || seen.has(i.keyword) || NOISE.test(i.keyword)) continue;
+      seen.add(i.keyword);
+      genericPool.push(i);
     }
+    genericPool.sort((a, b) => b.volume - a.volume);
   }
 
-  const f: KeywordFindings = { specific: specific.slice(0, 14), local: local.slice(0, 8), advice };
+  // « occasion + ville » : volumes mesurés + meilleures pépites génériques
+  const local = [...cityIdeas.filter((l) => !th || !deaccent(l.keyword).includes(th)), ...genericPool.slice(0, 6)]
+    .filter((v, idx, arr) => arr.findIndex((x) => x.keyword === v.keyword) === idx)
+    .sort((a, b) => b.volume - a.volume)
+    .slice(0, 10);
+
+  const occCityMax = Math.max(0, ...local.map((l) => l.volume));
+  let advice: string | null = null;
+  if (th && themeCityMax < 10 && occCityMax >= 50) {
+    advice = `« ${theme} + ville » n'a presque pas de volume : vise « gâteau ${occasion} + ville » (jusqu'à ${occCityMax}/mois) et laisse le thème « ${theme} » différencier le titre et le contenu de la page.`;
+  }
+
+  const f: KeywordFindings = { specific: specific.slice(0, 14), local, advice };
   cache.set(key, { at: Date.now(), f });
   return f;
 }
