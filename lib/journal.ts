@@ -166,7 +166,8 @@ export async function suggestStory(
   const photosBlock = bodyPhotos.length
     ? `
 
-Les photos ci-jointes iront DANS l'article. Insère chacune à l'endroit du récit qui s'y rapporte, sur une ligne seule, avec exactement ce format : [[photo:N]]
+Les photos ci-jointes iront DANS l'article. Insère chacune à l'endroit du récit qui s'y rapporte, sur une ligne seule :
+- [[photo:N]] pleine largeur (vue d'ensemble, format paysage) · [[photo:N|left]] ou [[photo:N|right]] flottante, le texte l'habille (portrait, gros plan) — varie les dispositions, jamais deux flottantes d'affilée ;
 - chaque photo au plus une fois, n'invente aucun numéro ;
 - la photo de couverture est déjà en tête de page — ne l'insère pas${input.coverAlt ? ` (elle montre : « ${input.coverAlt} »)` : ""} ;
 - le paragraphe voisin d'une photo doit parler de ce qu'elle montre : décris ce que tu VOIS (couleurs, matières, détails de modelage réels).`
@@ -185,7 +186,10 @@ Règles d'écriture impératives :
 - N'insère JAMAIS un mot-clé ou une requête telle quelle : français irréprochable, accents, formulations variées. Google comprend les variantes — le bourrage de mots-clés est interdit et contre-productif.
 - La localité (Pully, Lausanne, Vaud…) apparaît AU MAXIMUM UNE fois dans tout le corps, jamais accolée à un nom de produit (« gâteau licorne à Pully » en milieu de phrase : interdit). Si elle ne s'insère pas naturellement, ne l'insère pas.
 - N'ouvre pas par la date (« En ce mois de février… ») — mentionne l'époque seulement si elle apporte quelque chose au récit.
+- Ne précise JAMAIS l'origine ou l'appellation d'un ingrédient (« de Madagascar », une marque…) si le brief ne la donne pas.
 - Une liste à puces est autorisée quand elle sert vraiment le propos (saveurs, étapes) — au plus une.
+- ==mot== surligne un mot au marqueur rose : au plus 2 fois dans l'article, dont éventuellement UN seul mot d'un intertitre.
+- Si (et seulement si) une info pratique a une vraie valeur (conservation, délai, astuce), UN encadré : une ligne « > **Bon à savoir** — … » (ou « > **Le savais-tu ?** — … »), 1-2 phrases.
 - Le gras (**) : au plus une fois, pour un vrai moment du récit — jamais pour un mot-clé.
 - Raconte du CONCRET tiré du brief et des photos : le prénom écrit sur le gâteau s'il y figure, les couleurs réelles, un détail de modelage ou de matière. Rien d'invérifiable.
 - Tournures interdites : « occasion spéciale », « moment magique », « donner vie », « pièce unique », « idéal pour », « garantissant », « faire la part belle », « sublimer », « émerveiller petits et grands », « respecte l'imaginaire ».

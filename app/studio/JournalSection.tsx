@@ -51,20 +51,30 @@ const fmtDT = (iso: string | null) =>
 
 /* ------------------------------------------------- aperçu markdown minimal */
 function inline(s: string) {
-  return s.split(/\*\*(.+?)\*\*/g).map((p, i) => (i % 2 ? <b key={i}>{p}</b> : p));
+  const out: React.ReactNode[] = [];
+  s.split(/==(.+?)==/g).forEach((p, i) => {
+    if (i % 2) out.push(<span key={`h${i}`} className="rounded-sm bg-pink-200/70 px-0.5">{p}</span>);
+    else p.split(/\*\*(.+?)\*\*/g).forEach((q, j) => out.push(j % 2 ? <b key={`b${i}-${j}`}>{q}</b> : q));
+  });
+  return out;
 }
 function MdPreview({ md, photoThumbs = [] }: { md: string; photoThumbs?: string[] }) {
   return (
     <div className="space-y-2 text-[13px] leading-relaxed text-zinc-700">
       {md.split(/\n{2,}/).map((b, i) => {
         const t = b.trim();
-        const ph = t.match(/^\[\[photo:(\d+)\]\]$/);
+        const ph = t.match(/^\[\[photo:(\d+)(?:\|(left|right))?\]\]$/);
         if (ph) {
           const src = photoThumbs[Number(ph[1]) - 1];
-          return src
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img key={i} src={src} alt="" className="mx-auto max-h-56 rounded-lg" />
-            : <p key={i} className="text-center text-[11px] text-zinc-400">📷 photo {ph[1]} (retirée)</p>;
+          if (!src) return <p key={i} className="text-center text-[11px] text-zinc-400">📷 photo {ph[1]} (retirée)</p>;
+          const pos = ph[2];
+          // eslint-disable-next-line @next/next/no-img-element
+          if (pos) return <img key={i} src={src} alt="" className={`my-1 w-2/5 rounded-lg ${pos === "left" ? "float-left mr-3" : "float-right ml-3"}`} />;
+          // eslint-disable-next-line @next/next/no-img-element
+          return <img key={i} src={src} alt="" className="mx-auto max-h-56 rounded-lg" />;
+        }
+        if (t.startsWith("> ")) {
+          return <div key={i} className="clear-both rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-[12px]">✨ {inline(t.replace(/^>\s?/, ""))}</div>;
         }
         if (t.startsWith("## ")) return <h3 key={i} className="pt-1 text-sm font-semibold text-zinc-900">{t.slice(3)}</h3>;
         if (/^[-*] /m.test(t))

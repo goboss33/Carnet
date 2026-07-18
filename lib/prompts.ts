@@ -45,14 +45,15 @@ Réponds UNIQUEMENT avec cet objet JSON :
 {si article : « Article conseil pratique sur : « {sujet} ». Intro courte puis sections concrètes, 350-550 mots. »}
 Contexte de ciblage (DÉJÀ couvert par titre/adresse/métadonnées — n'en force aucun) : {mots-clés}.
 
-{si photos : « Les photos ci-jointes iront DANS l'article. Insère chacune à l'endroit qui s'y rapporte, ligne seule : [[photo:N]] — au plus une fois, aucun numéro inventé ; la couverture est déjà en tête (ne pas l'insérer) ; le paragraphe voisin décrit ce que la photo MONTRE. » + les vignettes jointes en images}
+{si photos : « Les photos ci-jointes iront DANS l'article : [[photo:N]] pleine largeur, [[photo:N|left]] / [[photo:N|right]] flottantes (le texte habille) — varier, jamais deux flottantes d'affilée, au plus une fois chacune, couverture exclue ; le paragraphe voisin décrit ce que la photo MONTRE. » + les vignettes jointes en images}
 
 Structure : 2-3 intertitres "## " SPÉCIFIQUES (variante naturelle d'un thème possible — jamais verbatim) ; intertitres génériques interdits.
 
 Règles d'écriture impératives :
 - N'insère JAMAIS un mot-clé tel quel : français irréprochable, accents, variantes — le bourrage est interdit.
 - La localité : AU MAXIMUM UNE fois dans le corps, jamais accolée à un nom de produit.
-- Pas d'ouverture par la date ; une liste à puces au plus, si elle sert le propos.
+- Pas d'ouverture par la date ; une liste à puces au plus ; jamais d'origine d'ingrédient non fournie par le brief.
+- ==mot== : surligneur rose (max 2, dont un seul mot d'un intertitre) ; un encadré « > **Bon à savoir** — … » seulement si l'info a une vraie valeur pratique.
 - Le gras : au plus une fois, jamais pour un mot-clé.
 - Du CONCRET tiré du brief et des photos (prénom sur le gâteau, couleurs réelles, détail de modelage).
 - Tournures interdites : occasion spéciale, moment magique, donner vie, pièce unique, idéal pour, garantissant, faire la part belle, sublimer, émerveiller petits et grands.
