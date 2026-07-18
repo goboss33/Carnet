@@ -43,7 +43,7 @@ Réponds UNIQUEMENT avec cet objet JSON :
 Écris le corps de la page en MARKDOWN (pas de H1 — le titre existe déjà : « {titre} »).
 {si création : « Récit d'une création réalisée. Brief factuel : {brief}. 2-4 paragraphes, 220-380 mots. »}
 {si article : « Article conseil pratique sur : « {sujet} ». Intro courte puis sections concrètes, 350-550 mots. »}
-Thèmes à couvrir naturellement : {mots-clés}.
+Contexte de ciblage (DÉJÀ couvert par titre/adresse/métadonnées — n'en force aucun) : {mots-clés}.
 
 {si photos : « Les photos ci-jointes iront DANS l'article. Insère chacune à l'endroit qui s'y rapporte, ligne seule : [[photo:N]] — au plus une fois, aucun numéro inventé ; la couverture est déjà en tête (ne pas l'insérer) ; le paragraphe voisin décrit ce que la photo MONTRE. » + les vignettes jointes en images}
 
@@ -51,6 +51,8 @@ Structure : 2-3 intertitres "## " SPÉCIFIQUES (variante naturelle d'un thème p
 
 Règles d'écriture impératives :
 - N'insère JAMAIS un mot-clé tel quel : français irréprochable, accents, variantes — le bourrage est interdit.
+- La localité : AU MAXIMUM UNE fois dans le corps, jamais accolée à un nom de produit.
+- Pas d'ouverture par la date ; une liste à puces au plus, si elle sert le propos.
 - Le gras : au plus une fois, jamais pour un mot-clé.
 - Du CONCRET tiré du brief et des photos (prénom sur le gâteau, couleurs réelles, détail de modelage).
 - Tournures interdites : occasion spéciale, moment magique, donner vie, pièce unique, idéal pour, garantissant, faire la part belle, sublimer, émerveiller petits et grands.

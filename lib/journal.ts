@@ -177,12 +177,15 @@ Les photos ci-jointes iront DANS l'article. Insère chacune à l'endroit du réc
 ${input.type === "CREATION"
   ? `Récit d'une création réalisée. Brief factuel :\n${brief ?? "(aucun)"}\n\n2-4 paragraphes, 220-380 mots.`
   : `Article conseil pratique sur : « ${input.subject ?? input.title} ». Intro courte puis sections concrètes, 350-550 mots. Repères chiffrés uniquement s'ils sont universellement vrais.`}
-Thèmes à couvrir naturellement : ${input.keywords.join(", ") || "(libres)"}.${photosBlock}
+Contexte de ciblage — DÉJÀ couvert par le titre, l'adresse et les métadonnées de la page, n'en force AUCUN dans le texte : ${input.keywords.join(", ") || "(libre)"}.${photosBlock}
 
 Structure : 2-3 intertitres "## " SPÉCIFIQUES au sujet (une variante naturelle d'un thème peut y apparaître — jamais un mot-clé verbatim). Intertitres génériques interdits (« Des saveurs artisanales », « Un moment magique », « Une création unique »).
 
 Règles d'écriture impératives :
 - N'insère JAMAIS un mot-clé ou une requête telle quelle : français irréprochable, accents, formulations variées. Google comprend les variantes — le bourrage de mots-clés est interdit et contre-productif.
+- La localité (Pully, Lausanne, Vaud…) apparaît AU MAXIMUM UNE fois dans tout le corps, jamais accolée à un nom de produit (« gâteau licorne à Pully » en milieu de phrase : interdit). Si elle ne s'insère pas naturellement, ne l'insère pas.
+- N'ouvre pas par la date (« En ce mois de février… ») — mentionne l'époque seulement si elle apporte quelque chose au récit.
+- Une liste à puces est autorisée quand elle sert vraiment le propos (saveurs, étapes) — au plus une.
 - Le gras (**) : au plus une fois, pour un vrai moment du récit — jamais pour un mot-clé.
 - Raconte du CONCRET tiré du brief et des photos : le prénom écrit sur le gâteau s'il y figure, les couleurs réelles, un détail de modelage ou de matière. Rien d'invérifiable.
 - Tournures interdites : « occasion spéciale », « moment magique », « donner vie », « pièce unique », « idéal pour », « garantissant », « faire la part belle », « sublimer », « émerveiller petits et grands », « respecte l'imaginaire ».
