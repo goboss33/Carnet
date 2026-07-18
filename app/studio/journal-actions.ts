@@ -10,9 +10,21 @@ import {
 } from "@/lib/journal";
 import type { JournalCategory, JournalFormat, JournalType } from "@prisma/client";
 
-export async function suggestEntryAction(input: { type: JournalType; orderId?: string | null; subject?: string }) {
+export async function suggestEntryAction(input: { type: JournalType; orderId?: string | null; subject?: string; keywords?: string[] }) {
   const tenant = await currentTenant();
   return suggestEntry(tenant.id, input);
+}
+
+export async function findKeywordsAction(input: { type: JournalType; orderId?: string | null; subject?: string }) {
+  const tenant = await currentTenant();
+  const { dfsEnabled, keywordIdeas } = await import("@/lib/dataforseo");
+  if (!dfsEnabled()) return { error: "DataForSEO n'est pas configuré (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD dans Portainer)." };
+  const { seedKeywords } = await import("@/lib/journal");
+  const seeds = await seedKeywords(tenant.id, input);
+  if (!seeds.length) return { error: input.type === "CREATION" ? "Choisis d'abord la commande source." : "Écris d'abord le sujet de l'article." };
+  const ideas = await keywordIdeas(seeds);
+  if (!ideas) return { error: "DataForSEO ne répond pas — réessaie dans un instant." };
+  return { ideas };
 }
 
 export async function suggestStoryAction(input: { type: JournalType; format?: JournalFormat; orderId?: string | null; subject?: string; title: string; keywords: string[]; coverAlt?: string; photos?: { assetId: string; alt: string }[] }) {

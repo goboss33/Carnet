@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Sparkles, ExternalLink, Trash2, Pencil, EyeOff,
-  ChevronLeft, ChevronRight, Star, Loader2, X, Play, Images, Upload,
+  ChevronLeft, ChevronRight, Star, Loader2, X, Play, Images, Upload, Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { useConfirm } from "@/components/ui/table-kit";
 import { cn } from "@/lib/ui";
 import type { AssetRow } from "./StudioClient";
 import {
-  suggestEntryAction, suggestStoryAction, suggestAltsAction, checkSlugAction,
+  suggestEntryAction, suggestStoryAction, suggestAltsAction, checkSlugAction, findKeywordsAction,
   saveJournalEntry, unpublishJournalEntry, deleteJournalEntry, type JournalPayload,
 } from "./journal-actions";
 
@@ -247,6 +247,7 @@ function Wizard({
   const [alts, setAlts] = useState<Record<string, string>>(Object.fromEntries((entry?.images ?? []).map((i) => [i.assetId, i.alt])));
   const [cover, setCover] = useState(entry?.coverAssetId ?? "");
   const [altIdeas, setAltIdeas] = useState<string[]>([]);
+  const [kwIdeas, setKwIdeas] = useState<{ keyword: string; volume: number }[]>([]);
   const [metaTitle, setMetaTitle] = useState(entry?.metaTitle ?? "");
   const [metaDescription, setMetaDescription] = useState(entry?.metaDescription ?? "");
   const [publishMode, setPublishMode] = useState<"draft" | "now" | "schedule">(entry?.status === "PROGRAMMEE" ? "schedule" : "draft");
@@ -275,17 +276,26 @@ function Wizard({
   const doSuggest = () =>
     start(async () => {
       setAi("entry");
-      const r = await suggestEntryAction({ type, orderId: type === "CREATION" ? orderId : null, subject });
+      const r = await suggestEntryAction({ type, orderId: type === "CREATION" ? orderId : null, subject, keywords });
       setAi(null);
       if ("error" in r) { toast.error(r.error); return; }
       setTitle(r.title);
       if (r.slug) setSlug(r.slug);
       setCategory(r.category);
-      setKeywords(r.keywords);
       setMetaTitle(r.metaTitle);
       setMetaDescription(r.metaDescription);
       setAltIdeas(r.altIdeas);
       toast.success("Suggestions prêtes — tout reste modifiable.");
+    });
+
+  const doFindKeywords = () =>
+    start(async () => {
+      setAi("entry");
+      const r = await findKeywordsAction({ type, orderId: type === "CREATION" ? orderId : null, subject });
+      setAi(null);
+      if ("error" in r) { toast.error(r.error); return; }
+      setKwIdeas((r.ideas ?? []).map((i) => ({ keyword: i.keyword, volume: i.volume })));
+      if (!r.ideas?.length) toast("Aucune idée renvoyée — la niche est très locale, tes mots-clés manuels feront l'affaire.");
     });
 
   const doStory = () =>
@@ -400,9 +410,38 @@ function Wizard({
                 <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ex. Combien de parts prévoir pour 25 invités ?" />
               </div>
             )}
-            <Button variant="outline" size="sm" disabled={pending || (type === "CREATION" ? !orderId : subject.trim().length < 3)} onClick={doSuggest}>
-              {ai === "entry" ? <Loader2 className="animate-spin" /> : <Sparkles />} Suggérer titre, mots-clés & SEO
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" disabled={pending || (type === "CREATION" ? !orderId : subject.trim().length < 3)} onClick={doFindKeywords}>
+                {ai === "entry" ? <Loader2 className="animate-spin" /> : <Search />} Trouver les mots-clés (volumes)
+              </Button>
+              <Button variant="outline" size="sm" disabled={pending || (type === "CREATION" ? !orderId : subject.trim().length < 3)} onClick={doSuggest}>
+                {ai === "story" ? <Loader2 className="animate-spin" /> : <Sparkles />} Suggérer titre & SEO
+              </Button>
+            </div>
+            {kwIdeas.length > 0 && (
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50/60 px-3 py-2.5">
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                  Volumes de recherche (Suisse, /mois) — clique pour ajouter
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {kwIdeas.map((i) => {
+                    const active = keywords.includes(i.keyword);
+                    return (
+                      <button
+                        key={i.keyword} type="button"
+                        onClick={() => setKeywords((ks) => (active ? ks.filter((k) => k !== i.keyword) : [...ks, i.keyword].slice(0, 8)))}
+                        className={cn(
+                          "rounded-full border px-3 py-1 text-[12px] font-medium transition-colors",
+                          active ? "border-(--color-brand) bg-(--color-brand-soft) text-(--color-brand)" : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400"
+                        )}
+                      >
+                        {i.keyword} <span className={active ? "opacity-70" : "text-zinc-400"}>· {i.volume || "<10"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div>
               <Label>Titre de la page</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex. Gâteau licorne arc-en-ciel pour les 5 ans de Zelda, à Pully" />

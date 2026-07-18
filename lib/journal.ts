@@ -53,7 +53,6 @@ type EntrySuggestion = {
   title: string;
   slug: string;
   category: JournalCategory;
-  keywords: string[];
   metaTitle: string;
   metaDescription: string;
   altIdeas: string[];
@@ -77,6 +76,30 @@ async function orderBrief(tenantId: string, orderId: string): Promise<string | n
   ].filter(Boolean).join("\n");
 }
 
+/** Graines de mots-clés depuis les champs structurés — jamais d'IA ici. */
+export async function seedKeywords(
+  tenantId: string,
+  input: { type: JournalType; orderId?: string | null; subject?: string; category?: JournalCategory }
+): Promise<string[]> {
+  if (input.type === "ARTICLE") {
+    const s = (input.subject ?? "").trim();
+    if (!s) return [];
+    return [s, /gateau|gâteau|cake/i.test(s) ? "" : `gâteau ${s}`].filter(Boolean);
+  }
+  const o = input.orderId ? await prisma.order.findFirst({ where: { id: input.orderId, tenantId } }) : null;
+  if (!o) return [];
+  const themes = o.themeNote.split(/[,·+/]| et /).map((t) => t.trim().toLowerCase()).filter((t) => t.length > 2).slice(0, 3);
+  const occ = (o.occasion || "").toLowerCase().includes("mariage") ? "mariage" : "anniversaire";
+  const seeds = new Set<string>();
+  for (const t of themes) {
+    seeds.add(`gâteau ${t}`);
+    seeds.add(`gâteau ${occ} ${t}`);
+  }
+  seeds.add(`gâteau ${occ}`);
+  if (themes[0]) seeds.add(`gâteau ${themes[0]} lausanne`);
+  return [...seeds].slice(0, 8);
+}
+
 const SUGGEST_SYSTEM = `Tu es le rédacteur SEO d'une cake designer artisanale à Pully (région Lausanne, Vaud, Suisse — zone : Lausanne, Pully, Lutry, Vevey, Montreux, Morges).
 Tu prépares la fiche d'une page de son site (journal des créations + articles conseils).
 Objectif : longue traîne locale (ex. « gâteau anniversaire licorne Lausanne », « combien de parts gâteau 25 invités »).
@@ -92,7 +115,7 @@ function extractJsonLoose(raw: string): Record<string, unknown> | null {
 
 export async function suggestEntry(
   tenantId: string,
-  input: { type: JournalType; orderId?: string | null; subject?: string }
+  input: { type: JournalType; orderId?: string | null; subject?: string; keywords?: string[] }
 ): Promise<EntrySuggestion | { error: string }> {
   const brief = input.orderId ? await orderBrief(tenantId, input.orderId) : null;
   if (input.type === "CREATION" && !brief) return { error: "Commande introuvable." };
@@ -108,13 +131,13 @@ export async function suggestEntry(
 
 Slugs déjà pris (ta proposition doit être DIFFÉRENTE et se différencier par un angle réel — âge, thème précis, commune — jamais par un numéro) :
 ${existing.map((e) => e.slug).join(", ") || "(aucun)"}
+${input.keywords?.length ? `\nMots-clés déjà choisis pour cette page (le titre et les métas doivent leur être cohérents, sans les insérer tels quels) : ${input.keywords.join(", ")}` : ""}
 
 Réponds UNIQUEMENT avec cet objet JSON :
 {
   "title": "titre H1 naturel et précis (max 70 caractères)",
   "slug": "slug-court-mots-cles (minuscules, tirets, inclut la localité si pertinente)",
   "category": "${cats}",
-  "keywords": ["3 à 5 requêtes longue traîne visées"],
   "meta_title": "balise title (max 60 caractères, mot-clé principal au début)",
   "meta_description": "meta description engageante (max 155 caractères, avec un appel à l'action)",
   "alt_ideas": ["6 textes alternatifs d'images, descriptifs et factuels, basés sur le brief"]
@@ -138,7 +161,6 @@ Réponds UNIQUEMENT avec cet objet JSON :
     title: String(j.title ?? "").trim().slice(0, 90),
     slug,
     category: (catIds.includes(String(j.category)) ? String(j.category) : input.type === "ARTICLE" ? "CONSEILS" : "ANNIVERSAIRE") as JournalCategory,
-    keywords: arr(j.keywords, 5, 80),
     metaTitle: String(j.meta_title ?? "").trim().slice(0, 70),
     metaDescription: String(j.meta_description ?? "").trim().slice(0, 170),
     altIdeas: arr(j.alt_ideas, 8, 120),
