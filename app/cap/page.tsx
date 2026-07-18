@@ -2,6 +2,7 @@ import { currentTenant } from "@/lib/db";
 import { computeCap } from "@/lib/cap";
 import { toggleMilestone } from "@/app/actions";
 import Shell from "@/app/components/Shell";
+import SeoProgress from "./SeoProgress";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -73,6 +74,8 @@ export default async function Cap() {
           ))}
         </div>
       </div>
+
+      <SeoProgress tenantId={tenant.id} />
 
       {/* Phases */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

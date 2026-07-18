@@ -184,6 +184,36 @@ export async function gscDigest(tenantId: string, days = 90): Promise<GscDigest 
   return digest;
 }
 
+/* ---------------------------------------------------- série temporelle */
+
+export type GscDay = { date: string; clicks: number; impressions: number; position: number };
+
+const seriesCache = new Map<string, { at: number; days: GscDay[] }>();
+
+/** Série quotidienne (12 semaines) — un appel, tout l'historique, pour le Cap. */
+export async function gscTimeseries(tenantId: string, days = 84): Promise<GscDay[] | null> {
+  const hit = seriesCache.get(`${tenantId}:${days}`);
+  if (hit && Date.now() - hit.at < 30 * 60_000) return hit.days;
+  const s = await getSettings(tenantId);
+  if (!gscEnabled(s)) return null;
+  const rows = await gscQuery(gscProperty(s), {
+    startDate: day(days),
+    endDate: day(0),
+    dimensions: ["date"],
+    rowLimit: days + 1,
+  });
+  if (!rows) return null;
+  const byDate = new Map(rows.map((r) => [r.keys[0], r]));
+  const out: GscDay[] = [];
+  for (let i = days; i >= 0; i--) {
+    const d = day(i);
+    const r = byDate.get(d);
+    out.push({ date: d, clicks: r?.clicks ?? 0, impressions: r?.impressions ?? 0, position: r ? Math.round(r.position * 10) / 10 : 0 });
+  }
+  seriesCache.set(`${tenantId}:${days}`, { at: Date.now(), days: out });
+  return out;
+}
+
 /* ------------------------------------------------------ vigie (cron) */
 
 export async function runGscReport(t: { id: string }, dryRun = false): Promise<void> {
