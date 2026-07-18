@@ -60,9 +60,11 @@ function inline(s: string) {
   return out;
 }
 function MdPreview({ md, photoThumbs = [] }: { md: string; photoThumbs?: string[] }) {
+  // marqueur posé en tête de paragraphe → bloc isolé (même tolérance que le site)
+  const normalized = md.replace(/^[ \t]*(\[\[photo:\d+(?:\|(?:left|right))?\]\])[ \t]*$/gm, "\n$1\n");
   return (
     <div className="space-y-2 text-[13px] leading-relaxed text-zinc-700">
-      {md.split(/\n{2,}/).map((b, i) => {
+      {normalized.split(/\n{2,}/).map((b, i) => {
         const t = b.trim();
         const ph = t.match(/^\[\[photo:(\d+)(?:\|(left|right))?\]\]$/);
         if (ph) {

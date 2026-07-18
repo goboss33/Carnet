@@ -171,6 +171,7 @@ export async function suggestStory(
 
 Les photos ci-jointes iront DANS l'article. Insère chacune à l'endroit du récit qui s'y rapporte, sur une ligne seule :
 - [[photo:N]] pleine largeur (vue d'ensemble, format paysage) · [[photo:N|left]] ou [[photo:N|right]] flottante, le texte l'habille (portrait, gros plan) — varie les dispositions, jamais deux flottantes d'affilée ;
+- le marqueur est SEUL sur sa ligne, avec une ligne vide avant et après (jamais collé à un paragraphe) ;
 - chaque photo au plus une fois, n'invente aucun numéro ;
 - la photo de couverture est déjà en tête de page — ne l'insère pas${input.coverAlt ? ` (elle montre : « ${input.coverAlt} »)` : ""} ;
 - le paragraphe voisin d'une photo doit parler de ce qu'elle montre : décris ce que tu VOIS (couleurs, matières, détails de modelage réels).`
