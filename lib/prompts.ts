@@ -28,7 +28,6 @@ Objectif : longue traîne locale. Règles strictes : n'invente AUCUN fait. Fran�
 
 Slugs déjà pris (ta proposition doit être DIFFÉRENTE et se différencier par un angle réel — âge, thème précis, commune — jamais par un numéro) :
 {liste des slugs existants}
-{si Search Console active : « Requêtes Google réelles qui affichent déjà le site (impressions sur 90 j) : {top 15 requêtes} »}
 
 Réponds UNIQUEMENT avec cet objet JSON :
 { title, slug, category, keywords[3-5], meta_title (≤60), meta_description (≤155), alt_ideas[6] }`,
@@ -38,14 +37,21 @@ Réponds UNIQUEMENT avec cet objet JSON :
     label: "Journal — récit de la page (markdown)",
     where: "lib/journal.ts (suggestStory)",
     template: `[system] (le même que journal.suggestion)
+[modèle : GEMINI_STORY_MODEL si défini, sinon le modèle standard]
 
 [user]
 Écris le corps de la page en MARKDOWN (pas de H1 — le titre existe déjà : « {titre} »).
-{si création : « C'est le récit d'une création réalisée. Brief factuel : {brief}. Structure : 2-3 courts paragraphes (la demande, les choix de design, les saveurs), un sous-titre "## " si utile. 250-400 mots. »}
-{si article : « Article conseil pratique sur : « {sujet} ». Structure : intro courte, 2-4 sections "## ", 350-550 mots. Repères chiffrés seulement s'ils sont universellement vrais. »}
-Mots-clés à placer NATURELLEMENT (jamais en liste) : {mots-clés}
-Termine par UNE phrase d'appel à l'action vers le devis en ligne (sans lien).
-Rappel : aucun fait inventé, aucun prix, aucun nom de famille. Tutoiement interdit.`,
+{si création : « Récit d'une création réalisée. Brief factuel : {brief}. Ce que montrent les photos de la page : {textes alternatifs des photos choisies}. 2-3 paragraphes + un "## " si utile. 220-350 mots. »}
+{si article : « Article conseil pratique sur : « {sujet} ». Intro courte, 2-4 sections "## ", 350-550 mots. Repères chiffrés seulement s'ils sont universellement vrais. »}
+Thèmes à couvrir naturellement : {mots-clés}.
+
+Règles d'écriture impératives :
+- N'insère JAMAIS un mot-clé tel quel : français irréprochable, accents, variantes — le bourrage est interdit.
+- Le gras : au plus une fois, jamais pour un mot-clé.
+- Du CONCRET tiré du brief et des photos (prénom sur le gâteau, couleurs réelles, détail de modelage).
+- Tournures interdites : occasion spéciale, moment magique, donner vie, pièce unique, idéal pour, garantissant, faire la part belle, sublimer, émerveiller petits et grands.
+- Voix : Annie, artisane — première personne discrète, phrases courtes, chaleur sans emphase.
+Termine par UNE phrase d'appel à l'action vers le devis (sans lien). Aucun prix, aucun nom de famille, pas de tutoiement.`,
   },
   {
     kind: "assistant.reponse",

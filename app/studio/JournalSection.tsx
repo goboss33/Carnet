@@ -316,7 +316,7 @@ function Wizard({
   const doStory = () =>
     start(async () => {
       setAi("story");
-      const r = await suggestStoryAction({ type, orderId, subject, title, keywords });
+      const r = await suggestStoryAction({ type, orderId, subject, title, keywords, photoNotes: selected.map((id) => alts[id]).filter(Boolean) });
       setAi(null);
       if (typeof r !== "string") { toast.error(r.error); return; }
       setStory(r);

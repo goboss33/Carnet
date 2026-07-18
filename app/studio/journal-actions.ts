@@ -15,7 +15,7 @@ export async function suggestEntryAction(input: { type: JournalType; orderId?: s
   return suggestEntry(tenant.id, input);
 }
 
-export async function suggestStoryAction(input: { type: JournalType; orderId?: string | null; subject?: string; title: string; keywords: string[] }) {
+export async function suggestStoryAction(input: { type: JournalType; orderId?: string | null; subject?: string; title: string; keywords: string[]; photoNotes?: string[] }) {
   const tenant = await currentTenant();
   return suggestStory(tenant.id, input);
 }

@@ -166,10 +166,11 @@ export async function geminiGenerate(opts: {
   temperature?: number;
   maxOutputTokens?: number;
   kind?: string; // étiquette pour le Laboratoire IA (Réglages → Assistant)
+  model?: string; // surcharge ponctuelle (ex. GEMINI_STORY_MODEL pour le récit)
 }): Promise<string | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
-  const model = process.env.GEMINI_MODEL || FALLBACK_MODEL;
+  const model = opts.model || process.env.GEMINI_MODEL || FALLBACK_MODEL;
   const t0 = Date.now();
   const userText = opts.contents
     .map((c) => `[${c.role}] ` + c.parts.map((p) => ("text" in p ? p.text : "[image]")).join("\n"))

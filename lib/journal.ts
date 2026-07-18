@@ -98,15 +98,6 @@ export async function suggestEntry(
   if (input.type === "CREATION" && !brief) return { error: "Commande introuvable." };
   const existing = await prisma.journalEntry.findMany({ where: { tenantId }, select: { slug: true }, take: 300 });
   const cats = JOURNAL_CATEGORIES.map((c) => c.id).join(" | ");
-  // requêtes Google réelles (Search Console) — ancre les mots-clés dans la vraie demande
-  let gscContext = "";
-  try {
-    const { gscDigest } = await import("@/lib/gsc");
-    const d = await gscDigest(tenantId, 90);
-    if (d?.topQueries.length) {
-      gscContext = `\n\nRequêtes Google réelles qui affichent déjà le site (impressions sur 90 j) — appuie-toi dessus quand c'est pertinent :\n${d.topQueries.slice(0, 15).map((q) => `- ${q.query} (${q.impressions})`).join("\n")}`;
-    }
-  } catch { /* GSC optionnel */ }
 
   const out = await geminiGenerate({
     system: SUGGEST_SYSTEM,
@@ -116,7 +107,7 @@ export async function suggestEntry(
         text: `${input.type === "CREATION" ? `Nouvelle page « création » à partir de cette commande livrée :\n${brief}` : `Nouvel article conseil sur le sujet : « ${input.subject ?? "" } »`}
 
 Slugs déjà pris (ta proposition doit être DIFFÉRENTE et se différencier par un angle réel — âge, thème précis, commune — jamais par un numéro) :
-${existing.map((e) => e.slug).join(", ") || "(aucun)"}${gscContext}
+${existing.map((e) => e.slug).join(", ") || "(aucun)"}
 
 Réponds UNIQUEMENT avec cet objet JSON :
 {
@@ -156,21 +147,31 @@ Réponds UNIQUEMENT avec cet objet JSON :
 
 export async function suggestStory(
   tenantId: string,
-  input: { type: JournalType; orderId?: string | null; subject?: string; title: string; keywords: string[] }
+  input: { type: JournalType; orderId?: string | null; subject?: string; title: string; keywords: string[]; photoNotes?: string[] }
 ): Promise<string | { error: string }> {
   const brief = input.orderId ? await orderBrief(tenantId, input.orderId) : null;
+  const photos = (input.photoNotes ?? []).filter(Boolean);
   const out = await geminiGenerate({
     system: SUGGEST_SYSTEM,
+    // GEMINI_STORY_MODEL (optionnel) : un modèle supérieur pour la seule plume du récit
+    model: process.env.GEMINI_STORY_MODEL || undefined,
     contents: [{
       role: "user",
       parts: [{
         text: `Écris le corps de la page en MARKDOWN (pas de H1 — le titre existe déjà : « ${input.title} »).
 ${input.type === "CREATION"
-  ? `C'est le récit d'une création réalisée. Brief factuel :\n${brief ?? "(aucun)"}\n\nStructure : 2-3 courts paragraphes de récit (la demande, les choix de design, les saveurs), un sous-titre "## " si utile. 250-400 mots.`
-  : `C'est un article conseil pratique sur : « ${input.subject ?? input.title} ». Structure : intro courte, 2-4 sections "## " concrètes, 350-550 mots. Donne de vrais repères chiffrés uniquement s'ils sont universellement vrais (ex. nombre de parts par taille standard).`}
-Mots-clés à placer NATURELLEMENT (jamais en liste) : ${input.keywords.join(", ") || "(libres)"}
+  ? `Récit d'une création réalisée. Brief factuel :\n${brief ?? "(aucun)"}${photos.length ? `\nCe que montrent les photos de la page : ${photos.join(" · ")}` : ""}\n\n2-3 paragraphes + un "## " si utile. 220-350 mots.`
+  : `Article conseil pratique sur : « ${input.subject ?? input.title} ». Intro courte, 2-4 sections "## " concrètes, 350-550 mots. Repères chiffrés uniquement s'ils sont universellement vrais.`}
+Thèmes à couvrir naturellement : ${input.keywords.join(", ") || "(libres)"}.
+
+Règles d'écriture impératives :
+- N'insère JAMAIS un mot-clé ou une requête telle quelle : français irréprochable, accents, formulations variées. Google comprend les variantes — le bourrage de mots-clés est interdit et contre-productif.
+- Le gras (**) : au plus une fois, pour un vrai moment du récit — jamais pour un mot-clé.
+- Raconte du CONCRET tiré du brief et des photos : le prénom écrit sur le gâteau s'il y figure, les couleurs réelles, un détail de modelage ou de matière. Rien d'invérifiable.
+- Tournures interdites : « occasion spéciale », « moment magique », « donner vie », « pièce unique », « idéal pour », « garantissant », « faire la part belle », « sublimer », « émerveiller petits et grands », « respecte l'imaginaire ».
+- Voix : Annie, artisane — première personne discrète (« j'ai modelé… »), phrases courtes, chaleur sans emphase ni jargon marketing.
 Termine par UNE phrase d'appel à l'action vers le devis en ligne (sans lien — il sera ajouté par le site).
-Rappel : aucun fait inventé, aucun prix, aucun nom de famille. Tutoiement interdit — la page s'adresse aux visiteurs.`,
+Aucun prix, aucun nom de famille, pas de tutoiement.`,
       }],
     }],
     temperature: 0.6,
