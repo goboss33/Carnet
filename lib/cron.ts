@@ -20,7 +20,21 @@ export function startCron() {
   console.log("Carnet cron : démarré (horaires par tenant, réglables dans /reglages)");
   normalizeExisting().catch((e) => console.error("normalisation:", e));
   retroTagRevenue().catch((e) => console.error("retro-tag:", e));
+  backfillDeliveredAt().catch((e) => console.error("backfill-livre:", e));
   setInterval(() => tick().catch((e) => console.error("cron error:", e)), 60_000);
+}
+
+/** Répare les commandes livrées sans date de livraison (ancien setStatus) :
+    sinon elles échappent au CA du mois et à la colonne Livré. */
+async function backfillDeliveredAt() {
+  const orphans = await prisma.order.findMany({
+    where: { status: "LIVRE", deliveredAt: null },
+    select: { id: true, eventDate: true, updatedAt: true },
+  });
+  for (const o of orphans) {
+    await prisma.order.update({ where: { id: o.id }, data: { deliveredAt: o.eventDate ?? o.updatedAt } });
+  }
+  if (orphans.length) console.log(`Carnet : ${orphans.length} commande(s) livrée(s) redatée(s).`);
 }
 
 /** Passe idempotente : normalise les téléphones/e-mails hérités (import, anciennes saisies). */

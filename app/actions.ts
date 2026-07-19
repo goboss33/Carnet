@@ -149,10 +149,13 @@ export async function moveOrderStatus(orderId: string, status: OrderStatus): Pro
 }
 
 export async function setStatus(orderId: string, status: OrderStatus) {
+  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { deliveredAt: true } });
   await prisma.order.update({
     where: { id: orderId },
     data: {
       status,
+      // livré = comptabilisé : la date de livraison alimente CA du mois et colonne Livré
+      ...(status === "LIVRE" && !order?.deliveredAt ? { deliveredAt: new Date() } : {}),
       ...(status === "ANNULE" ? { cancelledAt: new Date() } : {}),
       activities: { create: { type: "STATUS", body: `Statut → ${status}` } },
     },
