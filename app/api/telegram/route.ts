@@ -198,6 +198,10 @@ async function finishNc(chatId: number, tenantId: string, draft: Draft) {
       `${process.env.APP_URL ?? ""}/commandes/${order.id}`,
     ].filter(Boolean).join("\n")
   );
+  await sayInline(chatId, "📄 As-tu déjà envoyé le devis à cette cliente ?", [[
+    { text: "✅ Oui, devis envoyé", callback_data: `nu:sent:${order.id}` },
+    { text: "Pas encore", callback_data: `nu:leadok:${order.id}` },
+  ]]);
 }
 
 
@@ -693,6 +697,26 @@ async function monthExpenses(chatId: number, tenantId: string) {
   );
 }
 
+/** Liste les commandes actives en boutons cliquables (choix d'une commande). */
+async function pickOrder(chatId: number, tenantId: string, statuses: string[], cbPrefix: string, title: string, empty: string) {
+  const orders = await prisma.order.findMany({
+    where: { tenantId, status: { in: statuses as never } },
+    include: { contact: true },
+    orderBy: [{ eventDate: "asc" }, { createdAt: "desc" }],
+    take: 12,
+  });
+  if (!orders.length) {
+    await say(chatId, empty);
+    return;
+  }
+  const rows = orders.map((o) => {
+    const n = `${o.contact.firstName} ${o.contact.lastName}`.trim();
+    const when = o.eventDate ? ` · ${o.eventDate.toLocaleDateString("fr-CH")}` : "";
+    return [{ text: `${n} — ${o.occasion || "?"}${when}`, callback_data: `${cbPrefix}:${o.id}` }];
+  });
+  await sayInline(chatId, title, [...rows, [{ text: "✖ Fermer", callback_data: "cancel:x" }]]);
+}
+
 async function showMenu(chatId: number, tenantId?: string) {
   let fillLabel = "🧩 Compléter les fiches";
   if (tenantId) {
@@ -702,6 +726,10 @@ async function showMenu(chatId: number, tenantId?: string) {
   }
   await sayInline(chatId, "☰ <b>Menu</b>", [
     [{ text: fillLabel, callback_data: "menu:fill" }],
+    [
+      { text: "💰 Enregistrer un acompte", callback_data: "menu:deposit" },
+      { text: "❌ Annuler une commande", callback_data: "menu:cancelorder" },
+    ],
     [
       { text: "📅 Cette semaine", callback_data: "menu:week" },
       { text: "💰 Dépenses du mois", callback_data: "menu:expenses" },
@@ -829,6 +857,27 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       }
       const name = `${order.contact.firstName} ${order.contact.lastName}`.trim();
 
+      if (action === "askdep") {
+        const dep = order.priceQuoted ? Math.round((order.priceQuoted * settings.depositPct) / 100) : null;
+        await answerCallback(cb.id);
+        await sayInline(
+          chatId,
+          `💰 Acompte de <b>${name}</b>${dep ? ` (attendu : <b>CHF ${dep}</b>, ${settings.depositPct} %)` : ""} — reçu ?`,
+          [
+            [
+              { text: "✅ Reçu", callback_data: `nu:dep:${orderId}` },
+              { text: "✏️ Autre montant", callback_data: `nu:depother:${orderId}` },
+            ],
+            [{ text: "💯 Payé en entier", callback_data: `nu:paidfull:${orderId}` }],
+          ]
+        );
+        return ok();
+      }
+      if (action === "leadok") {
+        await answerCallback(cb.id, "Noté");
+        await editMessage(chatId, mid, `📝 Demande de <b>${name}</b> enregistrée — je te rappellerai de faire le devis.`);
+        return ok();
+      }
       if (action === "sent") {
         await prisma.order.update({
           where: { id: orderId },
@@ -947,10 +996,13 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
           await sayInline(
             chatId,
             `💰 Un acompte de <b>${chf(pay.paidCents)}</b> avait été versé — tu le gardes (compté en recette) ou tu l'as remboursé ?`,
-            [[
-              { text: "✅ Gardé", callback_data: `nu:cxkeep:${orderId}` },
-              { text: "↩️ Remboursé", callback_data: `nu:cxrefund:${orderId}` },
-            ]]
+            [
+              [
+                { text: "✅ Gardé", callback_data: `nu:cxkeep:${orderId}` },
+                { text: "↩️ Remboursé", callback_data: `nu:cxrefund:${orderId}` },
+              ],
+              [{ text: "◐ Partiellement", callback_data: `nu:cxpartial:${orderId}` }],
+            ]
           );
         }
       } else if (action === "cxkeep") {
@@ -967,6 +1019,10 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         });
         await answerCallback(cb.id, "Remboursé ✓");
         await editMessage(chatId, mid, `↩️ Acompte de <b>${name}</b> marqué remboursé — retiré des recettes.`);
+      } else if (action === "cxpartial") {
+        await answerCallback(cb.id);
+        await setStep(chatId, tenant.id, `cxref:${orderId}`, {});
+        await say(chatId, `◐ Quel <b>montant</b> as-tu remboursé à <b>${name}</b> ? (en CHF)`);
       } else if (action === "later") {
         await prisma.order.update({ where: { id: orderId }, data: { lastNudgeAt: new Date() } });
         await answerCallback(cb.id);
@@ -1164,6 +1220,14 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       if (action === "expenses") {
         await answerCallback(cb.id);
         await monthExpenses(chatId, tenant.id);
+        return ok();
+      }
+      if (action === "deposit") {
+        await pickOrder(chatId, tenant.id, ["LEAD", "DEVIS_ENVOYE"], "nu:askdep", "💰 <b>Enregistrer un acompte</b>\nPour quelle commande ?", "Aucune commande en attente d'acompte. 👍");
+        return ok();
+      }
+      if (action === "cancelorder") {
+        await pickOrder(chatId, tenant.id, ["LEAD", "DEVIS_ENVOYE", "ACOMPTE_RECU", "EN_PRODUCTION"], "nu:drop", "❌ <b>Annuler une commande</b>\nLaquelle classer sans suite ?", "Aucune commande à annuler (les livrées ne sont pas concernées). 👍");
         return ok();
       }
       if (action === "scan") {
@@ -1441,6 +1505,32 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       await setStep(chatId, tenant.id, "idle", {});
       await say(chatId, `⭐ ${n} avis, noté. ✅ Bilan bouclé — bon mois ! 🧁\n${process.env.APP_URL ?? ""}/cap`);
     }
+    return ok();
+  }
+
+  /* ---- remboursement partiel (annulation) ---- */
+  if (session?.step?.startsWith("cxref:")) {
+    const orderId = session.step.slice(6);
+    const n = parseFloat(text.replace(",", ".").replace(/[^0-9.]/g, ""));
+    if (isNaN(n) || n <= 0) {
+      await say(chatId, "Un montant en CHF (ex. 30), s'il te plaît.");
+      return ok();
+    }
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { contact: true } });
+    await setStep(chatId, tenant.id, "idle", {});
+    if (!order) { await say(chatId, "Fiche introuvable."); return ok(); }
+    const paid = (order.depositCents ?? 0) + (order.balanceCents ?? 0);
+    const kept = Math.max(0, paid - Math.round(n * 100));
+    // recette annulée : on ne garde en encaissé que la part conservée
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        depositCents: kept || null,
+        balanceCents: null,
+        activities: { create: { type: "STATUS", body: `Annulation : CHF ${n} remboursés, ${chf(kept)} conservés — via le bot.` } },
+      },
+    });
+    await say(chatId, `◐ Remboursement de CHF ${n} noté pour <b>${order.contact.firstName}</b> — ${chf(kept)} restent comptés en recette.`);
     return ok();
   }
 
