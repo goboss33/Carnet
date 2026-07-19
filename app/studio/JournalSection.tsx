@@ -211,6 +211,7 @@ function EditPanel({ photo, onClose, onKept }: { photo: AssetRow; onClose: () =>
   const [preview, setPreview] = useState<string | null>(null);
   const [custom, setCustom] = useState("");
   const [mode, setMode] = useState<"simple" | "zones">("simple");
+  const [model, setModel] = useState<"gemini" | "seedream">("gemini");
   const PRESETS = [
     { id: "photoshoot", emoji: "📸", label: "Photoshoot présentoir" },
     { id: "cleanbg", emoji: "🧹", label: "Nettoyer le fond" },
@@ -220,11 +221,12 @@ function EditPanel({ photo, onClose, onKept }: { photo: AssetRow; onClose: () =>
   const run = (opts: { presetId?: string; prompt?: string; imageDataUri?: string }) =>
     start(async () => {
       setPreview(null);
-      const sub = await aiEditSubmit(photo.id, opts);
-      if (sub.error || !sub.requestId) { toast.error(sub.error ?? "Envoi impossible."); return; }
-      const rid = sub.requestId;
+      const sub = await aiEditSubmit(photo.id, { ...opts, model });
+      if (sub.error) { toast.error(sub.error); return; }
+      if (sub.url) { setPreview(sub.url); return; }          // Nano Banana : direct
+      if (!sub.requestId) { toast.error("Envoi impossible."); return; }
+      const rid = sub.requestId;                              // Seedream : file d'attente
       const deadline = Date.now() + 180_000;
-      // polling : la génération dure ~20-60 s, on interroge la file
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 2500));
         const p = await aiEditPoll(rid);
@@ -247,11 +249,25 @@ function EditPanel({ photo, onClose, onKept }: { photo: AssetRow; onClose: () =>
       <DialogContent title="Retoucher la photo" desc="L'IA change le décor, la lumière ou le cadrage — jamais le gâteau. Original conservé." className="max-w-2xl">
         {/* corps scrollable */}
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Modèle</span>
+            <div className="inline-flex rounded-lg border border-zinc-200 p-0.5">
+              {([["gemini", "Nano Banana Pro"], ["seedream", "Seedream"]] as const).map(([mo, l]) => (
+                <button key={mo} type="button" disabled={pending}
+                  onClick={() => { setModel(mo); setPreview(null); if (mo === "gemini") setMode("simple"); }}
+                  className={cn("rounded-md px-2.5 py-1 text-[12px] font-semibold", model === mo ? "bg-(--color-brand) text-white" : "text-zinc-500 hover:text-zinc-800")}>{l}</button>
+              ))}
+            </div>
+          </div>
           <div className="inline-flex rounded-lg border border-zinc-200 p-0.5">
-            {([["simple", "Rapide"], ["zones", "Zones précises"]] as const).map(([m, l]) => (
-              <button key={m} type="button" onClick={() => setMode(m)}
-                className={cn("rounded-md px-3 py-1 text-[12px] font-semibold", mode === m ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}>{l}</button>
-            ))}
+            {([["simple", "Rapide"], ["zones", "Zones précises"]] as const).map(([m, l]) => {
+              const locked = m === "zones" && model === "gemini";
+              return (
+                <button key={m} type="button" disabled={locked} title={locked ? "Zones précises : uniquement avec Seedream" : undefined}
+                  onClick={() => setMode(m)}
+                  className={cn("rounded-md px-3 py-1 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40", mode === m ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}>{l}</button>
+              );
+            })}
           </div>
 
           {mode === "simple" ? (

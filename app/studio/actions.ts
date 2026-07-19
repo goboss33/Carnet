@@ -33,11 +33,10 @@ export async function purgeStudioAssets(): Promise<{ error?: string; purged?: nu
 
 /* ---------------------------------------------------- édition IA (fal) */
 
-export async function aiEditSubmit(assetId: string, opts: { presetId?: string; prompt?: string; imageDataUri?: string }): Promise<{ error?: string; requestId?: string }> {
+export async function aiEditSubmit(assetId: string, opts: { model?: "gemini" | "seedream"; presetId?: string; prompt?: string; imageDataUri?: string }): Promise<{ error?: string; requestId?: string; url?: string }> {
   const tenant = await currentTenant();
-  const { falEnabled, editSubmit, assetDataUri, EDIT_PRESETS } = await import("@/lib/fal-edit");
+  const { EDIT_PRESETS, assetDataUri } = await import("@/lib/fal-edit");
   const { logAiCall } = await import("@/lib/ai-log");
-  if (!falEnabled()) return { error: "Édition IA non configurée (FAL_KEY à ajouter dans Portainer)." };
   const prompt = opts.presetId ? (EDIT_PRESETS.find((p) => p.id === opts.presetId)?.prompt ?? "") : (opts.prompt ?? "");
   if (prompt.trim().length < 4) return { error: "Décris ce que tu veux modifier." };
   let dataUri = opts.imageDataUri;
@@ -47,11 +46,25 @@ export async function aiEditSubmit(assetId: string, opts: { presetId?: string; p
     dataUri = (await assetDataUri(tenant.id, assetId)) ?? undefined;
   }
   if (!dataUri) return { error: "Photo introuvable." };
+  const zones = opts.imageDataUri ? "[image annotée par zones] " : "";
   const t0 = Date.now();
-  const r = await editSubmit(dataUri, prompt);
-  logAiCall("image.edit", "Seedream 5.0 Pro — édition d'image (fal)", `${opts.imageDataUri ? "[image annotée par zones] " : ""}${prompt}`,
-    "error" in r ? r.error : `Envoyée à la file fal (req ${r.requestId}).`, !("error" in r), Date.now() - t0);
-  return "error" in r ? { error: r.error } : { requestId: r.requestId };
+
+  if (opts.model === "seedream") {
+    const { falEnabled, editSubmit } = await import("@/lib/fal-edit");
+    if (!falEnabled()) return { error: "Seedream non configuré (FAL_KEY à ajouter dans Portainer)." };
+    const r = await editSubmit(dataUri, prompt);
+    logAiCall("image.edit", "Seedream 5.0 Pro — édition d'image (fal)", `${zones}${prompt}`,
+      "error" in r ? r.error : `Envoyée à la file fal (req ${r.requestId}).`, !("error" in r), Date.now() - t0);
+    return "error" in r ? { error: r.error } : { requestId: r.requestId };
+  }
+
+  // défaut : Nano Banana Pro (Gemini), réponse directe
+  const { geminiImageEnabled, editImageGemini } = await import("@/lib/gemini-image");
+  if (!geminiImageEnabled()) return { error: "Nano Banana non configuré (GEMINI_API_KEY manquante)." };
+  const r = await editImageGemini(dataUri, prompt);
+  logAiCall("image.gemini", "Nano Banana Pro — édition d'image (Gemini)", `${zones}${prompt}`,
+    "error" in r ? r.error : "Image générée.", !("error" in r), Date.now() - t0);
+  return "error" in r ? { error: r.error } : { url: r.dataUri };
 }
 
 export async function aiEditPoll(requestId: string): Promise<{ error?: string; pending?: boolean; url?: string }> {
@@ -62,12 +75,21 @@ export async function aiEditPoll(requestId: string): Promise<{ error?: string; p
 
 export async function aiEditKeep(sourceAssetId: string, url: string, note: string): Promise<{ error?: string; id?: string }> {
   const tenant = await currentTenant();
-  if (!/^https:\/\/[\w.-]*fal\.(media|run|ai)\//.test(url)) return { error: "Source invalide." };
+  const isFal = /^https:\/\/[\w.-]*fal\.(media|run|ai)\//.test(url);
+  const isData = url.startsWith("data:image/");
+  if (!isFal && !isData) return { error: "Source invalide." };
   const src = await prisma.studioAsset.findFirst({ where: { id: sourceAssetId, tenantId: tenant.id }, select: { orderId: true } });
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-    if (!res.ok) return { error: "Téléchargement du résultat impossible." };
-    const buf = Buffer.from(await res.arrayBuffer());
+    let buf: Buffer;
+    if (isData) {
+      const m = url.match(/^data:image\/[\w+.-]+;base64,(.+)$/);
+      if (!m) return { error: "Résultat invalide." };
+      buf = Buffer.from(m[1], "base64");
+    } else {
+      const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+      if (!res.ok) return { error: "Téléchargement du résultat impossible." };
+      buf = Buffer.from(await res.arrayBuffer());
+    }
     const { ingestAsset } = await import("@/lib/studio/storage");
     const r = await ingestAsset({
       tenantId: tenant.id, tenantSlug: tenant.slug, buf,

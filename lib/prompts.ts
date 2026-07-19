@@ -14,6 +14,12 @@ export type PromptTemplate = {
 
 export const PROMPT_TEMPLATES: PromptTemplate[] = [
   {
+    kind: "image.gemini",
+    label: "Retouche photo — Nano Banana Pro (Gemini)",
+    where: "lib/gemini-image.ts",
+    template: `[image source + prompt] via gemini-3-pro-image. Presets ou prompt libre — « garde le gâteau identique, change décor/lumière/cadrage ». Mode rapide uniquement (pas de zones).`,
+  },
+  {
     kind: "image.edit",
     label: "Retouche photo — Seedream (fal)",
     where: "lib/fal-edit.ts (presets EDIT_PRESETS + ZoneEditor)",

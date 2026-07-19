@@ -33,7 +33,7 @@ function Segmented({ value, onChange, options }: { value: string; onChange: (v: 
 }
 
 function ProviderLogo({ kind }: { kind: string }) {
-  const isFal = kind.startsWith("image.");
+  const isFal = kind === "image.edit";
   if (isFal) {
     return (
       <span title="fal.ai (Seedream)" className="inline-flex h-4 items-center rounded bg-zinc-900 px-1 text-[10px] font-bold leading-none text-white">fal</span>
