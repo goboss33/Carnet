@@ -14,6 +14,13 @@ export type PromptTemplate = {
 
 export const PROMPT_TEMPLATES: PromptTemplate[] = [
   {
+    kind: "image.edit",
+    label: "Retouche photo — Seedream (fal)",
+    where: "lib/fal-edit.ts (presets EDIT_PRESETS + ZoneEditor)",
+    template: `[image source + prompt] via fal Seedream 5.0 Pro edit.
+Presets (« garde le gâteau identique, change le décor/lumière/cadrage ») ou zones colorées : « Red frame: … / Green frame: … ». Safety checker désactivé.`,
+  },
+  {
     kind: "journal.suggestion",
     label: "Journal — titre, mots-clés & SEO",
     where: "lib/journal.ts (SUGGEST_SYSTEM + suggestEntry)",

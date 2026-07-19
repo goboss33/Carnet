@@ -33,13 +33,13 @@ export async function purgeStudioAssets(): Promise<{ error?: string; purged?: nu
 
 /* ---------------------------------------------------- édition IA (fal) */
 
-export async function aiEditPreview(assetId: string, opts: { presetId?: string; prompt?: string; imageDataUri?: string }): Promise<{ error?: string; url?: string }> {
+export async function aiEditSubmit(assetId: string, opts: { presetId?: string; prompt?: string; imageDataUri?: string }): Promise<{ error?: string; requestId?: string }> {
   const tenant = await currentTenant();
-  const { falEnabled, editImageUrl, assetDataUri, EDIT_PRESETS } = await import("@/lib/fal-edit");
+  const { falEnabled, editSubmit, assetDataUri, EDIT_PRESETS } = await import("@/lib/fal-edit");
+  const { logAiCall } = await import("@/lib/ai-log");
   if (!falEnabled()) return { error: "Édition IA non configurée (FAL_KEY à ajouter dans Portainer)." };
   const prompt = opts.presetId ? (EDIT_PRESETS.find((p) => p.id === opts.presetId)?.prompt ?? "") : (opts.prompt ?? "");
   if (prompt.trim().length < 4) return { error: "Décris ce que tu veux modifier." };
-  // mode zones : le client fournit l'image annotée (rectangles colorés) ; sinon on charge l'asset
   let dataUri = opts.imageDataUri;
   if (dataUri) {
     if (!dataUri.startsWith("data:image/") || dataUri.length > 12_000_000) return { error: "Image annotée invalide." };
@@ -47,8 +47,17 @@ export async function aiEditPreview(assetId: string, opts: { presetId?: string; 
     dataUri = (await assetDataUri(tenant.id, assetId)) ?? undefined;
   }
   if (!dataUri) return { error: "Photo introuvable." };
-  const r = await editImageUrl(dataUri, prompt);
-  return "error" in r ? { error: r.error } : { url: r.url };
+  const t0 = Date.now();
+  const r = await editSubmit(dataUri, prompt);
+  logAiCall("image.edit", "Seedream 5.0 Pro — édition d'image (fal)", `${opts.imageDataUri ? "[image annotée par zones] " : ""}${prompt}`,
+    "error" in r ? r.error : `Envoyée à la file fal (req ${r.requestId}).`, !("error" in r), Date.now() - t0);
+  return "error" in r ? { error: r.error } : { requestId: r.requestId };
+}
+
+export async function aiEditPoll(requestId: string): Promise<{ error?: string; pending?: boolean; url?: string }> {
+  await currentTenant();
+  const { editPoll } = await import("@/lib/fal-edit");
+  return editPoll(requestId);
 }
 
 export async function aiEditKeep(sourceAssetId: string, url: string, note: string): Promise<{ error?: string; id?: string }> {

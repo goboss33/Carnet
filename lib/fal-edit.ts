@@ -33,16 +33,17 @@ export const EDIT_PRESETS: { id: string; label: string; emoji: string; prompt: s
 ];
 
 const GUARD = " Photorealistic result. Never add text, logos or elements that are not present on the original cake.";
+const MODEL = "bytedance/seedream/v5/pro/edit";
 
-/** Édite une image (buffer) → renvoie l'URL du résultat (hébergé chez fal). */
-export async function editImageUrl(sourceDataUri: string, prompt: string): Promise<{ url: string } | { error: string }> {
+/** Soumet une édition à la file fal — renvoie l'id de requête (réponse rapide). */
+export async function editSubmit(sourceDataUri: string, prompt: string): Promise<{ requestId: string } | { error: string }> {
   const key = process.env.FAL_KEY;
   if (!key) return { error: "FAL_KEY non configurée." };
   try {
-    const res = await fetch("https://fal.run/bytedance/seedream/v5/pro/edit", {
+    const res = await fetch(`https://queue.fal.run/${MODEL}`, {
       method: "POST",
       headers: { Authorization: `Key ${key}`, "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(90_000),
+      signal: AbortSignal.timeout(30_000),
       body: JSON.stringify({
         prompt: prompt.slice(0, 1500) + GUARD,
         image_urls: [sourceDataUri],
@@ -53,15 +54,39 @@ export async function editImageUrl(sourceDataUri: string, prompt: string): Promi
       }),
     });
     if (!res.ok) {
-      console.error("fal edit http", res.status, await res.text().catch(() => ""));
-      return { error: `L'édition a échoué (${res.status}).` };
+      console.error("fal submit http", res.status, await res.text().catch(() => ""));
+      return { error: `L'envoi a échoué (${res.status}).` };
     }
     const j = await res.json();
+    return j?.request_id ? { requestId: j.request_id } : { error: "fal n'a pas renvoyé d'identifiant." };
+  } catch (e) {
+    console.error("fal submit", e);
+    return { error: "fal ne répond pas — réessaie dans un instant." };
+  }
+}
+
+/** Interroge la file fal — { pending } tant que ça travaille, { url } au bout. */
+export async function editPoll(requestId: string): Promise<{ pending?: boolean; url?: string; error?: string }> {
+  const key = process.env.FAL_KEY;
+  if (!key) return { error: "FAL_KEY non configurée." };
+  if (!/^[\w-]{6,80}$/.test(requestId)) return { error: "Identifiant invalide." };
+  try {
+    const st = await fetch(`https://queue.fal.run/${MODEL}/requests/${requestId}/status`, {
+      headers: { Authorization: `Key ${key}` }, signal: AbortSignal.timeout(20_000),
+    });
+    if (!st.ok) return { error: `Statut indisponible (${st.status}).` };
+    const sj = await st.json();
+    if (sj?.status !== "COMPLETED") return { pending: true };
+    const rj = await fetch(`https://queue.fal.run/${MODEL}/requests/${requestId}`, {
+      headers: { Authorization: `Key ${key}` }, signal: AbortSignal.timeout(20_000),
+    });
+    if (!rj.ok) return { error: `Résultat indisponible (${rj.status}).` };
+    const j = await rj.json();
     const url = j?.images?.[0]?.url;
     return url ? { url } : { error: "Aucune image renvoyée." };
   } catch (e) {
-    console.error("fal edit", e);
-    return { error: "fal ne répond pas — réessaie dans un instant." };
+    console.error("fal poll", e);
+    return { error: "fal ne répond pas — réessaie." };
   }
 }
 

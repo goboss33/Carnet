@@ -1,18 +1,7 @@
 /* Analyse d'un ticket de caisse via Gemini (API REST, clé du projet GCP). */
 
 /* ------------------------- Laboratoire IA : trace de chaque appel ------ */
-const TRIM = (x: string, n = 20000) => (x.length > n ? x.slice(0, n) + "\n… (tronqué)" : x);
-function logPrompt(kind: string, system: string, user: string, response: string | null, ok: boolean, ms: number) {
-  // fire-and-forget — le Lab ne doit jamais ralentir ni casser un appel
-  (async () => {
-    const { prisma } = await import("@/lib/db");
-    await prisma.promptLog.create({ data: { kind, system: TRIM(system), user: TRIM(user), response: TRIM(response ?? ""), ok, ms } });
-    if (Math.random() < 0.1) {
-      const old = await prisma.promptLog.findMany({ orderBy: { createdAt: "desc" }, skip: 100, select: { id: true } });
-      if (old.length) await prisma.promptLog.deleteMany({ where: { id: { in: old.map((o) => o.id) } } });
-    }
-  })().catch(() => null);
-}
+import { logAiCall as logPrompt } from "@/lib/ai-log";
 
 export type ReceiptData = {
   merchant: string;

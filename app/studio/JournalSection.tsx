@@ -23,7 +23,7 @@ import {
   suggestEntryAction, suggestStoryAction, suggestAltsAction, checkSlugAction, suggestKeywordsAction,
   saveJournalEntry, unpublishJournalEntry, deleteJournalEntry, type JournalPayload,
 } from "./journal-actions";
-import { aiEditPreview, aiEditKeep } from "./actions";
+import { aiEditSubmit, aiEditPoll, aiEditKeep } from "./actions";
 import ZoneEditor from "./ZoneEditor";
 
 export type EntryRow = {
@@ -220,9 +220,18 @@ function EditPanel({ photo, onClose, onKept }: { photo: AssetRow; onClose: () =>
   const run = (opts: { presetId?: string; prompt?: string; imageDataUri?: string }) =>
     start(async () => {
       setPreview(null);
-      const r = await aiEditPreview(photo.id, opts);
-      if (r.error) { toast.error(r.error); return; }
-      setPreview(r.url ?? null);
+      const sub = await aiEditSubmit(photo.id, opts);
+      if (sub.error || !sub.requestId) { toast.error(sub.error ?? "Envoi impossible."); return; }
+      const rid = sub.requestId;
+      const deadline = Date.now() + 180_000;
+      // polling : la génération dure ~20-60 s, on interroge la file
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const p = await aiEditPoll(rid);
+        if (p.error) { toast.error(p.error); return; }
+        if (p.url) { setPreview(p.url); return; }
+      }
+      toast.error("La retouche prend trop de temps — réessaie.");
     });
   const keep = () =>
     start(async () => {
