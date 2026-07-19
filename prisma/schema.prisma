@@ -49,6 +49,8 @@ model Settings {
   fieldFollowupDays  Int?
   cronProduction     Boolean @default(true)
   productionLeadDays Int?
+  cronHandover       Boolean @default(true)
+  postHandoverHours  Int? // relance « c'est livré ? » N h après l'heure de remise
   gcalSync           Boolean @default(true)
   handoverLeadDays   Int?
   studioEnabled      Boolean @default(false)
@@ -186,6 +188,7 @@ model Order {
 
   revenueCategory RevenueCategory @default(SUR_MESURE)
   reviewAskedAt       DateTime?
+  handoverAskedAt     DateTime? // relance post-remise envoyée
   lastNudgeAt         DateTime?
   anniversaryNudgedAt DateTime?
   cancelledAt         DateTime?

@@ -2,13 +2,14 @@
 import {
   Sun, Moon, MessageSquareHeart, Cake, TrendingUp, Puzzle, ChefHat,
   Inbox, Handshake, BellRing, Coins, UserCheck, Sparkles,
-  CirclePlus, ScanLine, CalendarDays, Wallet, LayoutGrid, Bot, CalendarCheck,
+  CirclePlus, ScanLine, CalendarDays, Wallet, LayoutGrid, Bot, CalendarCheck, Search, Palette, Newspaper, PackageCheck,
 } from "lucide-react";
 
 export const AUTOMATION_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   Sun, Moon, MessageSquareHeart, Cake, TrendingUp, Puzzle, ChefHat,
   Inbox, Handshake, BellRing, Coins, UserCheck, Sparkles,
   CirclePlus, ScanLine, CalendarDays, Wallet, LayoutGrid, CalendarCheck,
+  Search, Palette, Newspaper, PackageCheck,
 };
 
 export function AutomationIcon({ name, className }: { name: string; className?: string }) {

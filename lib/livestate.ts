@@ -32,6 +32,14 @@ export async function automationsLive(tenantId: string): Promise<Record<string, 
     }),
     prisma.order.count({ where: { tenantId, status: "LEAD" } }),
   ]);
+  /* ------------------------------------------------------ 📦 post-remise */
+  const hn = await prisma.order.findMany({
+    where: { tenantId, status: { in: ["ACOMPTE_RECU", "EN_PRODUCTION"] }, handoverAt: { not: null, lt: new Date(now - s.postHandoverHours * 3600000) }, handoverAskedAt: null },
+    include: { contact: true },
+    take: 4,
+  });
+  if (hn.length) out.handover = hn.map((o) => `📦 ${o.contact.firstName} — remis, à confirmer livré`);
+
   /* ---------------------------------------------------------- 📰 journal */
   const jr = await prisma.journalEntry.findMany({
     where: { tenantId, status: "PROGRAMMEE" },

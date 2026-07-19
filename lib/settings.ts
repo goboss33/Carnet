@@ -25,6 +25,8 @@ export type EffectiveSettings = {
   fieldFollowupDays: number;
   cronProduction: boolean;
   productionLeadDays: number;
+  cronHandover: boolean;
+  postHandoverHours: number;
   gcalSync: boolean;
   handoverLeadDays: number;
   studioEnabled: boolean;
@@ -76,6 +78,8 @@ export async function getSettings(tenantId: string): Promise<EffectiveSettings> 
     fieldFollowupDays: s?.fieldFollowupDays ?? 2,
     cronProduction: s?.cronProduction ?? true,
     productionLeadDays: s?.productionLeadDays ?? 3,
+    cronHandover: s?.cronHandover ?? true,
+    postHandoverHours: s?.postHandoverHours ?? 1,
     gcalSync: s?.gcalSync ?? true,
     handoverLeadDays: s?.handoverLeadDays ?? 2,
     studioEnabled: s?.studioEnabled ?? false,

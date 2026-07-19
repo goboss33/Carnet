@@ -7,7 +7,7 @@
 --------------------------------------------------------------------------- */
 
 import { prisma } from "@/lib/db";
-import { notifyAll, sayInline } from "@/lib/telegram";
+import { notifyAll, notifyAllInline, sayInline } from "@/lib/telegram";
 import { waLink } from "@/lib/wa";
 import { normPhone, normEmail } from "@/lib/normalize";
 import { getSettings } from "@/lib/settings";
@@ -74,6 +74,8 @@ async function tick() {
   const tenants = await prisma.tenant.findMany();
   for (const t of tenants) {
     const s = await getSettings(t.id);
+    // 📦 relance post-remise — à la minute près, ~N h après l'heure de remise
+    if (s.cronHandover) await handoverNudges(t, s).catch((e) => console.error("handover:", e));
     // 📰 pages du site programmées — à la minute près
     if (s.cronJournal) {
       const { runJournalPublisher } = await import("@/lib/journal");
@@ -165,6 +167,40 @@ async function monthlyReport(t: Tenant, dryRun = false) {
 /* ------------------------------------------------ suivi du soir
    Max 3 questions, par urgence : livraison à confirmer > lead sans réponse
    > devis sans nouvelles. Cooldown 2 jours par fiche (lastNudgeAt). */
+/* Relance post-remise : ~N h après l'heure de remise (handoverAt), demande
+   « c'est livré ? ». Réactif (à chaque tick), une fois par commande. */
+async function handoverNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings>>, dryRun = false): Promise<number> {
+  const cutoff = new Date(Date.now() - s.postHandoverHours * 3600000);
+  const due = await prisma.order.findMany({
+    where: {
+      tenantId: t.id,
+      status: { in: ["ACOMPTE_RECU", "EN_PRODUCTION"] },
+      handoverAt: { not: null, lt: cutoff },
+      handoverAskedAt: null,
+    },
+    include: { contact: true },
+    orderBy: { handoverAt: "asc" },
+    take: 5,
+  });
+  if (!due.length) {
+    if (dryRun) await notifyAll(`🧪 Relance post-remise : aucune commande dont l'heure de remise est passée depuis ${s.postHandoverHours} h (et pas encore confirmée livrée).`);
+    return 0;
+  }
+  for (const o of due) {
+    const name = `${o.contact.firstName} ${o.contact.lastName}`.trim();
+    const h = o.handoverAt!.toLocaleTimeString("fr-CH", { timeZone: "Europe/Zurich", hour: "2-digit", minute: "2-digit" });
+    await notifyAllInline(
+      `📦 Le gâteau de <b>${name}</b> (${o.occasion || "?"}), remis à ${h} — c'est livré ?`,
+      [[
+        { text: "✅ Livré", callback_data: `nu:delivered:${o.id}` },
+        { text: "⏰ Plus tard", callback_data: `nu:later:${o.id}` },
+      ]]
+    );
+    if (!dryRun) await prisma.order.update({ where: { id: o.id }, data: { handoverAskedAt: new Date(), lastNudgeAt: new Date() } });
+  }
+  return due.length;
+}
+
 async function eveningNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings>>, dryRun = false) {
   const now = Date.now();
   const cooldown = new Date(now - s.nudgeCooldownDays * 86400000);
@@ -574,6 +610,7 @@ export async function testTrigger(tenantId: string, kind: string): Promise<{ ok:
       case "birthday": await birthdayNudges(t, s, true); break;
       case "fields": await fieldNudges(t, s, 99, true); break;
       case "production": await autoProduction(t, s, true); break;
+      case "handover": await handoverNudges(t, s, true); break;
       case "monthly": await monthlyReport(t, true); break;
       case "journal": { const { runJournalPublisher } = await import("@/lib/journal"); await runJournalPublisher(t, true); break; }
       case "themes": await runThemeCheck(t, true); break;

@@ -228,18 +228,23 @@ export async function recordPayment(orderId: string, formData: FormData) {
   if (!order) return;
   const depositCents = Math.round((d.depositChf ?? 0) * 100);
   const balanceCents = Math.round((d.balanceChf ?? 0) * 100);
+  // acompte encaissé sur un lead/devis → la commande est confirmée
+  const promote = depositCents > 0 && (order.status === "LEAD" || order.status === "DEVIS_ENVOYE");
   await prisma.order.update({
     where: { id: orderId },
     data: {
+      ...(promote ? { status: "ACOMPTE_RECU" as OrderStatus } : {}),
       depositCents: depositCents || null,
       balanceCents: balanceCents || null,
       depositPaidAt: depositCents ? (order.depositPaidAt ?? new Date()) : null,
       balancePaidAt: balanceCents ? (order.balancePaidAt ?? new Date()) : null,
-      activities: { create: { type: "STATUS", body: "Paiement mis à jour depuis la fiche." } },
+      activities: { create: { type: "STATUS", body: promote ? "Acompte encaissé — commande confirmée (Acompte reçu)." : "Paiement mis à jour depuis la fiche." } },
     },
   });
+  if (promote) void syncOrderEvent(orderId).catch(() => null);
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
+  revalidatePath("/compta");
 }
 
 /** Marque une commande intégralement payée (acompte = total, solde = 0). */
@@ -814,6 +819,8 @@ export async function saveSettings(formData: FormData) {
     cronMonthly: formData.get("cronMonthly") === "on",
     cronFieldNudges: formData.get("cronFieldNudges") === "on",
     cronProduction: formData.get("cronProduction") === "on",
+    cronHandover: formData.get("cronHandover") === "on",
+    postHandoverHours: clampInt(num("postHandoverHours"), 1, 12),
     gcalSync: formData.get("gcalSync") === "on",
     studioEnabled: formData.get("studioEnabled") === "on",
     cronJournal: formData.get("cronJournal") === "on",
