@@ -1,5 +1,9 @@
 /* ---------------------------------------------------------------------------
-   DataForSEO — mots-clés du wizard Journal, ciblage Suisse / français.
+   DataForSEO — EN RÉSERVE (v2 du wizard) : les mots-clés Gemini validés
+   par l'humain serviront de graines pour quantifier les volumes ici.
+   Module autonome, aucun câblage UI pour l'instant — décision produit.
+
+   Mots-clés du wizard Journal, ciblage Suisse / français.
    v2 : API Labs (keyword_suggestions ancrées sur la PHRASE complète +
    related), variations locales par ville, et un conseil déterministe
    (« thème+ville ≈ 0 → cible occasion+ville, différencie-toi sur la

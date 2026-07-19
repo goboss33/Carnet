@@ -32,7 +32,19 @@ Slugs déjà pris (ta proposition doit être DIFFÉRENTE et se différencier par
 
 Réponds UNIQUEMENT avec cet objet JSON :
 { title, slug, category, meta_title (≤60), meta_description (≤155), alt_ideas[6] }
-(Les mots-clés ne sont PAS demandés à l'IA : ils viennent des champs de la commande + DataForSEO + choix humain.)`,
+(Les mots-clés ne sont PAS demandés ici : ils viennent de journal.keywords + choix humain.)`,
+  },
+  {
+    kind: "journal.keywords",
+    label: "Journal — mots-clés en trois traînes",
+    where: "lib/journal.ts (suggestKeywords)",
+    template: `[system] (le même que journal.suggestion)
+
+[user]
+Propose des mots-clés de recherche Google pour {la page d'une création livrée (brief factuel) | un article conseil sur « {sujet} »}.
+Trois groupes, 4 propositions par groupe : "short" (2 mots), "mid" (3 mots, + occasion ou ville), "long" (4+ mots, occasion + thème + ville/attribut).
+Règles : accents, minuscules, pas de doublons, uniquement des requêtes de CLIENTES (jamais recette/coloriage/facile). Villes : Lausanne, Pully, Vevey, Montreux, Morges.
+JSON strict : {"short": [], "mid": [], "long": []}`,
   },
   {
     kind: "journal.recit",

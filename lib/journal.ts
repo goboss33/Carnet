@@ -109,6 +109,43 @@ function extractJsonLoose(raw: string): Record<string, unknown> | null {
   try { return JSON.parse(cleaned.slice(start, end + 1)); } catch { return null; }
 }
 
+type KeywordGroups = { short: string[]; mid: string[]; long: string[] };
+
+/** Mots-clés en trois traînes (Gemini, depuis le brief) — l'humain choisit. */
+export async function suggestKeywords(
+  tenantId: string,
+  input: { type: JournalType; orderId?: string | null; subject?: string }
+): Promise<KeywordGroups | { error: string }> {
+  const brief = input.orderId ? await orderBrief(tenantId, input.orderId) : null;
+  if (input.type === "CREATION" && !brief) return { error: "Commande introuvable." };
+  const out = await geminiGenerate({
+    system: SUGGEST_SYSTEM,
+    contents: [{
+      role: "user",
+      parts: [{
+        text: `${input.type === "CREATION" ? `Propose des mots-clés de recherche Google pour la page d'une création livrée. Brief factuel :\n${brief}` : `Propose des mots-clés de recherche Google pour un article conseil sur : « ${input.subject ?? "" } »`}
+
+Trois groupes, 4 propositions PAR groupe (12 en tout), du plus court au plus précis :
+- "short" (courte traîne, 2 mots) : le produit + un attribut fort — ex. « gâteau licorne », « gâteau 4 ans »
+- "mid" (moyenne traîne, 3 mots) : + l'occasion OU une ville — ex. « gâteau anniversaire licorne », « gâteau anniversaire montreux »
+- "long" (longue traîne, 4 mots et plus) : occasion + thème + ville ou attribut — ex. « gâteau anniversaire licorne lausanne »
+
+Règles : français irréprochable AVEC accents, minuscules, aucun doublon entre groupes, uniquement des requêtes qu'une vraie cliente taperait (jamais « recette », « coloriage », « facile » — elles cherchent à COMMANDER). Villes de la zone : Lausanne, Pully, Vevey, Montreux, Morges.
+Réponds UNIQUEMENT avec ce JSON : {"short": ["…"], "mid": ["…"], "long": ["…"]}`,
+      }],
+    }],
+    temperature: 0.4,
+    maxOutputTokens: 2048,
+    kind: "journal.keywords",
+  });
+  if (!out) return { error: "Gemini indisponible — réessaie dans un instant." };
+  const j = extractJsonLoose(out);
+  if (!j) return { error: "Réponse IA illisible — réessaie." };
+  const grp = (v: unknown) =>
+    Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim()).map((x) => String(x).trim().toLowerCase().slice(0, 60)).slice(0, 4) : [];
+  return { short: grp(j.short), mid: grp(j.mid), long: grp(j.long) };
+}
+
 export async function suggestEntry(
   tenantId: string,
   input: { type: JournalType; orderId?: string | null; subject?: string; keywords?: string[] }
