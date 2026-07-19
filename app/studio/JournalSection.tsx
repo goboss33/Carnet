@@ -24,6 +24,7 @@ import {
   saveJournalEntry, unpublishJournalEntry, deleteJournalEntry, type JournalPayload,
 } from "./journal-actions";
 import { aiEditPreview, aiEditKeep } from "./actions";
+import ZoneEditor from "./ZoneEditor";
 
 export type EntryRow = {
   id: string; type: "CREATION" | "ARTICLE"; status: "BROUILLON" | "PROGRAMMEE" | "PUBLIEE";
@@ -215,7 +216,8 @@ function EditPanel({ photo, onClose, onKept }: { photo: AssetRow; onClose: () =>
     { id: "studiolight", emoji: "☀️", label: "Lumière studio" },
     { id: "zoom", emoji: "🔍", label: "Zoom sur un détail" },
   ];
-  const run = (opts: { presetId?: string; prompt?: string }) =>
+  const [mode, setMode] = useState<"simple" | "zones">("simple");
+  const run = (opts: { presetId?: string; prompt?: string; imageDataUri?: string }) =>
     start(async () => {
       setPreview(null);
       const r = await aiEditPreview(photo.id, opts);
@@ -251,19 +253,31 @@ function EditPanel({ photo, onClose, onKept }: { photo: AssetRow; onClose: () =>
           </div>
         </div>
         <div className="mt-4 space-y-3">
-          <div className="flex flex-wrap gap-1.5">
-            {PRESETS.map((p) => (
-              <Button key={p.id} size="sm" variant="outline" disabled={pending} onClick={() => run({ presetId: p.id })}>
-                {p.emoji} {p.label}
-              </Button>
+          <div className="inline-flex rounded-lg border border-zinc-200 p-0.5">
+            {([["simple", "Rapide"], ["zones", "Zones précises"]] as const).map(([m, l]) => (
+              <button key={m} type="button" onClick={() => setMode(m)}
+                className={cn("rounded-md px-3 py-1 text-[12px] font-semibold", mode === m ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}>{l}</button>
             ))}
           </div>
-          <div className="flex gap-2">
-            <Input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Ou décris : « fond rose pâle, gâteau sur une table en bois »" />
-            <Button size="sm" variant="outline" disabled={pending || custom.trim().length < 4} onClick={() => run({ prompt: custom })}>
-              {pending ? <Loader2 className="animate-spin" /> : <Wand2 />} Générer
-            </Button>
-          </div>
+          {mode === "simple" ? (
+            <>
+              <div className="flex flex-wrap gap-1.5">
+                {PRESETS.map((p) => (
+                  <Button key={p.id} size="sm" variant="outline" disabled={pending} onClick={() => run({ presetId: p.id })}>
+                    {p.emoji} {p.label}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Ou décris : « fond rose pâle, gâteau sur une table en bois »" />
+                <Button size="sm" variant="outline" disabled={pending || custom.trim().length < 4} onClick={() => run({ prompt: custom })}>
+                  {pending ? <Loader2 className="animate-spin" /> : <Wand2 />} Générer
+                </Button>
+              </div>
+            </>
+          ) : (
+            <ZoneEditor src={photo.file} pending={pending} onGenerate={(dataUri, prompt) => run({ prompt, imageDataUri: dataUri })} />
+          )}
           <div className="flex justify-end gap-2 border-t border-zinc-100 pt-3">
             <Button variant="ghost" size="sm" onClick={onClose}>Fermer</Button>
             <Button variant="brand" size="sm" disabled={pending || !preview} onClick={keep}>Ajouter à la bibliothèque</Button>

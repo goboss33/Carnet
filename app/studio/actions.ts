@@ -33,13 +33,19 @@ export async function purgeStudioAssets(): Promise<{ error?: string; purged?: nu
 
 /* ---------------------------------------------------- édition IA (fal) */
 
-export async function aiEditPreview(assetId: string, opts: { presetId?: string; prompt?: string }): Promise<{ error?: string; url?: string }> {
+export async function aiEditPreview(assetId: string, opts: { presetId?: string; prompt?: string; imageDataUri?: string }): Promise<{ error?: string; url?: string }> {
   const tenant = await currentTenant();
   const { falEnabled, editImageUrl, assetDataUri, EDIT_PRESETS } = await import("@/lib/fal-edit");
   if (!falEnabled()) return { error: "Édition IA non configurée (FAL_KEY à ajouter dans Portainer)." };
   const prompt = opts.presetId ? (EDIT_PRESETS.find((p) => p.id === opts.presetId)?.prompt ?? "") : (opts.prompt ?? "");
   if (prompt.trim().length < 4) return { error: "Décris ce que tu veux modifier." };
-  const dataUri = await assetDataUri(tenant.id, assetId);
+  // mode zones : le client fournit l'image annotée (rectangles colorés) ; sinon on charge l'asset
+  let dataUri = opts.imageDataUri;
+  if (dataUri) {
+    if (!dataUri.startsWith("data:image/") || dataUri.length > 12_000_000) return { error: "Image annotée invalide." };
+  } else {
+    dataUri = (await assetDataUri(tenant.id, assetId)) ?? undefined;
+  }
   if (!dataUri) return { error: "Photo introuvable." };
   const r = await editImageUrl(dataUri, prompt);
   return "error" in r ? { error: r.error } : { url: r.url };
