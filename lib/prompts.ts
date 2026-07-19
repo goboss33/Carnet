@@ -55,7 +55,7 @@ JSON strict : {"short": [], "mid": [], "long": []}`,
 
 [user]
 Écris le corps de la page en MARKDOWN (pas de H1 — le titre existe déjà : « {titre} »).
-{si création : « Récit d'une création réalisée. Brief factuel : {brief}. » + selon le format : ARTICLE « 2-4 paragraphes, 220-380 mots » · VIDEO « texte court accompagnant la vidéo, 80-150 mots, sans intertitre » · DIAPORAMA « intro brève 60-120 mots, sans intertitre »}
+{selon le TEMPLATE : RECIT « récit d'une création, brief factuel, 2-4 paragraphes 220-380 mots, 2-3 intertitres » · GALERIE « intro brève 60-120 mots, sans intertitre » · GUIDE « article conseil, intro + sections, 350-550 mots » · ANNONCE « billet éditorial première personne, 150-300 mots, au plus un intertitre »}
 {si article : « Article conseil pratique sur : « {sujet} ». Intro courte puis sections concrètes, 350-550 mots. »}
 Contexte de ciblage (DÉJÀ couvert par titre/adresse/métadonnées — n'en force aucun) : {mots-clés}.
 

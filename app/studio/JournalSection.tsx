@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Sparkles, ExternalLink, Trash2, Pencil, EyeOff,
-  ChevronLeft, ChevronRight, Star, Loader2, X, Play, Images, Upload, Search,
+  ChevronLeft, ChevronRight, Star, Loader2, X, Images, Upload, Search, Megaphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/table";
 import { useConfirm } from "@/components/ui/table-kit";
 import { cn } from "@/lib/ui";
+import { TEMPLATE_META } from "@/lib/journal-templates";
 import type { AssetRow } from "./StudioClient";
 import {
   suggestEntryAction, suggestStoryAction, suggestAltsAction, checkSlugAction, suggestKeywordsAction,
@@ -25,6 +26,7 @@ import {
 
 export type EntryRow = {
   id: string; type: "CREATION" | "ARTICLE"; status: "BROUILLON" | "PROGRAMMEE" | "PUBLIEE";
+  template: "RECIT" | "GALERIE" | "GUIDE" | "ANNONCE" | "SELECTION";
   format: "ARTICLE" | "VIDEO" | "DIAPORAMA"; videoAssetId: string; youtubeUrl: string;
   category: string; orderId: string | null; slug: string; title: string;
   metaTitle: string; metaDescription: string; keywords: string[]; story: string;
@@ -94,12 +96,11 @@ function MdPreview({ md, photoThumbs = [] }: { md: string; photoThumbs?: string[
 
 /* ============================================================= section */
 export default function JournalSection({
-  entries, orders, photos, videos, siteBase, openWizardForOrder,
+  entries, orders, photos, siteBase, openWizardForOrder,
 }: {
   entries: EntryRow[];
   orders: OrderOption[];
   photos: AssetRow[];
-  videos: AssetRow[];
   siteBase: string | null; // ex. https://mamangateau.ch/creations
   openWizardForOrder: string | null; // ?page=<orderId> → wizard ouvert pré-rempli
 }) {
@@ -193,7 +194,6 @@ export default function JournalSection({
           defaultSubject={wizard.subject ?? null}
           orders={orders}
           photos={photos}
-          videos={videos}
           siteBase={siteBase}
           onClose={(refresh) => { setWizard(null); if (refresh) router.refresh(); }}
         />
@@ -203,17 +203,16 @@ export default function JournalSection({
 }
 
 /* ============================================================= wizard */
-const STEPS = ["Sujet", "Photos", "Récit", "Publication"] as const;
+const STEPS = ["Template", "Sujet", "Photos", "Récit", "Publication"] as const;
 
 function Wizard({
-  entry, defaultOrderId, defaultSubject, orders, photos, videos, siteBase, onClose,
+  entry, defaultOrderId, defaultSubject, orders, photos, siteBase, onClose,
 }: {
   entry: EntryRow | null;
   defaultOrderId: string | null;
   defaultSubject: string | null;
   orders: OrderOption[];
   photos: AssetRow[];
-  videos: AssetRow[];
   siteBase: string | null;
   onClose: (refresh: boolean) => void;
 }) {
@@ -223,10 +222,9 @@ function Wizard({
   const [pending, start] = useTransition();
   const [ai, setAi] = useState<null | "entry" | "story">(null);
 
-  const [type, setType] = useState<"CREATION" | "ARTICLE">(entry?.type ?? (defaultSubject ? "ARTICLE" : "CREATION"));
-  const [format, setFormat] = useState<"ARTICLE" | "VIDEO" | "DIAPORAMA">(entry?.format ?? "ARTICLE");
-  const [videoAssetId, setVideoAssetId] = useState(entry?.videoAssetId ?? "");
-  const [youtubeUrl, setYoutubeUrl] = useState(entry?.youtubeUrl ?? "");
+  const [template, setTemplate] = useState<"RECIT" | "GALERIE" | "GUIDE" | "ANNONCE" | "SELECTION">(entry?.template ?? (defaultSubject ? "GUIDE" : "RECIT"));
+  const meta = TEMPLATE_META[template];
+  const isCreation = meta.needsOrder;
   const [uploading, setUploading] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
   const [orderId, setOrderId] = useState<string | null>(entry?.orderId ?? defaultOrderId);
@@ -276,7 +274,7 @@ function Wizard({
   const doSuggest = () =>
     start(async () => {
       setAi("entry");
-      const r = await suggestEntryAction({ type, orderId: type === "CREATION" ? orderId : null, subject, keywords });
+      const r = await suggestEntryAction({ type: meta.type, orderId: isCreation ? orderId : null, subject, keywords });
       setAi(null);
       if ("error" in r) { toast.error(r.error); return; }
       setTitle(r.title);
@@ -291,7 +289,7 @@ function Wizard({
   const doFindKeywords = () =>
     start(async () => {
       setAi("entry");
-      const r = await suggestKeywordsAction({ type, orderId: type === "CREATION" ? orderId : null, subject });
+      const r = await suggestKeywordsAction({ type: meta.type, orderId: isCreation ? orderId : null, subject });
       setAi(null);
       if ("error" in r) { toast.error(r.error); return; }
       setKwGroups(r);
@@ -303,7 +301,7 @@ function Wizard({
       setAi("story");
       const body = selected.filter((id) => id !== cover);
       const r = await suggestStoryAction({
-        type, format, orderId, subject, title, keywords,
+        template, orderId, subject, title, keywords,
         coverAlt: alts[cover] ?? "",
         photos: body.map((id) => ({ assetId: id, alt: alts[id] ?? "" })),
       });
@@ -328,7 +326,7 @@ function Wizard({
     start(async () => {
       const payload: JournalPayload = {
         id: entry?.id,
-        type, format, videoAssetId, youtubeUrl,
+        template,
         orderId, title, slug, category: category as JournalPayload["category"],
         keywords,
         story,
@@ -348,8 +346,9 @@ function Wizard({
     });
 
   const stepOk = [
-    type === "ARTICLE" ? (subject.trim().length > 2 || title.trim().length > 2) : !!orderId,
-    format !== "VIDEO" || !!videoAssetId, // vidéo : le clip principal est requis
+    true, // template choisi (défaut valide)
+    isCreation ? !!orderId : (subject.trim().length > 2 || title.trim().length > 2),
+    true, // photos
     true,
     !!title.trim() && !!slug.trim() && slugState !== "taken",
   ][step];
@@ -377,27 +376,35 @@ function Wizard({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
         {/* ---------------------------------------------- étape 1 : sujet */}
         {step === 0 && (
-          <div className="space-y-4">
-            <div className="flex gap-2">
-              {([["CREATION", "Création réalisée", "Le récit d'une commande livrée — galerie en avant"], ["ARTICLE", "Article conseil", "Une question fréquente → une page qui répond"]] as const).map(([id, label, hint]) => (
-                <button key={id} type="button" disabled={!!entry} onClick={() => setType(id)} className={cn("flex-1 rounded-lg border px-3 py-2 text-left text-[13px] disabled:opacity-60", type === id ? "border-(--color-brand) bg-(--color-brand-soft)" : "border-zinc-200 hover:border-zinc-300")}>
-                  <span className="font-medium text-zinc-900">{label}</span>
+          <div className="space-y-2.5">
+            <p className="text-[12px] text-zinc-500">Choisis le type de page — il fixe la mise en forme et le ton.</p>
+            {([
+              ["RECIT", FileText, "Récit d'une création", "L'histoire d'un gâteau livré, photos dans le texte"],
+              ["GALERIE", Images, "Galerie", "Les photos d'une création en vedette, texte court"],
+              ["GUIDE", FileText, "Guide conseil", "Une question fréquente → une réponse utile (SEO)"],
+              ["ANNONCE", Megaphone, "Annonce", "Un gâteau signature, une prise de parole — ton libre"],
+              ["SELECTION", Images, "Sélection d'idées", "Plusieurs créations sur un thème — bientôt", true],
+            ] as const).map(([id, Icon, label, hint, soon]) => (
+              <button
+                key={id} type="button" disabled={!!entry || !!soon}
+                onClick={() => setTemplate(id as typeof template)}
+                className={cn("flex w-full items-start gap-3 rounded-xl border px-3.5 py-2.5 text-left disabled:cursor-not-allowed disabled:opacity-50",
+                  template === id ? "border-(--color-brand) bg-(--color-brand-soft)" : "border-zinc-200 hover:border-zinc-300")}
+              >
+                <Icon className="mt-0.5 size-4 shrink-0 text-(--color-brand)" />
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-semibold text-zinc-900">{label}{soon ? " · bientôt" : ""}</span>
                   <span className="block text-[11px] text-zinc-500">{hint}</span>
-                </button>
-              ))}
-            </div>
-            <div>
-              <Label>Format de la page</Label>
-              <div className="flex gap-2">
-                {([["ARTICLE", "Article illustré", "photos dans le récit", FileText], ["VIDEO", "Vidéo + texte", "le clip en vedette", Play], ["DIAPORAMA", "Diaporama", "la galerie d'abord", Images]] as const).map(([id, label, hint, Icon]) => (
-                  <button key={id} type="button" onClick={() => setFormat(id)} className={cn("flex-1 rounded-lg border px-3 py-2 text-left text-[13px]", format === id ? "border-(--color-brand) bg-(--color-brand-soft)" : "border-zinc-200 hover:border-zinc-300")}>
-                    <span className="flex items-center gap-1.5 font-medium text-zinc-900"><Icon className="size-3.5" /> {label}</span>
-                    <span className="block text-[11px] text-zinc-500">{hint}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            {type === "CREATION" ? (
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ---------------------------------------------- étape 2 : sujet */}
+        {step === 1 && (
+          <div className="space-y-4">
+            {isCreation ? (
               <div>
                 <Label>Commande source</Label>
                 <select value={orderId ?? ""} onChange={(e) => setOrderId(e.target.value || null)} className="h-9 w-full rounded-lg border border-zinc-300 bg-white px-2.5 text-[13px]">
@@ -412,10 +419,10 @@ function Wizard({
               </div>
             )}
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" disabled={pending || (type === "CREATION" ? !orderId : subject.trim().length < 3)} onClick={doFindKeywords}>
+              <Button variant="outline" size="sm" disabled={pending || (isCreation ? !orderId : subject.trim().length < 3)} onClick={doFindKeywords}>
                 {ai === "entry" ? <Loader2 className="animate-spin" /> : <Search />} Suggérer les mots-clés
               </Button>
-              <Button variant="outline" size="sm" disabled={pending || (type === "CREATION" ? !orderId : subject.trim().length < 3)} onClick={doSuggest}>
+              <Button variant="outline" size="sm" disabled={pending || (isCreation ? !orderId : subject.trim().length < 3)} onClick={doSuggest}>
                 {ai === "story" ? <Loader2 className="animate-spin" /> : <Sparkles />} Suggérer titre & SEO
               </Button>
             </div>
@@ -487,37 +494,18 @@ function Wizard({
         )}
 
         {/* ---------------------------------------------- étape 2 : photos */}
-        {step === 1 && (
+        {step === 2 && (
           <div className="space-y-3">
-            {format === "VIDEO" && (
-              <div>
-                <Label>Clip principal (en tête de page)</Label>
-                {videos.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-zinc-300 px-3 py-3 text-[13px] text-zinc-400">Aucun clip en bibliothèque — ajoute-le ci-dessous (bouton Ajouter, vidéo acceptée).</p>
-                ) : (
-                  <div className="grid max-h-40 grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-6">
-                    {[...videos.filter((v) => orderId && v.orderId === orderId), ...videos.filter((v) => !orderId || v.orderId !== orderId)].map((v) => (
-                      <button key={v.id} type="button" onClick={() => setVideoAssetId(videoAssetId === v.id ? "" : v.id)} className={cn("relative aspect-square overflow-hidden rounded-lg border-2 bg-zinc-100", videoAssetId === v.id ? "border-(--color-brand)" : "border-transparent hover:border-zinc-300")}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={v.thumb} alt="" className="h-full w-full object-cover" />
-                        <span className="absolute inset-0 flex items-center justify-center"><Play className="size-5 text-white drop-shadow" /></span>
-                        {v.durationSec ? <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1 text-[10px] text-white">{Math.round(v.durationSec)}s</span> : null}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
             <div className="flex flex-wrap items-center gap-2">
               <p className="min-w-0 flex-1 text-[12px] text-zinc-500">
-                {format === "VIDEO" ? "Photos d'accompagnement (optionnel) — la ★ marque la couverture (l'affiche de la vidéo)." : "Choisis les photos dans l'ordre d'affichage — la ★ marque la couverture."} {orderId ? "Celles de la commande sont en premier." : ""}
+                Choisis les photos dans l'ordre d'affichage — la ★ marque la couverture. {orderId ? "Celles de la commande sont en premier." : ""}
               </p>
               <Button size="sm" variant="outline" disabled={uploading} onClick={() => uploadRef.current?.click()}>
                 <Upload /> {uploading ? "Envoi…" : "Ajouter"}
               </Button>
               <input
                 ref={uploadRef} type="file" multiple className="hidden"
-                accept={format === "VIDEO" ? "video/*,image/*" : "image/*"}
+                accept="image/*"
                 onChange={async (e) => {
                   const files = e.target.files;
                   if (!files?.length) return;
@@ -599,7 +587,7 @@ function Wizard({
         )}
 
         {/* ---------------------------------------------- étape 3 : récit */}
-        {step === 2 && (
+        {step === 3 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label>Récit de la page (markdown simple : ## pour un sous-titre, **gras**)</Label>
@@ -616,7 +604,7 @@ function Wizard({
         )}
 
         {/* ------------------------------------------ étape 4 : publication */}
-        {step === 3 && (
+        {step === 4 && (
           <div className="space-y-4">
             <div>
               <Label>Adresse de la page {isPublished && <span className="ml-1 text-[11px] font-normal text-zinc-400">(figée — la page est indexée)</span>}</Label>
@@ -636,12 +624,6 @@ function Wizard({
               <Label>Description pour Google <span className="font-normal text-zinc-400">({metaDescription.length}/155)</span></Label>
               <Textarea rows={2} value={metaDescription} onChange={(e) => setMetaDescription(e.target.value)} />
             </div>
-            {format === "VIDEO" && (
-              <div>
-                <Label>URL YouTube <span className="font-normal text-zinc-400">(optionnel — remplace le lecteur natif par la vidéo YouTube)</span></Label>
-                <Input value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="https://youtu.be/…" />
-              </div>
-            )}
             {isPublished ? (
               <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[12px] text-emerald-700">La page est en ligne — « Mettre à jour le site » applique tes modifications immédiatement.</p>
             ) : (
@@ -666,7 +648,7 @@ function Wizard({
         {/* footer — toujours visible */}
         <div className="mt-4 flex shrink-0 items-center justify-between border-t border-zinc-100 pt-3">
           <Button variant="ghost" size="sm" disabled={step === 0} onClick={() => setStep((s) => s - 1)}><ChevronLeft /> Précédent</Button>
-          {step < 3 ? (
+          {step < 4 ? (
             <Button size="sm" disabled={!stepOk} onClick={() => setStep((s) => s + 1)}>Suivant <ChevronRight /></Button>
           ) : (
             <Button variant="brand" size="sm" disabled={pending || !stepOk} onClick={save}>{pending ? "…" : saveLabel}</Button>

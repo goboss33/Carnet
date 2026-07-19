@@ -10,5 +10,8 @@ echo 'DROP TABLE IF EXISTS "StudioPostAsset"; DROP TABLE IF EXISTS "StudioPost";
 printf '%s' 'UPDATE "Order" SET "themeNote" = "style" WHERE ("themeNote" IS NULL OR "themeNote" = '"'"''"'"') AND "style" IS NOT NULL AND "style" <> '"'"''"'"'; ALTER TABLE "Order" DROP COLUMN IF EXISTS "style";' \
   | /prisma-cli/node_modules/.bin/prisma db execute --stdin --schema prisma/schema.prisma || true
 /prisma-cli/node_modules/.bin/prisma db push --skip-generate --schema prisma/schema.prisma
+# Transitoire (templates, 2026-07) : étiquette les pages existantes selon leur type/format.
+printf '%s' 'UPDATE "JournalEntry" SET "template" = CASE WHEN "type" = '"'"'CREATION'"'"' AND "format" = '"'"'DIAPORAMA'"'"' THEN '"'"'GALERIE'"'"'::"JournalTemplate" WHEN "type" = '"'"'CREATION'"'"' THEN '"'"'RECIT'"'"'::"JournalTemplate" WHEN "format" = '"'"'DIAPORAMA'"'"' THEN '"'"'SELECTION'"'"'::"JournalTemplate" ELSE '"'"'GUIDE'"'"'::"JournalTemplate" END WHERE "template" IS NULL OR "template" = '"'"'RECIT'"'"'::"JournalTemplate";' \
+  | /prisma-cli/node_modules/.bin/prisma db execute --stdin --schema prisma/schema.prisma || true
 echo "Carnet : démarrage."
 exec node server.js

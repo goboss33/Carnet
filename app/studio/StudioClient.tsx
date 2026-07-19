@@ -86,7 +86,6 @@ export default function StudioClient({
           entries={entries}
           orders={orders}
           photos={assets.filter((a) => a.kind === "PHOTO")}
-          videos={assets.filter((a) => a.kind === "VIDEO")}
           siteBase={siteBase}
           openWizardForOrder={pageOrderId}
         />

@@ -266,6 +266,14 @@ enum JournalType {
   ARTICLE  // conseil libre — texte d'abord
 }
 
+enum JournalTemplate {
+  RECIT     // création · photos dans le récit
+  GALERIE   // création · photos en vedette, texte court
+  GUIDE     // article · question → réponse SEO
+  ANNONCE   // article · billet éditorial (gâteau signature, prise de parole)
+  SELECTION // article · sélection d'idées multi-créations (lot 2)
+}
+
 enum JournalFormat {
   ARTICLE // article illustré (photos dans le récit)
   VIDEO // clip principal + texte court
@@ -290,6 +298,7 @@ model JournalEntry {
   id              String          @id @default(cuid())
   tenantId        String
   type            JournalType     @default(CREATION)
+  template        JournalTemplate @default(RECIT)
   format          JournalFormat   @default(ARTICLE)
   status          JournalStatus   @default(BROUILLON)
   category        JournalCategory @default(ANNIVERSAIRE)

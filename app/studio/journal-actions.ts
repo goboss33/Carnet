@@ -8,7 +8,8 @@ import {
   slugify, slugFree, suggestEntry, suggestStory, publishEntry, revalidateSite, publicUrl,
   type JournalImage,
 } from "@/lib/journal";
-import type { JournalCategory, JournalFormat, JournalType } from "@prisma/client";
+import type { JournalCategory, JournalFormat, JournalType, JournalTemplate } from "@prisma/client";
+import { TEMPLATE_META, type TemplateKey } from "@/lib/journal-templates";
 
 export async function suggestEntryAction(input: { type: JournalType; orderId?: string | null; subject?: string; keywords?: string[] }) {
   const tenant = await currentTenant();
@@ -21,7 +22,7 @@ export async function suggestKeywordsAction(input: { type: JournalType; orderId?
   return suggestKeywords(tenant.id, input);
 }
 
-export async function suggestStoryAction(input: { type: JournalType; format?: JournalFormat; orderId?: string | null; subject?: string; title: string; keywords: string[]; coverAlt?: string; photos?: { assetId: string; alt: string }[] }) {
+export async function suggestStoryAction(input: { template: TemplateKey; orderId?: string | null; subject?: string; title: string; keywords: string[]; coverAlt?: string; photos?: { assetId: string; alt: string }[] }) {
   const tenant = await currentTenant();
   return suggestStory(tenant.id, input);
 }
@@ -40,10 +41,7 @@ export async function checkSlugAction(slug: string, excludeId?: string): Promise
 
 export type JournalPayload = {
   id?: string;
-  type: JournalType;
-  format: JournalFormat;
-  videoAssetId: string;
-  youtubeUrl: string;
+  template: TemplateKey;
   orderId?: string | null;
   title: string;
   slug: string;
@@ -75,12 +73,15 @@ export async function saveJournalEntry(p: JournalPayload): Promise<{ error?: str
     return { error: `L'adresse « ${slug} » est déjà prise — différencie-la par un angle réel (âge, thème, commune), jamais par un numéro.` };
   }
 
+  const meta = TEMPLATE_META[p.template];
   const base = {
-    type: p.type,
-    format: p.format,
-    videoAssetId: p.format === "VIDEO" ? p.videoAssetId : "",
-    youtubeUrl: p.format === "VIDEO" ? p.youtubeUrl.trim().slice(0, 200) : "",
-    orderId: p.type === "CREATION" ? (p.orderId || null) : null,
+    template: p.template as JournalTemplate,
+    type: meta.type,
+    format: meta.format as JournalFormat,
+    videoAssetId: "",
+    youtubeUrl: "",
+    // (les champs vidéo restent vides — format vidéo retiré du wizard)
+    orderId: meta.needsOrder ? (p.orderId || null) : null,
     title,
     slug,
     category: p.category,

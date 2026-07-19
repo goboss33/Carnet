@@ -9,8 +9,11 @@ import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { geminiGenerate, type GeminiPart } from "@/lib/gemini";
 import type { JournalCategory, JournalType, Tenant } from "@prisma/client";
+import { TEMPLATE_META, type TemplateKey } from "@/lib/journal-templates";
 
 export type JournalImage = { assetId: string; alt: string };
+
+export { TEMPLATE_META, inferTemplate } from "@/lib/journal-templates";
 
 export const JOURNAL_CATEGORIES: { id: JournalCategory; label: string }[] = [
   { id: "ANNIVERSAIRE", label: "Anniversaire" },
@@ -203,8 +206,7 @@ Réponds UNIQUEMENT avec cet objet JSON :
 export async function suggestStory(
   tenantId: string,
   input: {
-    type: JournalType;
-    format?: "ARTICLE" | "VIDEO" | "DIAPORAMA";
+    template: TemplateKey;
     orderId?: string | null;
     subject?: string;
     title: string;
@@ -215,9 +217,9 @@ export async function suggestStory(
   }
 ): Promise<string | { error: string }> {
   const brief = input.orderId ? await orderBrief(tenantId, input.orderId) : null;
-  const fmt = input.format ?? "ARTICLE";
-  // vidéo & diaporama : le visuel porte la page, le texte accompagne — pas de marqueurs
-  const bodyPhotos = fmt === "ARTICLE" ? (input.photos ?? []) : [];
+  // marqueurs de photos DANS le texte : seulement les formats « article illustré »
+  const withMarkers = input.template === "RECIT" || input.template === "GUIDE";
+  const bodyPhotos = withMarkers ? (input.photos ?? []) : [];
 
   // Gemini VOIT les photos (vignettes) : placement [[photo:N]] + descriptions réelles
   const parts: GeminiPart[] = [];
@@ -232,14 +234,18 @@ Les photos ci-jointes iront DANS l'article. Insère chacune à l'endroit du réc
 - le paragraphe voisin d'une photo doit parler de ce qu'elle montre : décris ce que tu VOIS (couleurs, matières, détails de modelage réels).`
     : "";
 
+  const brief0 = brief ?? "(aucun)";
+  const consigne =
+    input.template === "RECIT" ? `Récit d'une création réalisée. Brief factuel :\n${brief0}\n\n2-4 paragraphes, 220-380 mots, 2-3 intertitres "## " spécifiques.`
+    : input.template === "GALERIE" ? `La page présente une GALERIE de photos d'une création. Brief factuel :\n${brief0}\n\nIntroduction brève : 60-120 mots, 1 paragraphe, aucun intertitre.`
+    : input.template === "GUIDE" ? `Article conseil pratique sur : « ${input.subject ?? input.title} ». Intro courte puis sections concrètes, 350-550 mots, 2-3 intertitres "## ". Repères chiffrés uniquement s'ils sont universellement vrais.`
+    : /* ANNONCE */ `Billet / annonce sur : « ${input.subject ?? input.title} ». Ton éditorial et personnel — Annie s'exprime à la première personne (annonce d'un nouveau gâteau signature, prise de parole, réflexion sur son métier). 150-300 mots, 1-3 paragraphes, au plus UN intertitre "## ". Chaleureux, sincère, sans jargon.`;
   parts.push({
     text: `Écris le corps de la page en MARKDOWN (pas de H1 — le titre existe déjà : « ${input.title} »).
-${input.type === "CREATION"
-  ? `Récit d'une création réalisée. Brief factuel :\n${brief ?? "(aucun)"}\n\n${fmt === "VIDEO" ? "La page s'ouvre sur une VIDÉO de la création : écris un texte court qui l'accompagne (80-150 mots, 1-2 paragraphes, pas d'intertitre)." : fmt === "DIAPORAMA" ? "La page présente une GALERIE de photos : écris une introduction brève (60-120 mots, 1 paragraphe, pas d'intertitre)." : "2-4 paragraphes, 220-380 mots."}`
-  : `Article conseil pratique sur : « ${input.subject ?? input.title} ». Intro courte puis sections concrètes, 350-550 mots. Repères chiffrés uniquement s'ils sont universellement vrais.`}
+${consigne}
 Contexte de ciblage — DÉJÀ couvert par le titre, l'adresse et les métadonnées de la page, n'en force AUCUN dans le texte : ${input.keywords.join(", ") || "(libre)"}.${photosBlock}
 
-Structure : 2-3 intertitres "## " SPÉCIFIQUES au sujet (une variante naturelle d'un thème peut y apparaître — jamais un mot-clé verbatim). Intertitres génériques interdits (« Des saveurs artisanales », « Un moment magique », « Une création unique »).
+Intertitres génériques interdits (« Des saveurs artisanales », « Un moment magique », « Une création unique »).
 
 Règles d'écriture impératives :
 - N'insère JAMAIS un mot-clé ou une requête telle quelle : français irréprochable, accents, formulations variées. Google comprend les variantes — le bourrage de mots-clés est interdit et contre-productif.

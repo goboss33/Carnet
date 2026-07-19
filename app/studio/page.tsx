@@ -57,6 +57,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
   const entryRows: EntryRow[] = journal.map((e) => ({
     id: e.id,
     type: e.type,
+    template: e.template,
     format: e.format,
     videoAssetId: e.videoAssetId,
     youtubeUrl: e.youtubeUrl,
