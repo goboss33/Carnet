@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Sparkles, ExternalLink, Trash2, Pencil, EyeOff,
-  ChevronLeft, ChevronRight, Star, Loader2, X, Images, Upload, Search, Megaphone,
+  ChevronLeft, ChevronRight, Star, Loader2, X, Images, Upload, Search, Megaphone, Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
   suggestEntryAction, suggestStoryAction, suggestAltsAction, checkSlugAction, suggestKeywordsAction,
   saveJournalEntry, unpublishJournalEntry, deleteJournalEntry, type JournalPayload,
 } from "./journal-actions";
+import { aiEditPreview, aiEditKeep } from "./actions";
 
 export type EntryRow = {
   id: string; type: "CREATION" | "ARTICLE"; status: "BROUILLON" | "PROGRAMMEE" | "PUBLIEE";
@@ -203,6 +204,76 @@ export default function JournalSection({
   );
 }
 
+/* ------------------------------------------------ panneau d'édition IA */
+function EditPanel({ photo, onClose, onKept }: { photo: AssetRow; onClose: () => void; onKept: (id: string) => void }) {
+  const [pending, start] = useTransition();
+  const [preview, setPreview] = useState<string | null>(null);
+  const [custom, setCustom] = useState("");
+  const PRESETS = [
+    { id: "photoshoot", emoji: "📸", label: "Photoshoot présentoir" },
+    { id: "cleanbg", emoji: "🧹", label: "Nettoyer le fond" },
+    { id: "studiolight", emoji: "☀️", label: "Lumière studio" },
+    { id: "zoom", emoji: "🔍", label: "Zoom sur un détail" },
+  ];
+  const run = (opts: { presetId?: string; prompt?: string }) =>
+    start(async () => {
+      setPreview(null);
+      const r = await aiEditPreview(photo.id, opts);
+      if (r.error) { toast.error(r.error); return; }
+      setPreview(r.url ?? null);
+    });
+  const keep = () =>
+    start(async () => {
+      if (!preview) return;
+      const r = await aiEditKeep(photo.id, preview, custom || "retouche IA");
+      if (r.error) { toast.error(r.error); return; }
+      toast.success("Photo retouchée ajoutée à la bibliothèque.");
+      onKept(r.id!);
+    });
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent title="Retoucher la photo" desc="L'IA change le décor, la lumière ou le cadrage — jamais le gâteau. Original conservé." className="max-w-2xl">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Original</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photo.file} alt="" className="w-full rounded-lg border border-zinc-200 object-contain" />
+          </div>
+          <div>
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Résultat</p>
+            <div className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50">
+              {pending && !preview ? <Loader2 className="animate-spin text-zinc-400" />
+                : preview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={preview} alt="" className="h-full w-full rounded-lg object-contain" />
+                ) : <span className="px-4 text-center text-[12px] text-zinc-400">Choisis un preset ou décris ta retouche</span>}
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {PRESETS.map((p) => (
+              <Button key={p.id} size="sm" variant="outline" disabled={pending} onClick={() => run({ presetId: p.id })}>
+                {p.emoji} {p.label}
+              </Button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Ou décris : « fond rose pâle, gâteau sur une table en bois »" />
+            <Button size="sm" variant="outline" disabled={pending || custom.trim().length < 4} onClick={() => run({ prompt: custom })}>
+              {pending ? <Loader2 className="animate-spin" /> : <Wand2 />} Générer
+            </Button>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-zinc-100 pt-3">
+            <Button variant="ghost" size="sm" onClick={onClose}>Fermer</Button>
+            <Button variant="brand" size="sm" disabled={pending || !preview} onClick={keep}>Ajouter à la bibliothèque</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ============================================================= wizard */
 const STEPS = ["Template", "Sujet", "Photos", "Récit", "Publication"] as const;
 
@@ -248,6 +319,7 @@ function Wizard({
   const [alts, setAlts] = useState<Record<string, string>>(Object.fromEntries((entry?.images ?? []).map((i) => [i.assetId, i.alt])));
   const [cover, setCover] = useState(entry?.coverAssetId ?? "");
   const [altIdeas, setAltIdeas] = useState<string[]>([]);
+  const [editId, setEditId] = useState<string | null>(null); // photo en cours d'édition IA
   const [kwGroups, setKwGroups] = useState<{ short: string[]; mid: string[]; long: string[] } | null>(null);
   const [metaTitle, setMetaTitle] = useState(entry?.metaTitle ?? "");
   const [metaDescription, setMetaDescription] = useState(entry?.metaDescription ?? "");
@@ -603,6 +675,9 @@ function Wizard({
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {p && <img src={p.thumb} alt="" className="size-9 shrink-0 rounded object-cover" />}
                       <Input value={alts[id] ?? ""} onChange={(e) => setAlts((a) => ({ ...a, [id]: e.target.value }))} placeholder="Ex. gâteau licorne pâte à sucre rose et doré" />
+                      <button type="button" title="Retoucher avec l'IA (décor, lumière, cadrage)" onClick={() => setEditId(id)} className="shrink-0 rounded-lg p-1.5 text-zinc-400 hover:text-(--color-brand)">
+                        <Wand2 className="size-4" />
+                      </button>
                       <button type="button" title="Définir comme couverture" onClick={() => setCover(id)} className={cn("shrink-0 rounded-lg p-1.5", cover === id ? "text-amber-500" : "text-zinc-300 hover:text-zinc-500")}>
                         <Star className={cn("size-4", cover === id && "fill-amber-400")} />
                       </button>
@@ -682,6 +757,21 @@ function Wizard({
             <Button variant="brand" size="sm" disabled={pending || !stepOk} onClick={save}>{pending ? "…" : saveLabel}</Button>
           )}
         </div>
+
+        {editId && (() => {
+          const p = photos.find((x) => x.id === editId);
+          return p ? (
+            <EditPanel
+              photo={p}
+              onClose={() => setEditId(null)}
+              onKept={(newId) => {
+                setEditId(null);
+                setSelected((sel) => [...sel, newId]);
+                router.refresh();
+              }}
+            />
+          ) : null;
+        })()}
       </DialogContent>
     </Dialog>
   );
