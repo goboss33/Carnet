@@ -210,13 +210,13 @@ function EditPanel({ photo, onClose, onKept }: { photo: AssetRow; onClose: () =>
   const [pending, start] = useTransition();
   const [preview, setPreview] = useState<string | null>(null);
   const [custom, setCustom] = useState("");
+  const [mode, setMode] = useState<"simple" | "zones">("simple");
   const PRESETS = [
     { id: "photoshoot", emoji: "📸", label: "Photoshoot présentoir" },
     { id: "cleanbg", emoji: "🧹", label: "Nettoyer le fond" },
     { id: "studiolight", emoji: "☀️", label: "Lumière studio" },
     { id: "zoom", emoji: "🔍", label: "Zoom sur un détail" },
   ];
-  const [mode, setMode] = useState<"simple" | "zones">("simple");
   const run = (opts: { presetId?: string; prompt?: string; imageDataUri?: string }) =>
     start(async () => {
       setPreview(null);
@@ -232,35 +232,38 @@ function EditPanel({ photo, onClose, onKept }: { photo: AssetRow; onClose: () =>
       toast.success("Photo retouchée ajoutée à la bibliothèque.");
       onKept(r.id!);
     });
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent title="Retoucher la photo" desc="L'IA change le décor, la lumière ou le cadrage — jamais le gâteau. Original conservé." className="max-w-2xl">
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
-          <div className="min-w-0">
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Original</p>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo.file} alt="" className="max-h-[34vh] w-full rounded-lg border border-zinc-200 object-contain" />
-          </div>
-          <div className="min-w-0">
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Résultat</p>
-            <div className="flex h-[34vh] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50">
-              {pending && !preview ? <Loader2 className="animate-spin text-zinc-400" />
-                : preview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={preview} alt="" className="max-h-full max-w-full rounded-lg object-contain" />
-                ) : <span className="px-3 text-center text-[11px] text-zinc-400">Choisis un preset ou décris ta retouche</span>}
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 space-y-3">
+        {/* corps scrollable */}
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           <div className="inline-flex rounded-lg border border-zinc-200 p-0.5">
             {([["simple", "Rapide"], ["zones", "Zones précises"]] as const).map(([m, l]) => (
               <button key={m} type="button" onClick={() => setMode(m)}
                 className={cn("rounded-md px-3 py-1 text-[12px] font-semibold", mode === m ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}>{l}</button>
             ))}
           </div>
+
           {mode === "simple" ? (
             <>
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="min-w-0">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Original</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={photo.file} alt="" className="max-h-[32vh] w-full rounded-lg border border-zinc-200 object-contain" />
+                </div>
+                <div className="min-w-0">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Résultat</p>
+                  <div className="flex h-[32vh] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50">
+                    {pending && !preview ? <Loader2 className="animate-spin text-zinc-400" />
+                      : preview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={preview} alt="" className="max-h-full max-w-full rounded-lg object-contain" />
+                      ) : <span className="px-3 text-center text-[11px] text-zinc-400">Choisis un preset ou décris ta retouche</span>}
+                  </div>
+                </div>
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {PRESETS.map((p) => (
                   <Button key={p.id} size="sm" variant="outline" disabled={pending} onClick={() => run({ presetId: p.id })}>
@@ -269,19 +272,33 @@ function EditPanel({ photo, onClose, onKept }: { photo: AssetRow; onClose: () =>
                 ))}
               </div>
               <div className="flex gap-2">
-                <Input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Ou décris : « fond rose pâle, gâteau sur une table en bois »" />
+                <Input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Ou décris : « fond rose pâle, table en bois »" />
                 <Button size="sm" variant="outline" disabled={pending || custom.trim().length < 4} onClick={() => run({ prompt: custom })}>
                   {pending ? <Loader2 className="animate-spin" /> : <Wand2 />} Générer
                 </Button>
               </div>
             </>
           ) : (
-            <ZoneEditor src={photo.file} pending={pending} onGenerate={(dataUri, prompt) => run({ prompt, imageDataUri: dataUri })} />
+            <>
+              <ZoneEditor src={photo.file} pending={pending} onGenerate={(dataUri, prompt) => run({ prompt, imageDataUri: dataUri })} />
+              {(pending || preview) && (
+                <div>
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Résultat</p>
+                  <div className="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-1">
+                    {pending && !preview ? <Loader2 className="animate-spin text-zinc-400" />
+                      // eslint-disable-next-line @next/next/no-img-element
+                      : preview ? <img src={preview} alt="" className="max-h-[40vh] max-w-full rounded-lg object-contain" /> : null}
+                  </div>
+                </div>
+              )}
+            </>
           )}
-          <div className="flex justify-end gap-2 border-t border-zinc-100 pt-3">
-            <Button variant="ghost" size="sm" onClick={onClose}>Fermer</Button>
-            <Button variant="brand" size="sm" disabled={pending || !preview} onClick={keep}>Ajouter à la bibliothèque</Button>
-          </div>
+        </div>
+
+        {/* footer fixe */}
+        <div className="mt-3 flex shrink-0 justify-end gap-2 border-t border-zinc-100 pt-3">
+          <Button variant="ghost" size="sm" onClick={onClose}>Fermer</Button>
+          <Button variant="brand" size="sm" disabled={pending || !preview} onClick={keep}>Ajouter à la bibliothèque</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -448,18 +465,28 @@ function Wizard({
     <Dialog open onOpenChange={(o) => !o && onClose(false)}>
       <DialogContent title={entry ? `Modifier « ${entry.title || entry.slug} »` : "Nouvelle page du site"} desc="Tout est suggéré, rien ne part sans ta validation." className="max-w-2xl">
         {/* étapes — fixes en tête */}
-        <div className="mb-4 flex shrink-0 items-center gap-1">
-          {STEPS.map((s, i) => (
-            <button
-              key={s} type="button" onClick={() => i < step && setStep(i)}
-              className={cn(
-                "flex-1 rounded-lg px-2 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide",
-                i === step ? "bg-(--color-brand) text-white" : i < step ? "bg-(--color-brand-soft) text-(--color-brand)" : "bg-zinc-100 text-zinc-400"
-              )}
-            >
-              {i + 1}. {s}
-            </button>
-          ))}
+        <div className="mb-4 shrink-0">
+          {/* mobile : pastilles numérotées + libellé de l'étape active */}
+          <div className="flex items-center gap-1.5 sm:hidden">
+            {STEPS.map((s, i) => (
+              <button key={s} type="button" onClick={() => i < step && setStep(i)}
+                className={cn("flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-bold",
+                  i === step ? "bg-(--color-brand) text-white" : i < step ? "bg-(--color-brand-soft) text-(--color-brand)" : "bg-zinc-100 text-zinc-400")}>
+                {i + 1}
+              </button>
+            ))}
+            <span className="ml-1 truncate text-[12px] font-semibold uppercase tracking-wide text-(--color-brand)">{STEPS[step]}</span>
+          </div>
+          {/* desktop : libellés complets */}
+          <div className="hidden items-center gap-1 sm:flex">
+            {STEPS.map((s, i) => (
+              <button key={s} type="button" onClick={() => i < step && setStep(i)}
+                className={cn("flex-1 rounded-lg px-2 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide",
+                  i === step ? "bg-(--color-brand) text-white" : i < step ? "bg-(--color-brand-soft) text-(--color-brand)" : "bg-zinc-100 text-zinc-400")}>
+                {i + 1}. {s}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
