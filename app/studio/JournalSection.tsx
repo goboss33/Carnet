@@ -359,8 +359,8 @@ function Wizard({
   return (
     <Dialog open onOpenChange={(o) => !o && onClose(false)}>
       <DialogContent title={entry ? `Modifier « ${entry.title || entry.slug} »` : "Nouvelle page du site"} desc="Tout est suggéré, rien ne part sans ta validation." className="max-w-2xl">
-        {/* étapes */}
-        <div className="mb-4 flex items-center gap-1">
+        {/* étapes — fixes en tête */}
+        <div className="mb-4 flex shrink-0 items-center gap-1">
           {STEPS.map((s, i) => (
             <button
               key={s} type="button" onClick={() => i < step && setStep(i)}
@@ -374,6 +374,7 @@ function Wizard({
           ))}
         </div>
 
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
         {/* ---------------------------------------------- étape 1 : sujet */}
         {step === 0 && (
           <div className="space-y-4">
@@ -660,8 +661,10 @@ function Wizard({
           </div>
         )}
 
-        {/* footer */}
-        <div className="mt-5 flex items-center justify-between">
+        </div>
+
+        {/* footer — toujours visible */}
+        <div className="mt-4 flex shrink-0 items-center justify-between border-t border-zinc-100 pt-3">
           <Button variant="ghost" size="sm" disabled={step === 0} onClick={() => setStep((s) => s - 1)}><ChevronLeft /> Précédent</Button>
           {step < 3 ? (
             <Button size="sm" disabled={!stepOk} onClick={() => setStep((s) => s + 1)}>Suivant <ChevronRight /></Button>
