@@ -22,7 +22,7 @@ export async function suggestKeywordsAction(input: { type: JournalType; orderId?
   return suggestKeywords(tenant.id, input);
 }
 
-export async function suggestStoryAction(input: { template: TemplateKey; orderId?: string | null; subject?: string; title: string; keywords: string[]; coverAlt?: string; photos?: { assetId: string; alt: string }[] }) {
+export async function suggestStoryAction(input: { template: TemplateKey; orderId?: string | null; selectionOrderIds?: string[]; subject?: string; title: string; keywords: string[]; coverAlt?: string; photos?: { assetId: string; alt: string }[] }) {
   const tenant = await currentTenant();
   return suggestStory(tenant.id, input);
 }
@@ -43,6 +43,7 @@ export type JournalPayload = {
   id?: string;
   template: TemplateKey;
   orderId?: string | null;
+  selectionOrderIds?: string[];
   title: string;
   slug: string;
   category: JournalCategory;
@@ -82,6 +83,7 @@ export async function saveJournalEntry(p: JournalPayload): Promise<{ error?: str
     youtubeUrl: "",
     // (les champs vidéo restent vides — format vidéo retiré du wizard)
     orderId: meta.needsOrder ? (p.orderId || null) : null,
+    selectionOrderIds: p.template === "SELECTION" ? (p.selectionOrderIds ?? []).slice(0, 10) : [],
     title,
     slug,
     category: p.category,

@@ -64,6 +64,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
     status: e.status,
     category: e.category,
     orderId: e.orderId,
+    selectionOrderIds: e.selectionOrderIds,
     slug: e.slug,
     title: e.title,
     metaTitle: e.metaTitle,

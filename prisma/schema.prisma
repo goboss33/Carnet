@@ -303,6 +303,7 @@ model JournalEntry {
   status          JournalStatus   @default(BROUILLON)
   category        JournalCategory @default(ANNIVERSAIRE)
   orderId         String? // commande source (créations)
+  selectionOrderIds String[] @default([]) // template Sélection : les créations réunies
   slug            String
   title           String   @default("")
   metaTitle       String   @default("")

@@ -27,6 +27,7 @@ import {
 export type EntryRow = {
   id: string; type: "CREATION" | "ARTICLE"; status: "BROUILLON" | "PROGRAMMEE" | "PUBLIEE";
   template: "RECIT" | "GALERIE" | "GUIDE" | "ANNONCE" | "SELECTION";
+  selectionOrderIds: string[];
   format: "ARTICLE" | "VIDEO" | "DIAPORAMA"; videoAssetId: string; youtubeUrl: string;
   category: string; orderId: string | null; slug: string; title: string;
   metaTitle: string; metaDescription: string; keywords: string[]; story: string;
@@ -225,9 +226,11 @@ function Wizard({
   const [template, setTemplate] = useState<"RECIT" | "GALERIE" | "GUIDE" | "ANNONCE" | "SELECTION">(entry?.template ?? (defaultSubject ? "GUIDE" : "RECIT"));
   const meta = TEMPLATE_META[template];
   const isCreation = meta.needsOrder;
+  const isSelection = template === "SELECTION";
   const [uploading, setUploading] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
   const [orderId, setOrderId] = useState<string | null>(entry?.orderId ?? defaultOrderId);
+  const [selectionIds, setSelectionIds] = useState<string[]>(entry?.selectionOrderIds ?? []);
   const [subject, setSubject] = useState(defaultSubject ?? "");
   const [title, setTitle] = useState(entry?.title ?? "");
   const [slug, setSlug] = useState(entry?.slug ?? "");
@@ -301,7 +304,7 @@ function Wizard({
       setAi("story");
       const body = selected.filter((id) => id !== cover);
       const r = await suggestStoryAction({
-        template, orderId, subject, title, keywords,
+        template, orderId, selectionOrderIds: selectionIds, subject, title, keywords,
         coverAlt: alts[cover] ?? "",
         photos: body.map((id) => ({ assetId: id, alt: alts[id] ?? "" })),
       });
@@ -326,7 +329,7 @@ function Wizard({
     start(async () => {
       const payload: JournalPayload = {
         id: entry?.id,
-        template,
+        template, selectionOrderIds: selectionIds,
         orderId, title, slug, category: category as JournalPayload["category"],
         keywords,
         story,
@@ -347,7 +350,7 @@ function Wizard({
 
   const stepOk = [
     true, // template choisi (défaut valide)
-    isCreation ? !!orderId : (subject.trim().length > 2 || title.trim().length > 2),
+    isSelection ? (selectionIds.length >= 2 && title.trim().length > 2) : isCreation ? !!orderId : (subject.trim().length > 2 || title.trim().length > 2),
     true, // photos
     true,
     !!title.trim() && !!slug.trim() && slugState !== "taken",
@@ -383,17 +386,17 @@ function Wizard({
               ["GALERIE", Images, "Galerie", "Les photos d'une création en vedette, texte court"],
               ["GUIDE", FileText, "Guide conseil", "Une question fréquente → une réponse utile (SEO)"],
               ["ANNONCE", Megaphone, "Annonce", "Un gâteau signature, une prise de parole — ton libre"],
-              ["SELECTION", Images, "Sélection d'idées", "Plusieurs créations sur un thème — bientôt", true],
-            ] as const).map(([id, Icon, label, hint, soon]) => (
+              ["SELECTION", Images, "Sélection d'idées", "Plusieurs créations réunies sur un thème"],
+            ] as const).map(([id, Icon, label, hint]) => (
               <button
-                key={id} type="button" disabled={!!entry || !!soon}
+                key={id} type="button" disabled={!!entry}
                 onClick={() => setTemplate(id as typeof template)}
                 className={cn("flex w-full items-start gap-3 rounded-xl border px-3.5 py-2.5 text-left disabled:cursor-not-allowed disabled:opacity-50",
                   template === id ? "border-(--color-brand) bg-(--color-brand-soft)" : "border-zinc-200 hover:border-zinc-300")}
               >
                 <Icon className="mt-0.5 size-4 shrink-0 text-(--color-brand)" />
                 <span className="min-w-0">
-                  <span className="block text-[13px] font-semibold text-zinc-900">{label}{soon ? " · bientôt" : ""}</span>
+                  <span className="block text-[13px] font-semibold text-zinc-900">{label}</span>
                   <span className="block text-[11px] text-zinc-500">{hint}</span>
                 </span>
               </button>
@@ -404,7 +407,32 @@ function Wizard({
         {/* ---------------------------------------------- étape 2 : sujet */}
         {step === 1 && (
           <div className="space-y-4">
-            {isCreation ? (
+            {isSelection ? (
+              <>
+                <div>
+                  <Label>Titre / thème de la sélection</Label>
+                  <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ex. Nos plus beaux gâteaux licorne" />
+                </div>
+                <div>
+                  <Label>Créations à réunir <span className="font-normal text-zinc-400">({selectionIds.length} choisie{selectionIds.length > 1 ? "s" : ""} · min. 2)</span></Label>
+                  <div className="max-h-52 space-y-0.5 overflow-y-auto rounded-lg border border-zinc-300 p-1">
+                    {orders.filter((o) => o.livre).length === 0 ? (
+                      <p className="px-2 py-3 text-[13px] text-zinc-400">Aucune commande livrée à réunir pour l'instant.</p>
+                    ) : orders.filter((o) => o.livre).map((o) => {
+                      const on = selectionIds.includes(o.id);
+                      return (
+                        <button key={o.id} type="button"
+                          onClick={() => setSelectionIds((ids) => on ? ids.filter((x) => x !== o.id) : [...ids, o.id].slice(0, 10))}
+                          className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px]", on ? "bg-(--color-brand-soft) text-(--color-brand)" : "hover:bg-zinc-50")}>
+                          <span className={cn("flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-(--color-brand) bg-(--color-brand) text-white" : "border-zinc-300")}>{on ? "✓" : ""}</span>
+                          <span className="min-w-0 truncate">{o.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            ) : isCreation ? (
               <div>
                 <Label>Commande source</Label>
                 <select value={orderId ?? ""} onChange={(e) => setOrderId(e.target.value || null)} className="h-9 w-full rounded-lg border border-zinc-300 bg-white px-2.5 text-[13px]">
@@ -414,8 +442,8 @@ function Wizard({
               </div>
             ) : (
               <div>
-                <Label>Sujet de l'article</Label>
-                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ex. Combien de parts prévoir pour 25 invités ?" />
+                <Label>{template === "ANNONCE" ? "Sujet de l'annonce" : "Sujet de l'article"}</Label>
+                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={template === "ANNONCE" ? "Ex. Mon nouveau gâteau signature « Forêt-Noire revisitée »" : "Ex. Combien de parts prévoir pour 25 invités ?"} />
               </div>
             )}
             <div className="flex flex-wrap gap-2">

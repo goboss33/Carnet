@@ -99,6 +99,16 @@ export async function seedPhrase(
   return { main: theme ? `gâteau ${occasion} ${theme}` : `gâteau ${occasion}`, theme, occasion };
 }
 
+/** Brief agrégé de plusieurs créations — pour le template Sélection. */
+async function selectionBrief(tenantId: string, orderIds: string[]): Promise<string> {
+  const briefs: string[] = [];
+  for (const id of orderIds.slice(0, 10)) {
+    const b = await orderBrief(tenantId, id);
+    if (b) briefs.push(`— Création :\n${b}`);
+  }
+  return briefs.join("\n\n");
+}
+
 const SUGGEST_SYSTEM = `Tu es le rédacteur SEO d'une cake designer artisanale à Pully (région Lausanne, Vaud, Suisse — zone : Lausanne, Pully, Lutry, Vevey, Montreux, Morges).
 Tu prépares la fiche d'une page de son site (journal des créations + articles conseils).
 Objectif : longue traîne locale (ex. « gâteau anniversaire licorne Lausanne », « combien de parts gâteau 25 invités »).
@@ -208,6 +218,7 @@ export async function suggestStory(
   input: {
     template: TemplateKey;
     orderId?: string | null;
+    selectionOrderIds?: string[];
     subject?: string;
     title: string;
     keywords: string[];
@@ -216,9 +227,11 @@ export async function suggestStory(
     photos?: { assetId: string; alt: string }[];
   }
 ): Promise<string | { error: string }> {
-  const brief = input.orderId ? await orderBrief(tenantId, input.orderId) : null;
-  // marqueurs de photos DANS le texte : seulement les formats « article illustré »
-  const withMarkers = input.template === "RECIT" || input.template === "GUIDE";
+  const brief = input.template === "SELECTION"
+    ? (input.selectionOrderIds?.length ? await selectionBrief(tenantId, input.selectionOrderIds) : null)
+    : input.orderId ? await orderBrief(tenantId, input.orderId) : null;
+  // marqueurs de photos DANS le texte : article illustré + sélection (une photo par idée)
+  const withMarkers = input.template === "RECIT" || input.template === "GUIDE" || input.template === "SELECTION";
   const bodyPhotos = withMarkers ? (input.photos ?? []) : [];
 
   // Gemini VOIT les photos (vignettes) : placement [[photo:N]] + descriptions réelles
@@ -239,6 +252,7 @@ Les photos ci-jointes iront DANS l'article. Insère chacune à l'endroit du réc
     input.template === "RECIT" ? `Récit d'une création réalisée. Brief factuel :\n${brief0}\n\n2-4 paragraphes, 220-380 mots, 2-3 intertitres "## " spécifiques.`
     : input.template === "GALERIE" ? `La page présente une GALERIE de photos d'une création. Brief factuel :\n${brief0}\n\nIntroduction brève : 60-120 mots, 1 paragraphe, aucun intertitre.`
     : input.template === "GUIDE" ? `Article conseil pratique sur : « ${input.subject ?? input.title} ». Intro courte puis sections concrètes, 350-550 mots, 2-3 intertitres "## ". Repères chiffrés uniquement s'ils sont universellement vrais.`
+    : input.template === "SELECTION" ? `Article « sélection d'idées » sur : « ${input.subject ?? input.title} ». Une intro courte (2-3 phrases), puis UNE idée par création réunie ci-dessous, chacune sous un intertitre "## " évocateur (pas « Idée 1 ») avec 2-3 phrases décrivant ce qui la rend inspirante. Insère la photo de chaque idée juste sous son intertitre. Créations réunies :\n${brief ?? "(aucune)"}\n300-550 mots au total.`
     : /* ANNONCE */ `Billet / annonce sur : « ${input.subject ?? input.title} ». Ton éditorial et personnel — Annie s'exprime à la première personne (annonce d'un nouveau gâteau signature, prise de parole, réflexion sur son métier). 150-300 mots, 1-3 paragraphes, au plus UN intertitre "## ". Chaleureux, sincère, sans jargon.`;
   parts.push({
     text: `Écris le corps de la page en MARKDOWN (pas de H1 — le titre existe déjà : « ${input.title} »).
