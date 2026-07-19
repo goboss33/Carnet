@@ -235,20 +235,20 @@ function EditPanel({ photo, onClose, onKept }: { photo: AssetRow; onClose: () =>
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent title="Retoucher la photo" desc="L'IA change le décor, la lumière ou le cadrage — jamais le gâteau. Original conservé." className="max-w-2xl">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
+          <div className="min-w-0">
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Original</p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo.file} alt="" className="w-full rounded-lg border border-zinc-200 object-contain" />
+            <img src={photo.file} alt="" className="max-h-[34vh] w-full rounded-lg border border-zinc-200 object-contain" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Résultat</p>
-            <div className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50">
+            <div className="flex h-[34vh] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50">
               {pending && !preview ? <Loader2 className="animate-spin text-zinc-400" />
                 : preview ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={preview} alt="" className="h-full w-full rounded-lg object-contain" />
-                ) : <span className="px-4 text-center text-[12px] text-zinc-400">Choisis un preset ou décris ta retouche</span>}
+                  <img src={preview} alt="" className="max-h-full max-w-full rounded-lg object-contain" />
+                ) : <span className="px-3 text-center text-[11px] text-zinc-400">Choisis un preset ou décris ta retouche</span>}
             </div>
           </div>
         </div>

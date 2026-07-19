@@ -94,8 +94,8 @@ export default function ZoneEditor({ src, pending, onGenerate }: {
       </div>
 
       <div ref={wrapRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
-        className="relative w-full touch-none select-none overflow-hidden rounded-lg border border-zinc-200"
-        style={{ aspectRatio: nat ? `${nat.w}/${nat.h}` : "1" }}>
+        className="relative mx-auto w-full max-w-md touch-none select-none overflow-hidden rounded-lg border border-zinc-200"
+        style={{ aspectRatio: nat ? `${nat.w}/${nat.h}` : "1", maxHeight: "46vh" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={src} alt="" className="pointer-events-none h-full w-full object-contain" draggable={false} />
         {[...zones, ...(draft ? [draft] : [])].map((z, i) => (
