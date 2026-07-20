@@ -4,7 +4,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Clapperboard, FileText, Images, Upload, Trash2, Link2, X } from "lucide-react";
+import { Clapperboard, FileText, Images, Upload, Trash2, Link2, X, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { useConfirm } from "@/components/ui/table-kit";
 import { cn } from "@/lib/ui";
 import { deleteStudioAsset, linkStudioAsset, purgeStudioAssets } from "./actions";
 import JournalSection, { type EntryRow, type OrderOption } from "./JournalSection";
+import PhotoEditor from "./PhotoEditor";
 
 export type AssetRow = {
   id: string; kind: "VIDEO" | "PHOTO"; thumb: string; file: string;
@@ -40,6 +41,7 @@ export default function StudioClient({
   const [sel, setSel] = useState<Record<string, boolean>>({});
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const selected = useMemo(() => assets.filter((a) => sel[a.id]), [assets, sel]);
 
   /* --------------------------------------------------------- upload */
@@ -133,6 +135,13 @@ export default function StudioClient({
                   {a.orderId && <span title="Lié à une commande" className="rounded bg-black/60 p-0.5 text-white"><Link2 className="size-3" /></span>}
                 </span>
                 <span className="absolute bottom-1 right-1 hidden rounded bg-black/60 px-1 text-[10px] text-white group-hover:block">{fmtMb(a.sizeBytes)}</span>
+                {a.kind === "PHOTO" && (
+                  <span role="button" tabIndex={-1} title="Retoucher avec l'IA"
+                    onClick={(e) => { e.stopPropagation(); setEditId(a.id); }}
+                    className="absolute right-1 top-1 hidden rounded-md bg-white/90 p-1 text-zinc-600 shadow-sm hover:text-(--color-brand) group-hover:flex">
+                    <Wand2 className="size-3.5" />
+                  </span>
+                )}
                 {sel[a.id] && <span className="absolute inset-0 bg-(--color-brand)/15" />}
               </button>
             ))}
@@ -150,6 +159,11 @@ export default function StudioClient({
               <option value="">— non lié à une commande —</option>
               {orders.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
             </select>
+            {selected[0].kind === "PHOTO" && (
+              <Button size="sm" variant="outline" onClick={() => setEditId(selected[0].id)}>
+                <Wand2 /> Retoucher
+              </Button>
+            )}
             <Button
               size="sm" variant="destructive-outline" disabled={pending}
               onClick={() => confirm({ title: "Supprimer ce média", desc: "Définitif.", confirmLabel: "Supprimer", action: async () => { const r = await deleteStudioAsset(selected[0].id); if (r.error) toast.error(r.error); setSel({}); router.refresh(); } })}
@@ -173,6 +187,13 @@ export default function StudioClient({
           </Button>
         </div>
       </TabsContent>
+
+      {editId && (() => {
+        const a = assets.find((x) => x.id === editId);
+        return a ? (
+          <PhotoEditor asset={a} onClose={() => setEditId(null)} onKept={() => { setEditId(null); router.refresh(); }} />
+        ) : null;
+      })()}
     </Tabs>
   );
 }

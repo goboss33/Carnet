@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { Clapperboard, FileText, ExternalLink } from "lucide-react";
+import { FileText, ExternalLink } from "lucide-react";
+import OrderMedia from "./OrderMedia";
 
 export default async function StudioMedia({ orderId }: { orderId: string }) {
   const order = await prisma.order.findUnique({ where: { id: orderId }, select: { tenantId: true, status: true } });
@@ -22,16 +23,11 @@ export default async function StudioMedia({ orderId }: { orderId: string }) {
           Aucun clip lié — ajoute-les dans <Link href="/studio" className="underline">Studio</Link> (ils nourriront les pages du site et les publications).
         </p>
       ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          {assets.map((a) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={a.id} src={`/api/studio/media/${a.thumbPath || a.filePath}`} alt="" className="h-20 w-14 rounded-lg border border-zinc-200 object-cover" title={a.kind === "VIDEO" ? `Clip ${Math.round(a.durationSec ?? 0)}s` : "Photo"} />
-          ))}
-          <Link href="/studio" className="inline-flex h-20 w-14 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-300 text-zinc-400 hover:border-zinc-400 hover:text-zinc-600">
-            <Clapperboard className="size-4" />
-            <span className="text-[10px]">Studio</span>
-          </Link>
-        </div>
+        <OrderMedia assets={assets.map((a) => ({
+          id: a.id, kind: a.kind, durationSec: a.durationSec,
+          file: `/api/studio/media/${a.filePath}`,
+          thumb: `/api/studio/media/${a.thumbPath || a.filePath}`,
+        }))} />
       )}
       <div className="mt-3">
         {page ? (
