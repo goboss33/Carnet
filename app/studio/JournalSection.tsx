@@ -23,8 +23,7 @@ import {
   suggestEntryAction, suggestStoryAction, suggestAltsAction, checkSlugAction, suggestKeywordsAction,
   saveJournalEntry, unpublishJournalEntry, deleteJournalEntry, type JournalPayload,
 } from "./journal-actions";
-import { aiEditSubmit, aiEditPoll, aiEditKeep } from "./actions";
-import ZoneEditor from "./ZoneEditor";
+import PhotoEditor from "./PhotoEditor";
 
 export type EntryRow = {
   id: string; type: "CREATION" | "ARTICLE"; status: "BROUILLON" | "PROGRAMMEE" | "PUBLIEE";
@@ -205,130 +204,6 @@ export default function JournalSection({
   );
 }
 
-/* ------------------------------------------------ panneau d'édition IA */
-function EditPanel({ photo, onClose, onKept }: { photo: AssetRow; onClose: () => void; onKept: (id: string) => void }) {
-  const [pending, start] = useTransition();
-  const [preview, setPreview] = useState<string | null>(null);
-  const [custom, setCustom] = useState("");
-  const [mode, setMode] = useState<"simple" | "zones">("simple");
-  const [model, setModel] = useState<"gemini" | "seedream">("gemini");
-  const PRESETS = [
-    { id: "photoshoot", emoji: "📸", label: "Photoshoot présentoir" },
-    { id: "cleanbg", emoji: "🧹", label: "Nettoyer le fond" },
-    { id: "studiolight", emoji: "☀️", label: "Lumière studio" },
-    { id: "zoom", emoji: "🔍", label: "Zoom sur un détail" },
-  ];
-  const run = (opts: { presetId?: string; prompt?: string; imageDataUri?: string }) =>
-    start(async () => {
-      setPreview(null);
-      const sub = await aiEditSubmit(photo.id, { ...opts, model });
-      if (sub.error) { toast.error(sub.error); return; }
-      if (sub.url) { setPreview(sub.url); return; }          // Nano Banana : direct
-      if (!sub.requestId) { toast.error("Envoi impossible."); return; }
-      const rid = sub.requestId;                              // Seedream : file d'attente
-      const deadline = Date.now() + 180_000;
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 2500));
-        const p = await aiEditPoll(rid);
-        if (p.error) { toast.error(p.error); return; }
-        if (p.url) { setPreview(p.url); return; }
-      }
-      toast.error("La retouche prend trop de temps — réessaie.");
-    });
-  const keep = () =>
-    start(async () => {
-      if (!preview) return;
-      const r = await aiEditKeep(photo.id, preview, custom || "retouche IA");
-      if (r.error) { toast.error(r.error); return; }
-      toast.success("Photo retouchée ajoutée à la bibliothèque.");
-      onKept(r.id!);
-    });
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title="Retoucher la photo" desc="L'IA change le décor, la lumière ou le cadrage — jamais le gâteau. Original conservé." className="max-w-2xl">
-        {/* corps scrollable */}
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Modèle</span>
-            <div className="inline-flex rounded-lg border border-zinc-200 p-0.5">
-              {([["gemini", "Nano Banana Pro"], ["seedream", "Seedream"]] as const).map(([mo, l]) => (
-                <button key={mo} type="button" disabled={pending}
-                  onClick={() => { setModel(mo); setPreview(null); if (mo === "gemini") setMode("simple"); }}
-                  className={cn("rounded-md px-2.5 py-1 text-[12px] font-semibold", model === mo ? "bg-(--color-brand) text-white" : "text-zinc-500 hover:text-zinc-800")}>{l}</button>
-              ))}
-            </div>
-          </div>
-          <div className="inline-flex rounded-lg border border-zinc-200 p-0.5">
-            {([["simple", "Rapide"], ["zones", "Zones précises"]] as const).map(([m, l]) => {
-              const locked = m === "zones" && model === "gemini";
-              return (
-                <button key={m} type="button" disabled={locked} title={locked ? "Zones précises : uniquement avec Seedream" : undefined}
-                  onClick={() => setMode(m)}
-                  className={cn("rounded-md px-3 py-1 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-40", mode === m ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}>{l}</button>
-              );
-            })}
-          </div>
-
-          {mode === "simple" ? (
-            <>
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="min-w-0">
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Original</p>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={photo.file} alt="" className="max-h-[32vh] w-full rounded-lg border border-zinc-200 object-contain" />
-                </div>
-                <div className="min-w-0">
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Résultat</p>
-                  <div className="flex h-[32vh] items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50">
-                    {pending && !preview ? <Loader2 className="animate-spin text-zinc-400" />
-                      : preview ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={preview} alt="" className="max-h-full max-w-full rounded-lg object-contain" />
-                      ) : <span className="px-3 text-center text-[11px] text-zinc-400">Choisis un preset ou décris ta retouche</span>}
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {PRESETS.map((p) => (
-                  <Button key={p.id} size="sm" variant="outline" disabled={pending} onClick={() => run({ presetId: p.id })}>
-                    {p.emoji} {p.label}
-                  </Button>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <Input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Ou décris : « fond rose pâle, table en bois »" />
-                <Button size="sm" variant="outline" disabled={pending || custom.trim().length < 4} onClick={() => run({ prompt: custom })}>
-                  {pending ? <Loader2 className="animate-spin" /> : <Wand2 />} Générer
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <ZoneEditor src={photo.file} pending={pending} onGenerate={(dataUri, prompt) => run({ prompt, imageDataUri: dataUri })} />
-              {(pending || preview) && (
-                <div>
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Résultat</p>
-                  <div className="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-1">
-                    {pending && !preview ? <Loader2 className="animate-spin text-zinc-400" />
-                      // eslint-disable-next-line @next/next/no-img-element
-                      : preview ? <img src={preview} alt="" className="max-h-[40vh] max-w-full rounded-lg object-contain" /> : null}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* footer fixe */}
-        <div className="mt-3 flex shrink-0 justify-end gap-2 border-t border-zinc-100 pt-3">
-          <Button variant="ghost" size="sm" onClick={onClose}>Fermer</Button>
-          <Button variant="brand" size="sm" disabled={pending || !preview} onClick={keep}>Ajouter à la bibliothèque</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 /* ============================================================= wizard */
 const STEPS = ["Template", "Sujet", "Photos", "Récit", "Publication"] as const;
@@ -663,9 +538,6 @@ function Wizard({
         {step === 2 && (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="min-w-0 flex-1 text-[12px] text-zinc-500">
-                Choisis les photos dans l'ordre d'affichage — la ★ marque la couverture. {orderId ? "Celles de la commande sont en premier." : ""}
-              </p>
               <Button size="sm" variant="outline" disabled={uploading} onClick={() => uploadRef.current?.click()}>
                 <Upload /> {uploading ? "Envoi…" : "Ajouter"}
               </Button>
@@ -827,8 +699,9 @@ function Wizard({
         {editId && (() => {
           const p = photos.find((x) => x.id === editId);
           return p ? (
-            <EditPanel
-              photo={p}
+            <PhotoEditor
+              asset={p}
+              keepLabel="Ajouter à la page"
               onClose={() => setEditId(null)}
               onKept={(newId) => {
                 setEditId(null);
