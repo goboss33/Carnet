@@ -6,6 +6,7 @@ import { waLink } from "@/lib/wa";
 import { Printer } from "lucide-react";
 import Link from "next/link";
 import { chf } from "@/lib/money";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -45,16 +46,20 @@ export default async function Partenaires() {
 
   return (
     <>
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Partenaires</h1>
-        <a href="/api/flyer" className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 [&_svg]:size-4">
-          <Printer /> Flyer générique
-        </a>
-      </div>
-      <p className="mb-6 max-w-2xl text-sm text-zinc-500">
-        Chaque partenaire a son lien (QR/flyers) : les demandes arrivées par ce lien lui sont
-        rattachées automatiquement. La commission se calcule sur les commandes <b>livrées</b>.
-      </p>
+      <PageHeader
+        title="Partenaires"
+        subtitle={
+          <span className="block max-w-2xl">
+            Chaque partenaire a son lien (QR/flyers) : les demandes arrivées par ce lien lui sont
+            rattachées automatiquement. La commission se calcule sur les commandes <b>livrées</b>.
+          </span>
+        }
+        actions={
+          <a href="/api/flyer" className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 [&_svg]:size-4">
+            <Printer /> Flyer générique
+          </a>
+        }
+      />
 
       <Applications apps={appRows} />
 

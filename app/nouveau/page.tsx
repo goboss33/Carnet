@@ -10,7 +10,7 @@ export default function Nouveau() {
   const [state, action, pending] = useActionState(createLead, undefined);
   return (
     <>
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">Nouvelle fiche</h1>
+      <h1 className="mb-1 text-xl font-semibold tracking-tight text-zinc-900 sm:text-[22px]">Nouvelle fiche</h1>
       <p className="mb-6 text-sm text-zinc-500">30 secondes, promis — seuls le prénom et le canal comptent, le reste peut attendre.</p>
       <form action={action} className="max-w-2xl space-y-5 rounded-2xl border border-zinc-200 bg-white p-7">
         <div className="grid gap-4 sm:grid-cols-2">

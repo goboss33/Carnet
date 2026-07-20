@@ -8,7 +8,7 @@ export default function ImportPage() {
   const [purgeState, purgeAction, purging] = useActionState(purgeCrm, undefined);
   return (
     <>
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">Importer l'historique</h1>
+      <h1 className="mb-1 text-xl font-semibold tracking-tight text-zinc-900 sm:text-[22px]">Importer l'historique</h1>
       <p className="mb-6 max-w-2xl text-sm text-zinc-500">
         Remplis le modèle CSV (une ligne par commande : prénom, occasion, dates, prix…), puis
         dépose-le ici. Les contacts existants (même téléphone ou e-mail) sont réutilisés, les

@@ -5,6 +5,7 @@ import ContactsTable, { type Row } from "./ContactsTable";
 import { Upload, Plus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/ui";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -39,20 +40,20 @@ export default async function Contacts() {
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Contacts</h1>
-          <p className="mt-0.5 text-[13px] text-zinc-500">{contacts.length} fiche{contacts.length > 1 ? "s" : ""}</p>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/import" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-            <Upload /> Importer
-          </Link>
-          <Link href="/nouveau" className={cn(buttonVariants({ variant: "brand", size: "sm" }))}>
-            <Plus /> Nouvelle fiche
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Contacts"
+        subtitle={<>{contacts.length} fiche{contacts.length > 1 ? "s" : ""}</>}
+        actions={
+          <>
+            <Link href="/import" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+              <Upload /> Importer
+            </Link>
+            <Link href="/nouveau" className={cn(buttonVariants({ variant: "brand", size: "sm" }))}>
+              <Plus /> Nouvelle fiche
+            </Link>
+          </>
+        }
+      />
       <ContactsTable rows={rows} />
     </>
   );

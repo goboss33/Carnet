@@ -9,6 +9,7 @@ import PromptLab from "./PromptLab";
 import { PROMPT_TEMPLATES } from "@/lib/prompts";
 import SettingsTabs from "./SettingsTabs";
 import { Card, CardBody } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -272,10 +273,10 @@ export default async function Reglages() {
 
   return (
     <>
-      <h1 className="mb-1 text-xl font-semibold tracking-tight text-zinc-900">Réglages</h1>
-      <p className="mb-4 max-w-2xl text-[13px] text-zinc-500">
-        Un champ laissé vide utilise la valeur par défaut. Le bouton Enregistrer sauvegarde tous les onglets d'un coup.
-      </p>
+      <PageHeader
+        title="Réglages"
+        subtitle={<span className="block max-w-2xl">Un champ laissé vide utilise la valeur par défaut. Le bouton Enregistrer sauvegarde tous les onglets d'un coup.</span>}
+      />
 
       <form action={saveSettings} className="max-w-3xl">
         <SettingsTabs panels={panels} />

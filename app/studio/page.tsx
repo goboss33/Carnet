@@ -5,6 +5,7 @@ import StudioClient, { type AssetRow } from "./StudioClient";
 import type { EntryRow } from "./JournalSection";
 import type { JournalImage } from "@/lib/journal";
 import { fmtDate } from "@/lib/statuts";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -83,14 +84,10 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
 
   return (
     <>
-      <div className="mb-5 flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Contenu</h1>
-          <p className="mt-0.5 text-[13px] text-zinc-500">
-            {usage.count} média{usage.count > 1 ? "s" : ""} · {(usage.bytes / 1e9).toFixed(2)} Go
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Contenu"
+        subtitle={<>{usage.count} média{usage.count > 1 ? "s" : ""} · {(usage.bytes / 1e9).toFixed(2)} Go</>}
+      />
       <StudioClient assets={assetRows} orders={orderOptions} entries={entryRows} siteBase={siteBase} initialTab={initialTab} pageOrderId={sp.page ?? null} />
     </>
   );

@@ -5,6 +5,7 @@ import { chf } from "@/lib/money";
 import { paymentState } from "@/lib/payments";
 import OrdersTable, { type Row } from "./OrdersTable";
 import type { OrderStatus, Prisma } from "@prisma/client";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -70,13 +71,10 @@ export default async function Historique({
 
   return (
     <>
-      <div className="mb-5 flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Historique</h1>
-        <span className="text-[13px] text-zinc-500">
-          {orders.length} commande{orders.length > 1 ? "s" : ""} · {fmtCHF(total)}
-          {orders.length >= 300 ? " · 300 max" : ""}
-        </span>
-      </div>
+      <PageHeader
+        title="Historique"
+        subtitle={<>{orders.length} commande{orders.length > 1 ? "s" : ""} · {fmtCHF(total)}{orders.length >= 300 ? " · 300 max" : ""}</>}
+      />
 
       {/* Filtres */}
       <form className="mb-4 flex flex-wrap items-center gap-2">

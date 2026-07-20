@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
 import { fmtCHF, fmtDate } from "@/lib/statuts";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +19,10 @@ export default async function Agenda() {
 
   return (
     <>
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">Agenda de production</h1>
-      <p className="mb-6 text-sm text-zinc-500">Les événements à venir, par date — ce qui doit sortir de l'atelier.</p>
+      <PageHeader
+        title="Agenda de production"
+        subtitle="Les événements à venir, par date — ce qui doit sortir de l'atelier."
+      />
       <ul className="space-y-3">
         {orders.map((o) => {
           const days = o.eventDate ? Math.ceil((o.eventDate.getTime() - Date.now()) / 86400000) : null;

@@ -7,6 +7,7 @@ import PipelineBoard, { type CardData, type ColumnData } from "@/app/components/
 import { Plus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/ui";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -77,12 +78,14 @@ export default async function Pipeline() {
 
   return (
     <>
-      <div className="mb-5 flex items-baseline justify-between">
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Pipeline</h1>
-        <Link href="/nouveau" className={cn(buttonVariants({ variant: "brand", size: "sm" }))}>
-          <Plus /> Fiche rapide
-        </Link>
-      </div>
+      <PageHeader
+        title="Pipeline"
+        actions={
+          <Link href="/nouveau" className={cn(buttonVariants({ variant: "brand", size: "sm" }))}>
+            <Plus /> Fiche rapide
+          </Link>
+        }
+      />
 
       {/* Synthèse */}
       <div className="mb-7 grid grid-cols-2 gap-3 lg:grid-cols-4">

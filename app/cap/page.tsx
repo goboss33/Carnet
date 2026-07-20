@@ -3,6 +3,7 @@ import { computeCap } from "@/lib/cap";
 import { toggleMilestone } from "@/app/actions";
 import SeoProgress from "./SeoProgress";
 import Link from "next/link";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -34,10 +35,10 @@ export default async function Cap() {
 
   return (
     <>
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-2xl font-bold tracking-tight">Cap</h1>
-        <p className="text-sm font-semibold text-amber-700">{c.phases[c.phaseCourante].name}</p>
-      </div>
+      <PageHeader
+        title="Cap"
+        actions={<p className="text-sm font-semibold text-amber-700">{c.phases[c.phaseCourante].name}</p>}
+      />
       <p className="mb-7 max-w-2xl text-sm text-zinc-500">
         La direction, l'avancement, et rien d'autre. Les objectifs se règlent dans{" "}
         <Link href="/reglages" className="underline">Réglages</Link> — le bot fait le bilan le 1ᵉʳ de chaque mois.

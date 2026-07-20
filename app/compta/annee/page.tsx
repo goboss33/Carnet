@@ -38,7 +38,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
   return (
     <>
       <div className="mb-6 flex flex-wrap items-center gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">Compta — année</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-[22px]">Compta — année</h1>
         <nav className="flex items-center gap-1 text-sm font-semibold text-zinc-500">
           <Link href={`/compta/annee?y=${year - 1}`} className="rounded-md px-2 py-1 hover:bg-zinc-100">←</Link>
           <span className="w-16 text-center text-zinc-800">{year}</span>
