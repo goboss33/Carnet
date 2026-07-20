@@ -51,7 +51,6 @@ export default function PhotoEditor({
   const [pos, setPos] = useState(50);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const zoneRef = useRef<ZoneEditorHandle>(null);
-  const dragging = useRef(false);
 
   const showZones = zonesOn && model === "seedream";
   const chip = MODELS.find((m) => m.id === model)!;
@@ -110,11 +109,16 @@ export default function PhotoEditor({
           ) : (
             <div
               ref={stageRef}
-              className="relative select-none overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50"
+              className="relative touch-none select-none overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50"
               style={{ height: "clamp(220px, 44vh, 460px)", cursor: preview ? "ew-resize" : "default" }}
-              onPointerDown={preview ? (e) => { dragging.current = true; e.currentTarget.setPointerCapture(e.pointerId); scrub(e.clientX); } : undefined}
-              onPointerMove={preview ? (e) => { if (dragging.current) scrub(e.clientX); } : undefined}
-              onPointerUp={() => { dragging.current = false; }}
+              onPointerDown={preview ? (e) => {
+                e.preventDefault();
+                scrub(e.clientX);
+                const move = (ev: PointerEvent) => scrub(ev.clientX);
+                const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+                window.addEventListener("pointermove", move);
+                window.addEventListener("pointerup", up);
+              } : undefined}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={asset.file} alt="original" className="pointer-events-none absolute inset-0 h-full w-full object-contain" draggable={false} />
@@ -165,11 +169,12 @@ export default function PhotoEditor({
           <div className="mt-1.5 flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5">
               {/* modèle */}
-              <div className="relative shrink-0">
+              <div className="relative min-w-0">
                 <button type="button" disabled={pending} onClick={() => setMenuOpen((v) => !v)}
-                  className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1.5 text-[12px] font-semibold text-zinc-800 transition-colors hover:bg-zinc-200 active:scale-95 disabled:opacity-50">
-                  <Sparkles className="size-3.5 text-(--color-brand)" /> {chip.short}
-                  <ChevronUp className={cn("size-3.5 text-zinc-400 transition-transform", !menuOpen && "rotate-180")} />
+                  className="flex min-w-0 max-w-[130px] items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1.5 text-[12px] font-semibold text-zinc-800 transition-colors hover:bg-zinc-200 active:scale-95 disabled:opacity-50">
+                  <Sparkles className="size-3.5 shrink-0 text-(--color-brand)" />
+                  <span className="truncate">{chip.short}</span>
+                  <ChevronUp className={cn("size-3.5 shrink-0 text-zinc-400 transition-transform", !menuOpen && "rotate-180")} />
                 </button>
                 {menuOpen && (
                   <div className="absolute bottom-full left-0 z-10 mb-1 w-52 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg">
@@ -196,8 +201,8 @@ export default function PhotoEditor({
                 <Target className="size-4" />
               </button>
             </div>
-            <Button size="sm" variant="brand" loading={pending} disabled={genDisabled} onClick={onGenerate}>
-              <Wand2 /> Générer
+            <Button size="sm" variant="brand" loading={pending} disabled={genDisabled} onClick={onGenerate} title="Générer" aria-label="Générer" className="shrink-0">
+              <Wand2 /> <span className="hidden sm:inline">Générer</span>
             </Button>
           </div>
         </div>
