@@ -14,7 +14,7 @@
 import { useRef, useState, useTransition } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Wand2, Sparkles, Target, ImagePlus, ChevronUp, Check, GripVertical, Loader2 } from "lucide-react";
+import { Wand2, Sparkles, Target, Crop, ChevronUp, Check, GripVertical, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/ui";
 import { aiEditSubmit, aiEditPoll, aiEditKeep } from "./actions";
@@ -32,6 +32,14 @@ const MODELS = [
   { id: "gemini", label: "Nano Banana Pro", short: "Nano Banana" },
   { id: "seedream", label: "Seedream", short: "Seedream" },
 ] as const;
+const FORMATS = [
+  { id: "original", label: "Comme l'original", short: "Auto" },
+  { id: "1:1", label: "Carré (1:1)", short: "1:1" },
+  { id: "4:5", label: "Portrait (4:5)", short: "4:5" },
+  { id: "9:16", label: "Story (9:16)", short: "9:16" },
+  { id: "16:9", label: "Paysage (16:9)", short: "16:9" },
+] as const;
+type OutFormat = (typeof FORMATS)[number]["id"];
 
 export default function PhotoEditor({
   asset, onClose, onKept, keepLabel = "Ajouter à la bibliothèque",
@@ -48,6 +56,8 @@ export default function PhotoEditor({
   const [zonesOn, setZonesOn] = useState(false);
   const [zonesReady, setZonesReady] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [format, setFormat] = useState<OutFormat>("original");
+  const [fmtOpen, setFmtOpen] = useState(false);
   const [pos, setPos] = useState(50);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const zoneRef = useRef<ZoneEditorHandle>(null);
@@ -59,7 +69,7 @@ export default function PhotoEditor({
   const run = (opts: { presetId?: string; prompt?: string; imageDataUri?: string }) =>
     start(async () => {
       setPreview(null);
-      const sub = await aiEditSubmit(asset.id, { ...opts, model });
+      const sub = await aiEditSubmit(asset.id, { ...opts, model, format });
       if (sub.error) return toast.error(sub.error);
       if (sub.url) { setPreview(sub.url); setPos(50); return; }
       if (!sub.requestId) return toast.error("Envoi impossible.");
@@ -170,8 +180,8 @@ export default function PhotoEditor({
             <div className="flex min-w-0 items-center gap-1.5">
               {/* modèle */}
               <div className="relative min-w-0">
-                <button type="button" disabled={pending} onClick={() => setMenuOpen((v) => !v)}
-                  className="flex min-w-0 max-w-[130px] items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1.5 text-[12px] font-semibold text-zinc-800 transition-colors hover:bg-zinc-200 active:scale-95 disabled:opacity-50">
+                <button type="button" disabled={pending} onClick={() => { setFmtOpen(false); setMenuOpen((v) => !v); }}
+                  className="flex min-w-0 max-w-[120px] items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1.5 text-[12px] font-semibold text-zinc-800 transition-colors hover:bg-zinc-200 active:scale-95 disabled:opacity-50">
                   <Sparkles className="size-3.5 shrink-0 text-(--color-brand)" />
                   <span className="truncate">{chip.short}</span>
                   <ChevronUp className={cn("size-3.5 shrink-0 text-zinc-400 transition-transform", !menuOpen && "rotate-180")} />
@@ -188,11 +198,25 @@ export default function PhotoEditor({
                   </div>
                 )}
               </div>
-              {/* référence (lot 2) */}
-              <button type="button" disabled title="Images de référence — bientôt"
-                className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-dashed border-zinc-300 text-zinc-300">
-                <ImagePlus className="size-4" />
-              </button>
+              {/* format de sortie */}
+              <div className="relative min-w-0">
+                <button type="button" disabled={pending} onClick={() => { setMenuOpen(false); setFmtOpen((v) => !v); }} title="Format de sortie"
+                  className="flex min-w-0 items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1.5 text-[12px] font-semibold text-zinc-800 transition-colors hover:bg-zinc-200 active:scale-95 disabled:opacity-50">
+                  <Crop className="size-3.5 shrink-0 text-zinc-500" />
+                  <span className="truncate">{FORMATS.find((f) => f.id === format)!.short}</span>
+                  <ChevronUp className={cn("size-3.5 shrink-0 text-zinc-400 transition-transform", !fmtOpen && "rotate-180")} />
+                </button>
+                {fmtOpen && (
+                  <div className="absolute bottom-full left-0 z-10 mb-1 w-44 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg">
+                    {FORMATS.map((f) => (
+                      <button key={f.id} type="button" onClick={() => { setFormat(f.id); setFmtOpen(false); }}
+                        className={cn("flex w-full items-center justify-between px-3 py-2 text-[13px] hover:bg-zinc-50", format === f.id ? "font-semibold text-zinc-900" : "text-zinc-600")}>
+                        {f.label} {format === f.id && <Check className="size-3.5 text-(--color-brand)" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               {/* zones */}
               <button type="button" disabled={model !== "seedream" || pending} onClick={() => setZonesOn((v) => !v)}
                 title={model === "seedream" ? "Zones précises" : "Zones précises : passe sur Seedream"}

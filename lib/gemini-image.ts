@@ -10,7 +10,7 @@ export function geminiImageEnabled(): boolean {
 }
 
 /** Édite une image (data URI) → renvoie le résultat en data URI. Direct. */
-export async function editImageGemini(sourceDataUri: string, prompt: string): Promise<{ dataUri: string } | { error: string }> {
+export async function editImageGemini(sourceDataUri: string, prompt: string, opts?: { aspectRatio?: string }): Promise<{ dataUri: string } | { error: string }> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return { error: "GEMINI_API_KEY non configurée." };
   const model = process.env.GEMINI_IMAGE_MODEL || "gemini-3-pro-image";
@@ -25,7 +25,7 @@ export async function editImageGemini(sourceDataUri: string, prompt: string): Pr
         signal: AbortSignal.timeout(120_000),
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt.slice(0, 1500) + GUARD }, { inline_data: { mime_type: m[1], data: m[2] } }] }],
-          generationConfig: { responseModalities: ["IMAGE"] },
+          generationConfig: { responseModalities: ["IMAGE"], ...(opts?.aspectRatio ? { imageConfig: { aspectRatio: opts.aspectRatio } } : {}) },
         }),
       }
     );

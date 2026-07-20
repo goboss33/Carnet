@@ -33,7 +33,19 @@ export async function purgeStudioAssets(): Promise<{ error?: string; purged?: nu
 
 /* ---------------------------------------------------- édition IA (fal) */
 
-export async function aiEditSubmit(assetId: string, opts: { model?: "gemini" | "seedream"; presetId?: string; prompt?: string; imageDataUri?: string }): Promise<{ error?: string; requestId?: string; url?: string }> {
+/* Format de sortie → dimensions Seedream (aire mini ~0,92 Mpx respectée).
+   « original » = auto_2K (garde le ratio de la photo). */
+const SEEDREAM_SIZE: Record<string, { width: number; height: number }> = {
+  "1:1": { width: 2048, height: 2048 },
+  "4:5": { width: 1640, height: 2048 },
+  "9:16": { width: 1152, height: 2048 },
+  "16:9": { width: 2048, height: 1152 },
+};
+function seedreamImageSize(fmt?: string): string | { width: number; height: number } {
+  return fmt && SEEDREAM_SIZE[fmt] ? SEEDREAM_SIZE[fmt] : "auto_2K";
+}
+
+export async function aiEditSubmit(assetId: string, opts: { model?: "gemini" | "seedream"; presetId?: string; prompt?: string; imageDataUri?: string; format?: "original" | "1:1" | "4:5" | "9:16" | "16:9" }): Promise<{ error?: string; requestId?: string; url?: string }> {
   const tenant = await currentTenant();
   const { EDIT_PRESETS, assetDataUri } = await import("@/lib/fal-edit");
   const { logAiCall } = await import("@/lib/ai-log");
@@ -52,7 +64,7 @@ export async function aiEditSubmit(assetId: string, opts: { model?: "gemini" | "
   if (opts.model === "seedream") {
     const { falEnabled, editSubmit } = await import("@/lib/fal-edit");
     if (!falEnabled()) return { error: "Seedream non configuré (FAL_KEY à ajouter dans Portainer)." };
-    const r = await editSubmit(dataUri, prompt);
+    const r = await editSubmit(dataUri, prompt, { imageSize: seedreamImageSize(opts.format) });
     logAiCall("image.edit", "Seedream 5.0 Pro — édition d'image (fal)", `${zones}${prompt}`,
       "error" in r ? r.error : `Envoyée à la file fal (req ${r.requestId}).`, !("error" in r), Date.now() - t0);
     return "error" in r ? { error: r.error } : { requestId: r.requestId };
@@ -61,7 +73,7 @@ export async function aiEditSubmit(assetId: string, opts: { model?: "gemini" | "
   // défaut : Nano Banana Pro (Gemini), réponse directe
   const { geminiImageEnabled, editImageGemini } = await import("@/lib/gemini-image");
   if (!geminiImageEnabled()) return { error: "Nano Banana non configuré (GEMINI_API_KEY manquante)." };
-  const r = await editImageGemini(dataUri, prompt);
+  const r = await editImageGemini(dataUri, prompt, { aspectRatio: opts.format && opts.format !== "original" ? opts.format : undefined });
   logAiCall("image.gemini", "Nano Banana Pro — édition d'image (Gemini)", `${zones}${prompt}`,
     "error" in r ? r.error : "Image générée.", !("error" in r), Date.now() - t0);
   return "error" in r ? { error: r.error } : { url: r.dataUri };

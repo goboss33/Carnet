@@ -36,7 +36,7 @@ const GUARD = " Photorealistic result. Never add text, logos or elements that ar
 const MODEL = "bytedance/seedream/v5/pro/edit";
 
 /** Soumet une édition à la file fal — renvoie l'id de requête (réponse rapide). */
-export async function editSubmit(sourceDataUri: string, prompt: string): Promise<{ requestId: string } | { error: string }> {
+export async function editSubmit(sourceDataUri: string, prompt: string, opts?: { imageSize?: string | { width: number; height: number } }): Promise<{ requestId: string } | { error: string }> {
   const key = process.env.FAL_KEY;
   if (!key) return { error: "FAL_KEY non configurée." };
   try {
@@ -47,7 +47,7 @@ export async function editSubmit(sourceDataUri: string, prompt: string): Promise
       body: JSON.stringify({
         prompt: prompt.slice(0, 1500) + GUARD,
         image_urls: [sourceDataUri],
-        image_size: "auto_2K",
+        image_size: opts?.imageSize ?? "auto_2K",
         num_images: 1,
         output_format: "jpeg",
         enable_safety_checker: false,
