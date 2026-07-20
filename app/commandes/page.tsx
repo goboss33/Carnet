@@ -3,7 +3,6 @@ import { prisma, currentTenant } from "@/lib/db";
 import { fmtCHF, fmtDate, SOURCES } from "@/lib/statuts";
 import { chf } from "@/lib/money";
 import { paymentState } from "@/lib/payments";
-import Shell from "@/app/components/Shell";
 import OrdersTable, { type Row } from "./OrdersTable";
 import type { OrderStatus, Prisma } from "@prisma/client";
 
@@ -70,7 +69,7 @@ export default async function Historique({
   });
 
   return (
-    <Shell>
+    <>
       <div className="mb-5 flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Historique</h1>
         <span className="text-[13px] text-zinc-500">
@@ -106,6 +105,6 @@ export default async function Historique({
       </p>
 
       <OrdersTable rows={rows} />
-    </Shell>
+    </>
   );
 }

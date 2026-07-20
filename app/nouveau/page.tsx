@@ -2,7 +2,6 @@
 
 import { useActionState } from "react";
 import { createLead } from "@/app/actions";
-import ShellClient from "@/app/components/ShellClient";
 
 const input = "w-full rounded-lg border border-zinc-300 px-3.5 py-2.5 text-[15px] outline-none focus:border-(--color-brand)";
 const label = "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500";
@@ -10,7 +9,7 @@ const label = "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-
 export default function Nouveau() {
   const [state, action, pending] = useActionState(createLead, undefined);
   return (
-    <ShellClient>
+    <>
       <h1 className="mb-1 text-2xl font-bold tracking-tight">Nouvelle fiche</h1>
       <p className="mb-6 text-sm text-zinc-500">30 secondes, promis — seuls le prénom et le canal comptent, le reste peut attendre.</p>
       <form action={action} className="max-w-2xl space-y-5 rounded-2xl border border-zinc-200 bg-white p-7">
@@ -42,6 +41,6 @@ export default function Nouveau() {
           {pending ? "Création…" : "Créer la fiche"}
         </button>
       </form>
-    </ShellClient>
+    </>
   );
 }

@@ -9,7 +9,6 @@ import { paymentState } from "@/lib/payments";
 import { waLink } from "@/lib/wa";
 import { getSettings } from "@/lib/settings";
 import { updateOrder, setStatus, addNote, setOrderPartner, recordPayment, markPaidInFull, refundDeposit, assistantSend, setRevenueCategory } from "@/app/actions";
-import Shell from "@/app/components/Shell";
 import DeleteOrderButton from "./DeleteOrderButton";
 import MediaViewer from "@/app/components/MediaViewer";
 import CopyButton from "./CopyButton";
@@ -40,7 +39,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
   const d = (x?: Date | null) => (x ? x.toISOString().slice(0, 10) : "");
 
   return (
-    <Shell>
+    <>
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <h1 className="text-2xl font-bold tracking-tight">
           {c.firstName} {c.lastName}
@@ -287,6 +286,6 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           </div>
         </div>
       </div>
-    </Shell>
+    </>
   );
 }

@@ -5,7 +5,6 @@ import { getSettings } from "@/lib/settings";
 import { fmtCHF } from "@/lib/statuts";
 import { paymentState } from "@/lib/payments";
 import { updateExpense, createExpense, deleteExpense, purgeEmptyDrafts } from "@/app/actions";
-import Shell from "@/app/components/Shell";
 import { Save, Trash2, FileText, Camera, Download } from "lucide-react";
 import MediaViewer from "@/app/components/MediaViewer";
 
@@ -45,7 +44,7 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
   const label = start.toLocaleDateString("fr-CH", { month: "long", year: "numeric", timeZone: "UTC" });
 
   return (
-    <Shell>
+    <>
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <h1 className="text-2xl font-bold tracking-tight">Compta</h1>
         <nav className="flex items-center gap-1 text-sm font-semibold text-zinc-500">
@@ -226,6 +225,6 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
           <button className="rounded-lg bg-zinc-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-zinc-700">Ajouter</button>
         </form>
       </details>
-    </Shell>
+    </>
   );
 }

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { logout } from "@/app/actions";
 import { cn } from "@/lib/ui";
+import RouteProgress from "./RouteProgress";
 
 const NAV = [
   { href: "/", label: "Pipeline", Icon: KanbanSquare },
@@ -73,8 +74,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   const settingsActive = pathname.startsWith("/reglages");
 
+  // Écran de connexion : pas de coquille (ni sidebar, ni topbar).
+  if (pathname === "/login") return <>{children}</>;
+
   return (
     <div className="min-h-screen md:pl-56">
+      <RouteProgress />
       {/* -------------------------------------------------- sidebar desktop */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-56 flex-col border-r border-(--color-line) bg-white md:flex">
         <Link href="/" className="flex h-14 items-center gap-2 border-b border-(--color-line) px-4">
@@ -144,7 +149,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 md:py-8">{children}</main>
+      <main key={pathname} className="animate-page mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 md:py-8">{children}</main>
     </div>
   );
 }

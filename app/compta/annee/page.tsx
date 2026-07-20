@@ -2,7 +2,6 @@ import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
 import { chf, mileageCents } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
-import Shell from "@/app/components/Shell";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +36,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
   const name = (i: number) => new Date(Date.UTC(2000, i, 1)).toLocaleDateString("fr-CH", { month: "long", timeZone: "UTC" });
 
   return (
-    <Shell>
+    <>
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <h1 className="text-2xl font-bold tracking-tight">Compta — année</h1>
         <nav className="flex items-center gap-1 text-sm font-semibold text-zinc-500">
@@ -109,6 +108,6 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
       <p className="mt-3 text-xs text-zinc-400">
         Le forfait kilométrique et l’assujettissement TVA sont à confirmer avec ta fiduciaire. Export CSV complet en haut de page.
       </p>
-    </Shell>
+    </>
   );
 }

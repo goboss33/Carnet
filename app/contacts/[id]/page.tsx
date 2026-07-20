@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { fmtDate, fmtCHF, STATUTS } from "@/lib/statuts";
 import { avatar } from "@/lib/ui";
-import Shell from "@/app/components/Shell";
 import ContactForm from "./ContactForm";
 import NewOrderForm from "./NewOrderForm";
 
@@ -20,7 +19,7 @@ export default async function ContactFiche({ params }: { params: Promise<{ id: s
   const total = contact.orders.filter((o) => o.status === "LIVRE").reduce((a, o) => a + (o.priceQuoted ?? 0), 0);
 
   return (
-    <Shell>
+    <>
       <div className="mb-6 flex items-center gap-4">
         <span className={`flex h-12 w-12 items-center justify-center rounded-full text-base font-bold ${av.color}`}>{av.initials}</span>
         <div>
@@ -71,6 +70,6 @@ export default async function ContactFiche({ params }: { params: Promise<{ id: s
           </ul>
         </div>
       </div>
-    </Shell>
+    </>
   );
 }

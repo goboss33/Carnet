@@ -2,13 +2,12 @@
 
 import { useActionState } from "react";
 import { importCsv, purgeCrm } from "@/app/actions";
-import ShellClient from "@/app/components/ShellClient";
 
 export default function ImportPage() {
   const [state, action, pending] = useActionState(importCsv, undefined);
   const [purgeState, purgeAction, purging] = useActionState(purgeCrm, undefined);
   return (
-    <ShellClient>
+    <>
       <h1 className="mb-1 text-2xl font-bold tracking-tight">Importer l'historique</h1>
       <p className="mb-6 max-w-2xl text-sm text-zinc-500">
         Remplis le modèle CSV (une ligne par commande : prénom, occasion, dates, prix…), puis
@@ -55,6 +54,6 @@ export default function ImportPage() {
         {purgeState?.report && <p className="mt-3 text-sm font-medium text-emerald-700">{purgeState.report}</p>}
         {purgeState?.error && <p className="mt-3 text-sm font-medium text-red-700">{purgeState.error}</p>}
       </details>
-    </ShellClient>
+    </>
   );
 }

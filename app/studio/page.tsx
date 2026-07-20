@@ -1,7 +1,6 @@
 import { prisma, currentTenant } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { studioUsage } from "@/lib/studio/storage";
-import Shell from "@/app/components/Shell";
 import StudioClient, { type AssetRow } from "./StudioClient";
 import type { EntryRow } from "./JournalSection";
 import type { JournalImage } from "@/lib/journal";
@@ -15,12 +14,12 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
   const s = await getSettings(tenant.id);
   if (!s.studioEnabled) {
     return (
-      <Shell>
+      <>
         <div className="mx-auto max-w-md py-20 text-center">
           <h1 className="text-xl font-semibold text-zinc-900">Contenu est désactivé</h1>
           <p className="mt-2 text-sm text-zinc-500">Active-le dans Réglages → Personnalisation pour gérer médias, pages du site et publications.</p>
         </div>
-      </Shell>
+      </>
     );
   }
 
@@ -83,7 +82,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
   const initialTab = sp.page ? "pages" : sp.tab === "pages" ? "pages" : sp.tab === "posts" ? "posts" : "library";
 
   return (
-    <Shell>
+    <>
       <div className="mb-5 flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Contenu</h1>
@@ -93,6 +92,6 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
         </div>
       </div>
       <StudioClient assets={assetRows} orders={orderOptions} entries={entryRows} siteBase={siteBase} initialTab={initialTab} pageOrderId={sp.page ?? null} />
-    </Shell>
+    </>
   );
 }

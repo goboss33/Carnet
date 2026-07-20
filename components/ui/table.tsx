@@ -26,11 +26,15 @@ export function TD({ className, ...props }: React.TdHTMLAttributes<HTMLTableCell
 
 export function EmptyState({ icon, title, hint, action }: { icon?: React.ReactNode; title: string; hint?: string; action?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-14 text-center">
-      {icon ? <div className="mb-1 text-zinc-300 [&_svg]:size-8">{icon}</div> : null}
-      <p className="text-sm font-medium text-zinc-600">{title}</p>
-      {hint ? <p className="max-w-sm text-[13px] text-zinc-400">{hint}</p> : null}
-      {action ? <div className="mt-2">{action}</div> : null}
+    <div className="animate-pop flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
+      {icon ? (
+        <div className="mb-2 flex size-14 items-center justify-center rounded-2xl bg-(--color-brand-soft) text-(--color-brand) ring-1 ring-(--color-brand)/10 [&_svg]:size-6">
+          {icon}
+        </div>
+      ) : null}
+      <p className="text-[15px] font-semibold text-zinc-700">{title}</p>
+      {hint ? <p className="max-w-sm text-[13px] leading-relaxed text-zinc-400">{hint}</p> : null}
+      {action ? <div className="mt-3">{action}</div> : null}
     </div>
   );
 }

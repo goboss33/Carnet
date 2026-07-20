@@ -3,7 +3,6 @@ import { getSettings } from "@/lib/settings";
 import { automationsLive } from "@/lib/livestate";
 import { DEFAULT_LEXICON, type Lexicon } from "@/lib/lexicon";
 import { saveSettings } from "@/app/actions";
-import Shell from "@/app/components/Shell";
 import AutomationsSection from "./AutomationsSection";
 import ConsignesField from "./ConsignesField";
 import PromptLab from "./PromptLab";
@@ -272,7 +271,7 @@ export default async function Reglages() {
   };
 
   return (
-    <Shell>
+    <>
       <h1 className="mb-1 text-xl font-semibold tracking-tight text-zinc-900">Réglages</h1>
       <p className="mb-4 max-w-2xl text-[13px] text-zinc-500">
         Un champ laissé vide utilise la valeur par défaut. Le bouton Enregistrer sauvegarde tous les onglets d'un coup.
@@ -286,6 +285,6 @@ export default async function Reglages() {
           </button>
         </div>
       </form>
-    </Shell>
+    </>
   );
 }

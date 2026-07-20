@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
 import { fmtCHF, fmtDate } from "@/lib/statuts";
-import Shell from "@/app/components/Shell";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +17,7 @@ export default async function Agenda() {
   });
 
   return (
-    <Shell>
+    <>
       <h1 className="mb-1 text-2xl font-bold tracking-tight">Agenda de production</h1>
       <p className="mb-6 text-sm text-zinc-500">Les événements à venir, par date — ce qui doit sortir de l'atelier.</p>
       <ul className="space-y-3">
@@ -53,6 +52,6 @@ export default async function Agenda() {
         })}
         {orders.length === 0 && <li className="rounded-xl border border-dashed border-zinc-300 px-5 py-10 text-center text-zinc-400">Rien de prévu — encore.</li>}
       </ul>
-    </Shell>
+    </>
   );
 }

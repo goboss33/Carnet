@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
 import { fmtDate, SOURCES } from "@/lib/statuts";
-import Shell from "@/app/components/Shell";
 import ContactsTable, { type Row } from "./ContactsTable";
 import { Upload, Plus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
@@ -39,7 +38,7 @@ export default async function Contacts() {
   });
 
   return (
-    <Shell>
+    <>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Contacts</h1>
@@ -55,6 +54,6 @@ export default async function Contacts() {
         </div>
       </div>
       <ContactsTable rows={rows} />
-    </Shell>
+    </>
   );
 }

@@ -1,7 +1,6 @@
 import { prisma, currentTenant } from "@/lib/db";
 import { markCommissionPaid, togglePartnerActive, deletePartner } from "@/app/actions";
 import PartnerForm from "./PartnerForm";
-import Shell from "@/app/components/Shell";
 import Applications, { type AppRow } from "./Applications";
 import { waLink } from "@/lib/wa";
 import { Printer } from "lucide-react";
@@ -45,7 +44,7 @@ export default async function Partenaires() {
   const site = "https://mamangateau.ch";
 
   return (
-    <Shell>
+    <>
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Partenaires</h1>
         <a href="/api/flyer" className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 [&_svg]:size-4">
@@ -130,6 +129,6 @@ export default async function Partenaires() {
           </p>
         )}
       </div>
-    </Shell>
+    </>
   );
 }

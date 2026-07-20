@@ -3,6 +3,7 @@ import "@fontsource-variable/inter";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { getBrand } from "@/lib/brand";
+import Shell from "@/app/components/Shell";
 
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await getBrand();
@@ -18,7 +19,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="fr-CH" style={{ ["--brand" as string]: brand.color }} data-brand-name={brand.name} data-studio={brand.studio ? "1" : "0"}>
       <body className="min-h-screen antialiased">
-        {children}
+        <Shell>{children}</Shell>
         <Toaster position="top-right" richColors closeButton toastOptions={{ style: { fontFamily: "var(--font-sans)" } }} />
       </body>
     </html>

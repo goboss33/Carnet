@@ -3,7 +3,6 @@ import { prisma, currentTenant } from "@/lib/db";
 import { STATUTS } from "@/lib/statuts";
 import { paymentState } from "@/lib/payments";
 import { missingFor } from "@/lib/completeness";
-import Shell from "@/app/components/Shell";
 import PipelineBoard, { type CardData, type ColumnData } from "@/app/components/PipelineBoard";
 import { Plus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
@@ -77,7 +76,7 @@ export default async function Pipeline() {
   }
 
   return (
-    <Shell>
+    <>
       <div className="mb-5 flex items-baseline justify-between">
         <h1 className="text-xl font-semibold tracking-tight text-zinc-900">Pipeline</h1>
         <Link href="/nouveau" className={cn(buttonVariants({ variant: "brand", size: "sm" }))}>
@@ -97,6 +96,6 @@ export default async function Pipeline() {
       </div>
 
       <PipelineBoard columns={columns} cards={cards} />
-    </Shell>
+    </>
   );
 }

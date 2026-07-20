@@ -44,3 +44,53 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #d4d4d8 transparent;
 }
+
+/* ---------------------------------------------------------------------------
+   Motion & feedback — apparition du contenu, squelettes de chargement.
+   Tout est neutralisé si l'utilisateur préfère moins d'animations.
+--------------------------------------------------------------------------- */
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-page { animation: page-in 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-pop { animation: pop-in 0.2s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+/* Squelette de chargement : fond neutre + balayage lumineux */
+@keyframes skeleton-sweep {
+  100% { transform: translateX(100%); }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #ededf0;
+  border-radius: var(--radius-lg);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+/* Élévation douce au survol (cartes cliquables) */
+.lift {
+  transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+}
+.lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px -8px rgba(24, 24, 27, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-page, .animate-pop { animation: none; }
+  .skeleton::after { animation: none; }
+  .lift:hover { transform: none; }
+}

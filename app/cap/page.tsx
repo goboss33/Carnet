@@ -1,7 +1,6 @@
 import { currentTenant } from "@/lib/db";
 import { computeCap } from "@/lib/cap";
 import { toggleMilestone } from "@/app/actions";
-import Shell from "@/app/components/Shell";
 import SeoProgress from "./SeoProgress";
 import Link from "next/link";
 
@@ -34,7 +33,7 @@ export default async function Cap() {
   ];
 
   return (
-    <Shell>
+    <>
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-bold tracking-tight">Cap</h1>
         <p className="text-sm font-semibold text-amber-700">{c.phases[c.phaseCourante].name}</p>
@@ -115,6 +114,6 @@ export default async function Cap() {
           );
         })}
       </div>
-    </Shell>
+    </>
   );
 }
