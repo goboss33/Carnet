@@ -5,20 +5,20 @@
    (bibliothèque, fiche commande, wizard). Le moteur (aiEdit*) est découplé :
    ce composant ne connaît qu'un asset { id, file }.
 
-   UI : une image unique avec comparateur avant/après à poignée, une barre-
-   composeur (modèle en menu vers le haut, prompt, générer), des presets en
-   puces, et un outil « Zones précises » réservé à Seedream. Les références
-   d'images (#1, #2) viendront en lot 2 — le bouton est déjà là, désactivé.
+   UI : une image unique avec comparateur avant/après à poignée, et une barre-
+   composeur COLLÉE EN BAS (prompt pleine largeur, puis modèle + outils +
+   Générer). En mode « Zones », c'est le même bouton Générer qui déclenche.
+   Références d'images (#1, #2) : lot 2 — l'emplacement est déjà là.
 --------------------------------------------------------------------------- */
 
 import { useRef, useState, useTransition } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Wand2, Sparkles, Target, ImagePlus, ChevronUp, Check, GripVertical } from "lucide-react";
+import { Wand2, Sparkles, Target, ImagePlus, ChevronUp, Check, GripVertical, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/ui";
 import { aiEditSubmit, aiEditPoll, aiEditKeep } from "./actions";
-import ZoneEditor from "./ZoneEditor";
+import ZoneEditor, { type ZoneEditorHandle } from "./ZoneEditor";
 
 export type EditableAsset = { id: string; file: string; thumb?: string };
 
@@ -29,8 +29,8 @@ const PRESETS = [
   { id: "zoom", label: "Zoom sur un détail" },
 ];
 const MODELS = [
-  { id: "gemini", label: "Nano Banana Pro" },
-  { id: "seedream", label: "Seedream" },
+  { id: "gemini", label: "Nano Banana Pro", short: "Nano Banana" },
+  { id: "seedream", label: "Seedream", short: "Seedream" },
 ] as const;
 
 export default function PhotoEditor({
@@ -46,13 +46,15 @@ export default function PhotoEditor({
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState<"gemini" | "seedream">("gemini");
   const [zonesOn, setZonesOn] = useState(false);
+  const [zonesReady, setZonesReady] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pos, setPos] = useState(50);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const zoneRef = useRef<ZoneEditorHandle>(null);
   const dragging = useRef(false);
 
   const showZones = zonesOn && model === "seedream";
-  const modelLabel = MODELS.find((m) => m.id === model)!.label;
+  const chip = MODELS.find((m) => m.id === model)!;
   const canGenerate = prompt.trim().length >= 4;
 
   const run = (opts: { presetId?: string; prompt?: string; imageDataUri?: string }) =>
@@ -93,19 +95,24 @@ export default function PhotoEditor({
     setPos(Math.min(100, Math.max(0, ((clientX - r.left) / r.width) * 100)));
   };
 
+  const onGenerate = () => (showZones ? zoneRef.current?.generate() : run({ prompt }));
+  const genDisabled = showZones ? zonesReady === 0 : !canGenerate;
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent title="Retoucher la photo" desc="Le décor et la lumière changent, jamais le gâteau. L'original est conservé." className="max-w-xl">
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
 
+        {/* ------------------------------------------ zone défilante : image */}
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           {showZones && !preview ? (
-            <ZoneEditor src={asset.file} pending={pending} onGenerate={(dataUri, p) => run({ prompt: p, imageDataUri: dataUri })} />
+            <ZoneEditor ref={zoneRef} src={asset.file} pending={pending} onReadyChange={setZonesReady}
+              onGenerate={(dataUri, p) => run({ prompt: p, imageDataUri: dataUri })} />
           ) : (
             <div
               ref={stageRef}
               className="relative select-none overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50"
-              style={{ height: "clamp(220px, 42vh, 440px)", cursor: preview ? "ew-resize" : "default" }}
-              onPointerDown={preview ? (e) => { dragging.current = true; (e.currentTarget as Element).setPointerCapture(e.pointerId); scrub(e.clientX); } : undefined}
+              style={{ height: "clamp(220px, 44vh, 460px)", cursor: preview ? "ew-resize" : "default" }}
+              onPointerDown={preview ? (e) => { dragging.current = true; e.currentTarget.setPointerCapture(e.pointerId); scrub(e.clientX); } : undefined}
               onPointerMove={preview ? (e) => { if (dragging.current) scrub(e.clientX); } : undefined}
               onPointerUp={() => { dragging.current = false; }}
             >
@@ -133,24 +140,35 @@ export default function PhotoEditor({
             </div>
           )}
 
-          {!showZones && (
+          {!showZones && !preview && (
             <div className="flex flex-wrap gap-1.5">
               {PRESETS.map((p) => (
                 <button key={p.id} type="button" disabled={pending} onClick={() => run({ presetId: p.id })}
-                  className="rounded-full border border-zinc-200 px-3 py-1 text-[12px] text-zinc-600 transition-colors hover:border-zinc-300 hover:text-zinc-900 disabled:opacity-50">
+                  className="rounded-full border border-zinc-200 px-3 py-1 text-[12px] text-zinc-600 transition-colors hover:border-zinc-300 hover:text-zinc-900 active:scale-95 disabled:opacity-50">
                   {p.label}
                 </button>
               ))}
             </div>
           )}
+        </div>
 
-          {/* barre-composeur */}
-          <div className="rounded-2xl border border-zinc-300 p-2">
-            <div className="flex items-center gap-2">
+        {/* ------------------------------------------ barre-composeur (collée) */}
+        <div className="mt-3 shrink-0 rounded-2xl border border-zinc-300 p-2">
+          <input
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder={showZones ? "Décris chaque zone au-dessus, puis Générer" : "Décris ta retouche…"}
+            disabled={pending || showZones}
+            onKeyDown={(e) => { if (e.key === "Enter" && !genDisabled) onGenerate(); }}
+            className="w-full bg-transparent px-1 py-1 text-[13px] text-zinc-900 outline-none placeholder:text-zinc-400 disabled:opacity-50"
+          />
+          <div className="mt-1.5 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              {/* modèle */}
               <div className="relative shrink-0">
                 <button type="button" disabled={pending} onClick={() => setMenuOpen((v) => !v)}
-                  className="flex items-center gap-1.5 rounded-lg bg-zinc-100 px-2.5 py-1.5 text-[12px] font-semibold text-zinc-800 transition-colors hover:bg-zinc-200 disabled:opacity-50">
-                  <Sparkles className="size-3.5 text-(--color-brand)" /> {modelLabel}
+                  className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1.5 text-[12px] font-semibold text-zinc-800 transition-colors hover:bg-zinc-200 active:scale-95 disabled:opacity-50">
+                  <Sparkles className="size-3.5 text-(--color-brand)" /> {chip.short}
                   <ChevronUp className={cn("size-3.5 text-zinc-400 transition-transform", !menuOpen && "rotate-180")} />
                 </button>
                 {menuOpen && (
@@ -165,39 +183,27 @@ export default function PhotoEditor({
                   </div>
                 )}
               </div>
-              <input
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder={showZones ? "Décris chaque zone au-dessus" : "Décris ta retouche…"}
-                disabled={pending || showZones}
-                onKeyDown={(e) => { if (e.key === "Enter" && canGenerate && !showZones) run({ prompt }); }}
-                className="min-w-0 flex-1 bg-transparent text-[13px] text-zinc-900 outline-none placeholder:text-zinc-400 disabled:opacity-50"
-              />
+              {/* référence (lot 2) */}
+              <button type="button" disabled title="Images de référence — bientôt"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-dashed border-zinc-300 text-zinc-300">
+                <ImagePlus className="size-4" />
+              </button>
+              {/* zones */}
+              <button type="button" disabled={model !== "seedream" || pending} onClick={() => setZonesOn((v) => !v)}
+                title={model === "seedream" ? "Zones précises" : "Zones précises : passe sur Seedream"}
+                className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg border transition-colors active:scale-95 disabled:opacity-40",
+                  showZones ? "border-(--color-brand) bg-(--color-brand-soft) text-(--color-brand)" : "border-zinc-200 text-zinc-500 hover:text-zinc-800")}>
+                <Target className="size-4" />
+              </button>
             </div>
-            <div className="mt-2 flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <button type="button" disabled title="Images de référence — bientôt"
-                  className="flex size-8 items-center justify-center rounded-lg border border-dashed border-zinc-300 text-zinc-300">
-                  <ImagePlus className="size-4" />
-                </button>
-                <button type="button" disabled={model !== "seedream" || pending} onClick={() => setZonesOn((v) => !v)}
-                  title={model === "seedream" ? "Zones précises" : "Zones précises : passe sur Seedream"}
-                  className={cn("flex size-8 items-center justify-center rounded-lg border transition-colors disabled:opacity-40",
-                    showZones ? "border-(--color-brand) bg-(--color-brand-soft) text-(--color-brand)" : "border-zinc-200 text-zinc-500 hover:text-zinc-800")}>
-                  <Target className="size-4" />
-                </button>
-              </div>
-              {!showZones && (
-                <Button size="sm" variant="brand" loading={pending} disabled={!canGenerate} onClick={() => run({ prompt })}>
-                  <Wand2 /> Générer
-                </Button>
-              )}
-            </div>
+            <Button size="sm" variant="brand" loading={pending} disabled={genDisabled} onClick={onGenerate}>
+              <Wand2 /> Générer
+            </Button>
           </div>
         </div>
 
-        {/* footer */}
-        <div className="mt-3 flex shrink-0 items-center justify-between gap-2 border-t border-zinc-100 pt-3">
+        {/* ------------------------------------------------------------ footer */}
+        <div className="mt-2 flex shrink-0 items-center justify-between gap-2 border-t border-zinc-100 pt-2">
           <Button variant="ghost" size="sm" onClick={onClose}>Fermer</Button>
           <Button size="sm" loading={pending && !!preview} disabled={!preview} onClick={keep}>
             <Check /> {keepLabel}

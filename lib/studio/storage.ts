@@ -49,14 +49,16 @@ export async function ingestAsset(opts: {
 
   const dir = studioDir();
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const base = path.join("studio", opts.tenantSlug, "assets");
+  // chemins relatifs stockés en base : TOUJOURS en POSIX (slashs), sinon Windows
+  // écrit des antislashs que l'URL du navigateur normalise en slashs → 404.
+  const base = path.posix.join("studio", opts.tenantSlug, "assets");
   const tmpAbs = path.join(dir, base, `tmp-${id}${path.extname(opts.filename).toLowerCase() || ".bin"}`);
   await mkdir(path.dirname(tmpAbs), { recursive: true });
   await writeFile(tmpAbs, opts.buf);
 
   try {
     if (isVideo) {
-      const rel = path.join(base, `${id}.mp4`);
+      const rel = path.posix.join(base, `${id}.mp4`);
       const abs = path.join(dir, rel);
       // normalisation 1080p vertical-friendly : on limite la plus grande dimension à 1920
       await exec(FFMPEG, [
@@ -66,7 +68,7 @@ export async function ingestAsset(opts: {
         "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart",
         abs,
       ], { timeout: 300_000 });
-      const thumbRel = path.join(base, `${id}.jpg`);
+      const thumbRel = path.posix.join(base, `${id}.jpg`);
       await exec(FFMPEG, ["-y", "-ss", "0.5", "-i", abs, "-frames:v", "1", "-vf", "scale=480:-2", path.join(dir, thumbRel)], { timeout: 60_000 });
       const meta = await probe(abs);
       const size = (await stat(abs)).size;
@@ -80,11 +82,11 @@ export async function ingestAsset(opts: {
       return { id: a.id };
     } else {
       const sharp = (await import("sharp")).default;
-      const rel = path.join(base, `${id}.webp`);
+      const rel = path.posix.join(base, `${id}.webp`);
       const abs = path.join(dir, rel);
       const out = await sharp(opts.buf).rotate().resize(1920, 1920, { fit: "inside", withoutEnlargement: true }).webp({ quality: 85 }).toBuffer();
       await writeFile(abs, out);
-      const thumbRel = path.join(base, `${id}-t.webp`);
+      const thumbRel = path.posix.join(base, `${id}-t.webp`);
       await writeFile(path.join(dir, thumbRel), await sharp(out).resize(480, 480, { fit: "inside" }).webp({ quality: 75 }).toBuffer());
       const meta = await sharp(out).metadata();
       const a = await prisma.studioAsset.create({

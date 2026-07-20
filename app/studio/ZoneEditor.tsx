@@ -3,13 +3,12 @@
 /* ---------------------------------------------------------------------------
    Éditeur « zones colorées » (Seedream interactive editing).
    On dessine des rectangles de couleur sur la photo et on décrit ce que chaque
-   couleur doit devenir ; à la génération, l'image annotée + un prompt
-   « Red frame: … / Green frame: … » partent au modèle.
+   couleur doit devenir. La GÉNÉRATION est pilotée par la barre-composeur du
+   parent (PhotoEditor) via une ref — ce composant n'a plus son propre bouton.
 --------------------------------------------------------------------------- */
 
-import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Loader2, Wand2, Trash2 } from "lucide-react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Trash2 } from "lucide-react";
 
 const COLORS = [
   { key: "Red", css: "#ef4444" },
@@ -20,10 +19,14 @@ const COLORS = [
 ];
 
 type Zone = { color: string; css: string; x: number; y: number; w: number; h: number; note: string };
+export type ZoneEditorHandle = { generate: () => void };
 
-export default function ZoneEditor({ src, pending, onGenerate }: {
-  src: string; pending: boolean; onGenerate: (dataUri: string, prompt: string) => void;
-}) {
+const ZoneEditor = forwardRef<ZoneEditorHandle, {
+  src: string;
+  pending: boolean;
+  onGenerate: (dataUri: string, prompt: string) => void;
+  onReadyChange?: (filled: number) => void;
+}>(function ZoneEditor({ src, pending, onGenerate, onReadyChange }, ref) {
   const imgRef = useRef<HTMLImageElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
@@ -39,7 +42,6 @@ export default function ZoneEditor({ src, pending, onGenerate }: {
     im.src = src;
   }, [src]);
 
-  // coordonnées relatives (0..1) depuis l'événement souris
   const rel = (e: React.PointerEvent) => {
     const r = wrapRef.current!.getBoundingClientRect();
     return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
@@ -74,13 +76,16 @@ export default function ZoneEditor({ src, pending, onGenerate }: {
     }
     let dataUri: string;
     try { dataUri = cv.toDataURL("image/jpeg", 0.92); }
-    catch { return; } // image tainted (ne devrait pas arriver, même origine)
+    catch { return; }
     const lines = zones.filter((z) => z.note.trim()).map((z) => `${z.color} frame: ${z.note.trim()}`);
     const prompt = (lines.length ? lines.join("\n") + "\n" : "") + "Apply these region edits precisely. Keep everything outside the colored frames exactly the same. Do not render the colored frames in the output. Photorealistic result.";
     onGenerate(dataUri, prompt);
   };
 
+  useImperativeHandle(ref, () => ({ generate }));
+
   const filled = zones.filter((z) => z.note.trim()).length;
+  useEffect(() => { onReadyChange?.(filled); }, [filled, onReadyChange]);
 
   return (
     <div className="space-y-2.5">
@@ -88,14 +93,14 @@ export default function ZoneEditor({ src, pending, onGenerate }: {
         <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Couleur</span>
         {COLORS.map((c) => (
           <button key={c.key} type="button" onClick={() => setColor(c)} aria-label={c.key}
-            className="size-6 rounded-full border-2" style={{ background: c.css, borderColor: color.key === c.key ? "#18181b" : "transparent" }} />
+            className="size-6 rounded-full border-2 transition-transform active:scale-90" style={{ background: c.css, borderColor: color.key === c.key ? "#18181b" : "transparent" }} />
         ))}
         <span className="ml-auto text-[11px] text-zinc-400">Dessine un rectangle sur la photo</span>
       </div>
 
       <div ref={wrapRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
-        className="relative mx-auto w-full max-w-md touch-none select-none overflow-hidden rounded-lg border border-zinc-200"
-        style={{ aspectRatio: nat ? `${nat.w}/${nat.h}` : "1", maxHeight: "46vh" }}>
+        className="relative mx-auto w-full touch-none select-none overflow-hidden rounded-xl border border-zinc-200"
+        style={{ aspectRatio: nat ? `${nat.w}/${nat.h}` : "1", maxHeight: "clamp(200px, 40vh, 420px)" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={src} alt="" className="pointer-events-none h-full w-full object-contain" draggable={false} />
         {[...zones, ...(draft ? [draft] : [])].map((z, i) => (
@@ -121,12 +126,8 @@ export default function ZoneEditor({ src, pending, onGenerate }: {
           ))}
         </div>
       )}
-
-      <div className="flex justify-end">
-        <Button size="sm" variant="outline" disabled={pending || filled === 0} onClick={generate}>
-          {pending ? <Loader2 className="animate-spin" /> : <Wand2 />} Générer ({filled} zone{filled > 1 ? "s" : ""})
-        </Button>
-      </div>
     </div>
   );
-}
+});
+
+export default ZoneEditor;
