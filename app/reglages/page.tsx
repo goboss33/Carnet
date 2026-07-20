@@ -10,6 +10,7 @@ import { PROMPT_TEMPLATES } from "@/lib/prompts";
 import SettingsTabs from "./SettingsTabs";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -281,9 +282,7 @@ export default async function Reglages() {
       <form action={saveSettings} className="max-w-3xl">
         <SettingsTabs panels={panels} />
         <div className="sticky bottom-0 z-20 -mx-1 mt-6 border-t border-(--color-line) bg-(--color-surface)/95 px-1 py-3 backdrop-blur">
-          <button className="rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700">
-            Enregistrer les réglages
-          </button>
+          <SubmitButton className="h-10 px-5">Enregistrer les réglages</SubmitButton>
         </div>
       </form>
     </>

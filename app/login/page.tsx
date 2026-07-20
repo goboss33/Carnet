@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { login } from "@/app/actions";
+import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
   const [state, action, pending] = useActionState(login, undefined);
@@ -22,12 +23,7 @@ export default function LoginPage() {
           />
         </label>
         {state?.error && <p className="mt-3 text-sm font-medium text-red-600">{state.error}</p>}
-        <button
-          disabled={pending}
-          className="mt-5 w-full rounded-lg bg-zinc-900 py-2.5 font-semibold text-white transition-colors hover:bg-zinc-700 disabled:opacity-50"
-        >
-          {pending ? "Connexion…" : "Entrer"}
-        </button>
+        <Button loading={pending} className="mt-5 h-11 w-full text-[15px] font-semibold">Entrer</Button>
       </form>
     </main>
   );

@@ -1,8 +1,9 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/ui";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+  "relative inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-sm font-medium transition-[transform,color,background-color,border-color,opacity] duration-150 active:scale-[.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -29,8 +30,26 @@ export function Button({
   className,
   variant,
   size,
+  loading = false,
+  disabled,
+  children,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants>) {
-  return <button className={cn(buttonVariants({ variant, size }), className)} {...props} />;
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants> & { loading?: boolean }) {
+  return (
+    <button
+      className={cn(buttonVariants({ variant, size }), className)}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      {...props}
+    >
+      {loading && (
+        <span className="absolute inset-0 flex items-center justify-center" aria-hidden>
+          <Loader2 className="animate-spin" />
+        </span>
+      )}
+      {/* le contenu garde sa place (largeur figée) même masqué pendant le chargement */}
+      <span className={cn("inline-flex items-center gap-1.5", loading && "invisible")}>{children}</span>
+    </button>
+  );
 }
 export { buttonVariants };

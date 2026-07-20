@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { createOrderForContact } from "@/app/actions";
+import { Button } from "@/components/ui/button";
 
 const input = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
 const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
@@ -34,9 +35,7 @@ export default function NewOrderForm({ contactId }: { contactId: string }) {
           <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-600">
             Annuler
           </button>
-          <button disabled={pending} className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50">
-            {pending ? "Création…" : "Créer"}
-          </button>
+          <Button loading={pending} className="px-5 font-semibold">Créer</Button>
         </div>
       </form>
     </div>

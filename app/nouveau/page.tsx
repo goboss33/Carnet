@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createLead } from "@/app/actions";
+import { Button } from "@/components/ui/button";
 
 const input = "w-full rounded-lg border border-zinc-300 px-3.5 py-2.5 text-[15px] outline-none focus:border-(--color-brand)";
 const label = "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500";
@@ -37,9 +38,7 @@ export default function Nouveau() {
         </div>
         <label><span className={label}>Notes</span><textarea name="notes" rows={3} className={input} placeholder="Thème, contraintes, contexte de la demande…" /></label>
         {state?.error && <p className="text-sm font-medium text-red-600">{state.error}</p>}
-        <button disabled={pending} className="rounded-lg bg-zinc-900 px-6 py-2.5 font-semibold text-white transition-colors hover:bg-zinc-700 disabled:opacity-50">
-          {pending ? "Création…" : "Créer la fiche"}
-        </button>
+        <Button loading={pending} className="h-11 px-6 text-[15px] font-semibold">Créer la fiche</Button>
       </form>
     </>
   );

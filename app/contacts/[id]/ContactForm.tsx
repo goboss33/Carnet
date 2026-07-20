@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { updateContact, deleteContact } from "@/app/actions";
+import { Button } from "@/components/ui/button";
 
 const input = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
 const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
@@ -47,9 +48,7 @@ export default function ContactForm({ contact, ordersCount }: { contact: C; orde
       {state?.error && <p className="text-sm font-medium text-red-600">{state.error}</p>}
       {state?.ok && <p className="text-sm font-medium text-emerald-700">Enregistré ✓</p>}
       <div className="flex items-center justify-between">
-        <button disabled={pending} className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50">
-          {pending ? "…" : "Enregistrer"}
-        </button>
+        <Button loading={pending} className="px-5 font-semibold">Enregistrer</Button>
         <button
           formAction={deleteContact.bind(null, contact.id)}
           onClick={confirmDelete}

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createPartner } from "@/app/actions";
+import { Button } from "@/components/ui/button";
 
 const input = "rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
 
@@ -23,9 +24,7 @@ export default function PartnerForm() {
         <span className="text-sm text-zinc-500">%</span>
       </div>
       <input name="contact" placeholder="Contact (tél/e-mail)" className={`${input} w-52`} />
-      <button disabled={pending} className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50">
-        {pending ? "…" : "+ Partenaire"}
-      </button>
+      <Button loading={pending} className="px-4 font-semibold">+ Partenaire</Button>
       {state?.error && <p className="w-full text-sm font-medium text-red-600">{state.error}</p>}
     </form>
   );

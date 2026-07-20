@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { importCsv, purgeCrm } from "@/app/actions";
+import { Button } from "@/components/ui/button";
 
 export default function ImportPage() {
   const [state, action, pending] = useActionState(importCsv, undefined);
@@ -28,9 +29,7 @@ export default function ImportPage() {
         </p>
         {state?.report && <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">{state.report}</p>}
         {state?.error && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{state.error}</p>}
-        <button disabled={pending} className="rounded-lg bg-zinc-900 px-6 py-2.5 font-semibold text-white hover:bg-zinc-700 disabled:opacity-50">
-          {pending ? "Import en cours…" : "Importer"}
-        </button>
+        <Button loading={pending} className="h-11 px-6 text-[15px] font-semibold">Importer</Button>
       </form>
 
       <details className="mt-8 max-w-xl rounded-2xl border border-red-200 bg-red-50/50 p-6">
@@ -47,9 +46,7 @@ export default function ImportPage() {
             placeholder="Tape SUPPRIMER"
             className="rounded-lg border border-red-300 bg-white px-3 py-2 text-sm outline-none focus:border-red-500"
           />
-          <button disabled={purging} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
-            {purging ? "…" : "Tout supprimer"}
-          </button>
+          <Button loading={purging} variant="destructive" className="px-4 font-semibold">Tout supprimer</Button>
         </form>
         {purgeState?.report && <p className="mt-3 text-sm font-medium text-emerald-700">{purgeState.report}</p>}
         {purgeState?.error && <p className="mt-3 text-sm font-medium text-red-700">{purgeState.error}</p>}
