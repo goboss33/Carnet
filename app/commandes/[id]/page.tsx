@@ -17,6 +17,7 @@ import { AutoSaveForm, AutoSelect } from "./AutoSave";
 import { SaveStatusProvider, SaveToast } from "./SaveStatus";
 import { StatusPicker } from "./StatusPicker";
 import { OccasionPicker } from "./OccasionPicker";
+import { EventDatePicker } from "./EventDatePicker";
 import { TiersParts, FourrageChips, DeliveryFields } from "./OrderFields";
 import { BISCUITS } from "@/lib/order-options";
 import { cn } from "@/lib/ui";
@@ -83,7 +84,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
         </div>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Événement</p>
-          <p className="mt-1 text-sm font-medium text-zinc-900">{order.eventDate ? fmtDate(order.eventDate) : "—"}</p>
+          <EventDatePicker orderId={order.id} value={d(order.eventDate)} display={order.eventDate ? fmtDate(order.eventDate) : "—"} />
           {jx && <p className="mt-1"><span className={cn("inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold", jxTone)}>{jx}</span></p>}
         </div>
         <div className="min-w-0">
@@ -99,11 +100,9 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           <AutoSaveForm action={updateOrder.bind(null, order.id)} className="space-y-6 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6">
             <section>
               <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Calendar className="size-4 text-(--color-brand)" /> L'événement</div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label><span className={label}>Fêté·e</span><input name="celebrant" defaultValue={order.celebrant} className={input} /></label>
-                <label><span className={label}>Âge</span><input name="celebrantAge" type="number" defaultValue={order.celebrantAge ?? ""} className={input} /></label>
-                <label><span className={label}>Date de l'événement</span><input name="eventDate" type="date" defaultValue={d(order.eventDate)} className={input} /></label>
-                <label className="sm:col-span-2"><span className={label} title="Heure du retrait ou de la livraison">RDV de remise</span><input name="handoverAt" type="datetime-local" defaultValue={order.handoverAt ? new Date(order.handoverAt.getTime() - order.handoverAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""} className={input} /></label>
+              <div className="flex gap-4">
+                <label className="flex-1"><span className={label}>Fêté·e</span><input name="celebrant" defaultValue={order.celebrant} className={input} /></label>
+                <label className="w-24 shrink-0"><span className={label}>Âge</span><input name="celebrantAge" type="number" defaultValue={order.celebrantAge ?? ""} className={input} /></label>
               </div>
             </section>
 
@@ -129,7 +128,10 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
 
             <section>
               <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Truck className="size-4 text-(--color-brand)" /> Remise</div>
-              <DeliveryFields mode={order.deliveryMode} address={order.deliveryAddress} />
+              <div className="space-y-4">
+                <DeliveryFields mode={order.deliveryMode} address={order.deliveryAddress} />
+                <label className="block sm:max-w-xs"><span className={label} title="Heure du retrait ou de la livraison">RDV de remise</span><input name="handoverAt" type="datetime-local" defaultValue={order.handoverAt ? new Date(order.handoverAt.getTime() - order.handoverAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""} className={input} /></label>
+              </div>
             </section>
 
             <section>
