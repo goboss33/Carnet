@@ -18,7 +18,18 @@ import { Button } from "@/components/ui/button";
 import { useSort, SortableTH, RowMenu, useConfirm } from "@/components/ui/table-kit";
 import { STATUS_TONE } from "@/lib/statuts";
 import { occasionIcon, occasionShort } from "@/lib/occasions";
+import { OCCASIONS } from "@/lib/order-options";
 import { cn } from "@/lib/ui";
+
+const STATUS_FILTER = [
+  { id: "LEAD", label: "Lead" },
+  { id: "DEVIS_ENVOYE", label: "Devis envoyé" },
+  { id: "ACOMPTE_RECU", label: "Confirmé" },
+  { id: "EN_PRODUCTION", label: "En production" },
+  { id: "LIVRE", label: "Livré" },
+  { id: "ANNULE", label: "Annulé" },
+];
+const fieldCls = "h-9 rounded-lg border border-zinc-300 bg-white px-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-(--color-brand)";
 
 export type Row = {
   id: string;
@@ -28,9 +39,9 @@ export type Row = {
   dateISO: string | null;
   status: string;
   source: string;
-  amount: string;
   amountCents: number; // priceQuoted en CHF
   paidCents: number; // acompte + solde encaissés
+  search: string; // index de recherche (nom, contact, occasion, thème, notes, médias…)
 };
 
 const ACCESSORS = {
@@ -41,11 +52,28 @@ const ACCESSORS = {
   amount: (r: Row) => r.amountCents,
 } as Record<string, (r: Row) => string | number | null>;
 
-export default function OrdersTable({ rows }: { rows: Row[] }) {
+export default function OrdersTable({ rows, statut, annee, years }: { rows: Row[]; statut: string; annee: string; years: string[] }) {
   const router = useRouter();
   const [sel, setSel] = useState<Record<string, boolean>>({});
+  const [query, setQuery] = useState("");
+  const [occ, setOcc] = useState("");
   const { sorted, sort, toggle } = useSort(rows, { key: "date", dir: "desc" }, ACCESSORS);
   const { confirm, node } = useConfirm();
+
+  const currentYear = years[0] ?? annee;
+  const go = (statutVal: string, anneeVal: string) => {
+    const p = new URLSearchParams();
+    if (statutVal) p.set("statut", statutVal);
+    if (anneeVal && anneeVal !== currentYear) p.set("annee", anneeVal);
+    router.push(`/commandes${p.toString() ? `?${p}` : ""}`);
+  };
+
+  // Recherche live (multi-mots, tous doivent matcher) + filtre occasion (client).
+  const filtered = useMemo(() => {
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return sorted.filter((r) => (!occ || r.occasion === occ) && (tokens.length === 0 || tokens.every((t) => r.search.includes(t))));
+  }, [sorted, occ, query]);
+  const totalChf = filtered.reduce((a, r) => a + r.amountCents, 0);
 
   const count = useMemo(() => rows.reduce((n, r) => n + (sel[r.id] ? 1 : 0), 0), [rows, sel]);
   const selMode = count > 0;
@@ -82,6 +110,44 @@ export default function OrdersTable({ rows }: { rows: Row[] }) {
   return (
     <div>
       {node}
+
+      {/* Filtres — recherche live pleine largeur + déroulants */}
+      <div className="mb-3 space-y-2">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Rechercher (nom, occasion, thème, téléphone, notes…)"
+          className={cn(fieldCls, "w-full")}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={statut} onChange={(e) => go(e.target.value, annee)} className={fieldCls}>
+            <option value="">Tous statuts</option>
+            {STATUS_FILTER.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+          <select value={occ} onChange={(e) => setOcc(e.target.value)} className={fieldCls}>
+            <option value="">Toutes occasions</option>
+            {OCCASIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+          <select value={annee} onChange={(e) => go(statut, e.target.value)} className={fieldCls}>
+            {years.map((yy) => <option key={yy} value={yy}>{yy}</option>)}
+            <option value="all">Toutes années</option>
+          </select>
+          {(statut || occ || query || annee !== currentYear) && (
+            <button
+              type="button"
+              onClick={() => { setQuery(""); setOcc(""); if (statut || annee !== currentYear) router.push("/commandes"); }}
+              className="text-sm text-zinc-400 transition-colors hover:text-zinc-700"
+            >
+              Réinitialiser
+            </button>
+          )}
+          <span className="ml-auto text-xs text-zinc-400">
+            {filtered.length} commande{filtered.length > 1 ? "s" : ""} · CHF {totalChf.toLocaleString("fr-CH")}
+          </span>
+        </div>
+      </div>
+
       {selMode && (
         <div className="sticky top-14 z-10 mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-(--color-line) bg-(--color-brand-soft) px-4 py-2 md:top-0">
           <span className="text-[13px] font-medium text-zinc-800">
@@ -164,7 +230,7 @@ export default function OrdersTable({ rows }: { rows: Row[] }) {
           </tr>
         </THead>
         <tbody>
-          {sorted.map((r) => {
+          {filtered.map((r) => {
             const OccIcon = occasionIcon(r.occasion);
             const totalC = r.amountCents * 100;
             const pct = totalC > 0 ? Math.min(100, Math.round((r.paidCents / totalC) * 100)) : 0;
@@ -174,7 +240,7 @@ export default function OrdersTable({ rows }: { rows: Row[] }) {
             return (
               <TR
                 key={r.id}
-                className={cn("cursor-pointer select-none", sel[r.id] && "bg-(--color-brand-soft) hover:bg-(--color-brand-soft)")}
+                className={cn("cursor-pointer select-none", sel[r.id] ? "bg-(--color-brand-soft) even:bg-(--color-brand-soft) hover:bg-(--color-brand-soft)" : "even:bg-zinc-50/50")}
                 onClick={(e) => onRowClick(e, r.id)}
                 onPointerDown={(e) => onPointerDown(e, r.id)}
                 onPointerMove={onPointerMove}
@@ -207,7 +273,7 @@ export default function OrdersTable({ rows }: { rows: Row[] }) {
                   )}
                 </TD>
                 <TD>
-                  <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-[12px] font-semibold", STATUS_TONE[r.status] ?? "bg-zinc-100 text-zinc-600")}>
+                  <span className={cn("inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-semibold", STATUS_TONE[r.status] ?? "bg-zinc-100 text-zinc-600")}>
                     {STATUS_BADGE[r.status]?.label ?? r.status}
                   </span>
                 </TD>
@@ -254,10 +320,14 @@ export default function OrdersTable({ rows }: { rows: Row[] }) {
               </TR>
             );
           })}
-          {rows.length === 0 && (
+          {filtered.length === 0 && (
             <tr>
               <td colSpan={6}>
-                <EmptyState icon={<Archive />} title="Aucune commande ne correspond" hint="Élargis la période ou réinitialise les filtres." />
+                <EmptyState
+                  icon={<Archive />}
+                  title="Aucune commande ne correspond"
+                  hint={query || occ ? "Aucun résultat pour cette recherche — essaie d'autres mots, une autre occasion ou « Toutes années »." : "Élargis la période ou réinitialise les filtres."}
+                />
               </td>
             </tr>
           )}
