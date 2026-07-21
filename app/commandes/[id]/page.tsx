@@ -20,7 +20,7 @@ import { PaymentModal } from "./PaymentModal";
 import { TiersParts, FourrageChips, DeliveryFields } from "./OrderFields";
 import { BISCUITS } from "@/lib/order-options";
 import { ContactInfo } from "./ContactInfo";
-import { ChannelIcon } from "@/components/ui/channel-icon";
+import { ChannelPicker } from "./ChannelPicker";
 import { Calendar, Cake, Truck, StickyNote, Images } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +70,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
         }
         subtitle={
           <span className="inline-flex items-center gap-1.5">
-            <ChannelIcon source={order.source} className="size-3.5" />
+            <ChannelPicker orderId={order.id} current={order.source} />
             {SOURCES.find((s) => s.id === order.source)?.label ?? ""} · créé le {fmtDate(order.createdAt)}
           </span>
         }

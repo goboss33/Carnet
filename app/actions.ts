@@ -217,6 +217,13 @@ export async function setEventDate(orderId: string, value: string) {
   void syncOrderEvent(orderId).catch(() => null);
 }
 
+/** Canal d'acquisition (source), éditable depuis la fiche via l'icône. */
+export async function setSource(orderId: string, source: string) {
+  await prisma.order.update({ where: { id: orderId }, data: { source: source as Source } });
+  revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/");
+}
+
 export async function addNote(orderId: string, formData: FormData) {
   const body = String(formData.get("body") ?? "").trim();
   if (!body) return;
