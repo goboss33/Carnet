@@ -48,7 +48,13 @@ export function FourrageChips({ selected }: { selected: string[] }) {
   const all = [...FOURRAGES, ...extras];
   const [chosen, setChosen] = useState<string[]>(selected);
   const [editing, setEditing] = useState(false);
-  const toggle = (f: string) => setChosen((c) => (c.includes(f) ? c.filter((x) => x !== f) : c.length < MAX_FOURRAGES ? [...c, f] : c));
+  const toggle = (f: string) => {
+    const isOn = chosen.includes(f);
+    const next = isOn ? chosen.filter((x) => x !== f) : chosen.length < MAX_FOURRAGES ? [...chosen, f] : chosen;
+    setChosen(next);
+    // Atteindre le maximum (2ᵉ goût) replie automatiquement ; retirer ne replie pas.
+    if (!isOn && next.length >= MAX_FOURRAGES) setEditing(false);
+  };
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between gap-2">
