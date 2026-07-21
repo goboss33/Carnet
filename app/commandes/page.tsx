@@ -75,7 +75,7 @@ export default async function Historique({
       date: dateStr,
       dateISO: o.eventDate ? o.eventDate.toISOString() : null,
       status: o.status,
-      source: SOURCES.find((s) => s.id === o.source)?.label ?? "",
+      sourceId: o.source,
       amountCents: o.priceQuoted ?? 0,
       paidCents: (o.depositCents ?? 0) + (o.balanceCents ?? 0),
       search,

@@ -14,6 +14,7 @@ import { markManyPaidInFull, duplicateOrder, deleteOrder, markManyDelivered, del
 import { downloadCSV } from "@/components/ui/table-kit";
 import { Table, THead, TR, TD, TH, EmptyState } from "@/components/ui/table";
 import { STATUS_BADGE } from "@/components/ui/badge";
+import { ChannelIcon } from "@/components/ui/channel-icon";
 import { Button } from "@/components/ui/button";
 import { useSort, SortableTH, RowMenu, useConfirm } from "@/components/ui/table-kit";
 import { STATUS_TONE } from "@/lib/statuts";
@@ -38,7 +39,7 @@ export type Row = {
   date: string;
   dateISO: string | null;
   status: string;
-  source: string;
+  sourceId: string; // canal d'acquisition (enum Source)
   amountCents: number; // priceQuoted en CHF
   paidCents: number; // acompte + solde encaissés
   search: string; // index de recherche (nom, contact, occasion, thème, notes, médias…)
@@ -222,6 +223,7 @@ export default function OrdersTable({ rows, statut, annee, years }: { rows: Row[
         <THead>
           <tr>
             <SortableTH label="Événement" k="date" sort={sort} onToggle={toggle} />
+            <TH className="w-8" aria-label="Canal" />
             <SortableTH label="Cliente" k="name" sort={sort} onToggle={toggle} />
             <SortableTH label="Occasion" k="occasion" sort={sort} onToggle={toggle} />
             <SortableTH label="Statut" k="status" sort={sort} onToggle={toggle} />
@@ -258,9 +260,11 @@ export default function OrdersTable({ rows, statut, annee, years }: { rows: Row[
                     {r.date}
                   </span>
                 </TD>
+                <TD className="w-8">
+                  <ChannelIcon source={r.sourceId} className="size-4" />
+                </TD>
                 <TD>
                   <span className="font-medium text-zinc-900">{r.name}</span>
-                  {r.source ? <span className="ml-1.5 text-xs text-zinc-400">{r.source}</span> : null}
                 </TD>
                 <TD>
                   {r.occasion === "—" ? (
@@ -322,7 +326,7 @@ export default function OrdersTable({ rows, statut, annee, years }: { rows: Row[
           })}
           {filtered.length === 0 && (
             <tr>
-              <td colSpan={6}>
+              <td colSpan={7}>
                 <EmptyState
                   icon={<Archive />}
                   title="Aucune commande ne correspond"
