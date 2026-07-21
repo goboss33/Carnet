@@ -1,10 +1,11 @@
 "use client";
 
-/* Occasion dans le bandeau résumé : pastille (icône + libellé) + crayon → menu
-   type Apple. « Autre occasion… » bascule en champ libre. Enregistre via
-   l'action setOccasion (hors formulaire auto-save). */
+/* Occasion dans le bandeau résumé : pastille (icône + libellé court, une seule
+   ligne) + crayon → menu type Apple. La liste reflète le configurateur du site
+   (« Autre occasion » incluse). Pour préciser une « autre » occasion, on l'écrit
+   dans les notes internes. Enregistre via setOccasion (hors auto-save). */
 
-import { useState, useTransition, useRef, useEffect } from "react";
+import { useState, useTransition } from "react";
 import { Pencil, Check, Cake, Heart, Baby, Briefcase, PartyPopper, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/ui";
@@ -17,48 +18,40 @@ const ICONS: Record<string, LucideIcon> = {
   Mariage: Heart,
   "Baby shower": Baby,
   "Événement d'entreprise": Briefcase,
+  "Autre occasion": Sparkles,
 };
 const iconFor = (occ: string): LucideIcon => ICONS[occ] ?? Sparkles;
 
+// Libellés courts pour la pastille (évite le retour à la ligne).
+const SHORT: Record<string, string> = {
+  "Anniversaire d'enfant": "Anniv. enfant",
+  "Anniversaire d'adulte": "Anniv. adulte",
+  "Événement d'entreprise": "Entreprise",
+  "Autre occasion": "Autre",
+};
+
 export function OccasionPicker({ orderId, current }: { orderId: string; current: string }) {
   const [open, setOpen] = useState(false);
-  const [custom, setCustom] = useState(false);
   const [pending, start] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  const isStd = (OCCASIONS as readonly string[]).includes(current);
-  const label = current || "À définir";
   const Icon = iconFor(current);
+  const short = current ? SHORT[current] ?? current : "À définir";
 
-  const save = (value: string) => { if (value !== current) start(() => setOccasion(orderId, value)); };
-  const choose = (occ: string) => { setOpen(false); save(occ); };
-  const commit = (raw: string) => { setCustom(false); save(raw.trim()); };
-
-  useEffect(() => { if (custom) inputRef.current?.focus(); }, [custom]);
-
-  if (custom) {
-    return (
-      <input
-        ref={inputRef}
-        defaultValue={isStd ? "" : current}
-        placeholder="Préciser l'occasion…"
-        className="mt-1 w-full min-w-0 rounded-lg border border-zinc-300 px-2 py-1 text-sm outline-none focus:border-(--color-brand)"
-        onKeyDown={(e) => {
-          if (e.key === "Enter") { e.preventDefault(); commit(e.currentTarget.value); }
-          if (e.key === "Escape") setCustom(false);
-        }}
-        onBlur={(e) => commit(e.currentTarget.value)}
-      />
-    );
-  }
+  const choose = (occ: string) => { setOpen(false); if (occ !== current) start(() => setOccasion(orderId, occ)); };
 
   return (
-    <div className="relative mt-1 flex max-w-full items-start gap-1">
-      <span className={cn("inline-flex min-w-0 items-center gap-1.5 rounded-full bg-(--color-brand-soft) px-2.5 py-0.5 text-[12px] font-semibold text-(--color-brand)", !current && "bg-zinc-100 text-zinc-500")}>
+    <div className="relative mt-1 flex items-center gap-1">
+      <span
+        title={current || undefined}
+        className={cn(
+          "inline-flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-semibold",
+          current ? "bg-(--color-brand-soft) text-(--color-brand)" : "bg-zinc-100 text-zinc-500",
+        )}
+      >
         <Icon className="size-3.5 shrink-0" />
-        <span className="whitespace-normal break-words leading-tight">{label}</span>
+        <span className="truncate">{short}</span>
       </span>
-      <button type="button" onClick={() => setOpen((v) => !v)} disabled={pending} aria-label="Changer l'occasion" className="mt-0.5 shrink-0 rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700">
+      <button type="button" onClick={() => setOpen((v) => !v)} disabled={pending} aria-label="Changer l'occasion" className="shrink-0 rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700">
         <Pencil className="size-3.5" />
       </button>
       {open && (
@@ -80,15 +73,6 @@ export function OccasionPicker({ orderId, current }: { orderId: string; current:
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={() => { setOpen(false); setCustom(true); }}
-              className={cn("flex w-full items-center gap-2.5 border-t border-zinc-100 px-3 py-2 text-left text-[13px] hover:bg-zinc-50", current && !isStd ? "font-semibold text-zinc-900" : "text-zinc-600")}
-            >
-              <Sparkles className="size-4 shrink-0 text-zinc-400" />
-              <span className="flex-1">Autre occasion…</span>
-              {current && !isStd && <Check className="size-4 text-(--color-brand)" />}
-            </button>
           </div>
         </>
       )}

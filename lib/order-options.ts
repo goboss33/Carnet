@@ -1,12 +1,16 @@
 /* Options standard reprises du configurateur du site mamangateau.ch (lib/data.ts).
    Les deux repos sont séparés : on recopie ici les listes (elles bougent rarement). */
 
+/* Doit rester STRICTEMENT identique aux `label` du configurateur du site
+   (mamangateau.ch → lib/data.ts OCCASIONS) : le hook /api/hooks/devis stocke
+   le label tel quel, donc toute divergence ferait tomber un lead « hors liste ». */
 export const OCCASIONS = [
   "Anniversaire d'enfant",
   "Anniversaire d'adulte",
   "Mariage",
   "Baby shower",
   "Événement d'entreprise",
+  "Autre occasion",
 ] as const;
 
 export const BISCUITS = ["Vanille", "Chocolat", "Citron", "Cannelle", "Orange", "Nature"] as const;
