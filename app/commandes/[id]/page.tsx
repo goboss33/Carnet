@@ -14,7 +14,8 @@ import MediaViewer from "@/app/components/MediaViewer";
 import CopyButton from "./CopyButton";
 import { PageHeader } from "@/components/ui/page-header";
 import { AutoSaveForm, AutoSelect } from "./AutoSave";
-import { SaveStatusProvider, SaveStatusBadge } from "./SaveStatus";
+import { SaveStatusProvider, SaveToast } from "./SaveStatus";
+import { StatusScroller } from "./StatusScroller";
 import { cn } from "@/lib/ui";
 import { Phone, MessageCircle, Calendar, Cake, Truck, StickyNote, Images } from "lucide-react";
 import type { OrderStatus } from "@prisma/client";
@@ -64,8 +65,9 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
 
   return (
     <SaveStatusProvider>
+      <SaveToast />
       <PageHeader
-        title={<span className="inline-flex items-center gap-2">{c.firstName} {c.lastName} <SaveStatusBadge /></span>}
+        title={`${c.firstName} ${c.lastName}`}
         subtitle={`${SOURCES.find((s) => s.id === order.source)?.label ?? ""} · créé le ${fmtDate(order.createdAt)}`}
         actions={
           c.phone ? (
@@ -101,20 +103,20 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* changer le statut */}
-      <div className="mb-6 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <StatusScroller>
         {STATUTS.map((s) => (
           <form key={s.id} className="shrink-0" action={setStatus.bind(null, order.id, s.id as OrderStatus)}>
-            <button className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${order.status === s.id ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 text-zinc-500 hover:border-zinc-500"}`}>
+            <button data-active={order.status === s.id} className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${order.status === s.id ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 text-zinc-500 hover:border-zinc-500"}`}>
               {s.label}
             </button>
           </form>
         ))}
         <form className="shrink-0" action={setStatus.bind(null, order.id, "ANNULE" as OrderStatus)}>
-          <button className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${order.status === "ANNULE" ? "border-red-700 bg-red-700 text-white" : "border-red-200 text-red-400 hover:border-red-400 hover:text-red-600"}`}>
+          <button data-active={order.status === "ANNULE"} className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${order.status === "ANNULE" ? "border-red-700 bg-red-700 text-white" : "border-red-200 text-red-400 hover:border-red-400 hover:text-red-600"}`}>
             Annulé / sans suite
           </button>
         </form>
-      </div>
+      </StatusScroller>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         {/* -------- commande (auto-save) -------- */}

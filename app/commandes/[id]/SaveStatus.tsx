@@ -1,10 +1,11 @@
 "use client";
 
-/* État de sauvegarde partagé : AutoSaveForm/AutoSelect le poussent, le badge
-   dans l'en-tête (près du prénom) l'affiche. */
+/* État de sauvegarde partagé : AutoSaveForm/AutoSelect le poussent, un petit
+   témoin FLOTTANT en haut à droite l'affiche puis s'estompe tout seul. */
 
-import { createContext, useContext, useState } from "react";
-import { Check, Loader2, AlertCircle } from "lucide-react";
+import { createContext, useContext, useEffect, useState } from "react";
+import { Check, Loader2 } from "lucide-react";
+import { cn } from "@/lib/ui";
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -19,11 +20,38 @@ export function useSaveStatus() {
   return useContext(Ctx);
 }
 
-export function SaveStatusBadge() {
-  const { state } = useSaveStatus();
-  if (state === "idle") return null;
-  if (state === "saving") return <Loader2 className="size-4 animate-spin text-zinc-400" aria-label="Enregistrement en cours" />;
-  if (state === "error")
-    return <span title="Erreur d'enregistrement" className="inline-flex size-5 items-center justify-center rounded-full bg-red-100 text-red-600"><AlertCircle className="size-3.5" /></span>;
-  return <span title="Enregistré" className="inline-flex size-5 items-center justify-center rounded-full bg-emerald-500 text-white"><Check className="size-3.5" /></span>;
+/** Témoin flottant (fixe en haut à droite) : apparaît puis disparaît en fondu. */
+export function SaveToast() {
+  const { state, setSaveState } = useSaveStatus();
+  useEffect(() => {
+    if (state === "saved") { const t = setTimeout(() => setSaveState("idle"), 2200); return () => clearTimeout(t); }
+    if (state === "error") { const t = setTimeout(() => setSaveState("idle"), 4000); return () => clearTimeout(t); }
+  }, [state, setSaveState]);
+
+  return (
+    <div
+      aria-live="polite"
+      className={cn(
+        "pointer-events-none fixed right-4 top-16 z-50 transition-opacity duration-500 md:top-6",
+        state === "idle" ? "opacity-0" : "opacity-100"
+      )}
+    >
+      {state !== "idle" && (
+        <div
+          className={cn(
+            "flex items-center gap-1.5 rounded-full border bg-white px-3 py-1.5 text-[12px] font-medium shadow-sm",
+            state === "error" ? "border-red-200 text-red-600" : state === "saving" ? "border-zinc-200 text-zinc-500" : "border-emerald-200 text-emerald-700"
+          )}
+        >
+          {state === "saving" ? (
+            <><Loader2 className="size-3.5 animate-spin" /> Enregistrement…</>
+          ) : state === "error" ? (
+            "Erreur d'enregistrement"
+          ) : (
+            <><span className="inline-flex size-4 items-center justify-center rounded-full border-2 border-emerald-500 text-emerald-600"><Check className="size-2.5" /></span> Enregistré</>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
