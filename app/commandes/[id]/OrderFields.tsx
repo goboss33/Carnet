@@ -20,19 +20,19 @@ export function TiersParts({ tiers, parts }: { tiers: number | null; parts: numb
   const setTier = (n: number) => { setT(n); const nr = TIERS_PARTS[n]; setP((c) => Math.min(nr.max, Math.max(nr.min, c))); };
   return (
     <div>
-      <span className={labelCls}>Étages & parts</span>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <span className={labelCls} title="Nombre d'étages">Étages & parts</span>
+      <div className="flex items-center gap-3">
         <div className="inline-flex shrink-0 rounded-lg border border-zinc-300 p-0.5 text-[13px]">
           {[1, 2].map((n) => (
-            <label key={n} className={cn("cursor-pointer rounded-md px-3 py-1.5 font-medium transition-colors", t === n ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}>
+            <label key={n} className={cn("cursor-pointer rounded-md px-3 py-1.5 text-center font-semibold transition-colors", t === n ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}>
               <input type="radio" name="tiers" value={n} checked={t === n} onChange={() => setTier(n)} className="sr-only" />
-              {n} étage{n > 1 ? "s" : ""}
+              {n}
             </label>
           ))}
         </div>
-        <div className="flex min-w-[180px] flex-1 items-center gap-3">
-          <input type="range" name="parts" min={r.min} max={r.max} value={p} onChange={(e) => setP(Number(e.target.value))} className="flex-1 accent-(--color-brand)" />
-          <span className="w-20 shrink-0 text-right text-sm font-semibold text-zinc-800">{p} parts</span>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <input type="range" name="parts" min={r.min} max={r.max} value={p} onChange={(e) => setP(Number(e.target.value))} className="min-w-0 flex-1 accent-(--color-brand)" />
+          <span className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-zinc-800">{p} parts</span>
         </div>
       </div>
     </div>
