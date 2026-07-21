@@ -99,7 +99,7 @@ export default async function Historique({
       </form>
 
       <p className="mb-2 text-xs text-zinc-400">
-        Astuce : coche des commandes (ou « tout sélectionner ») pour les marquer payées en entier — pratique pour solder l’historique importé.
+        Astuce : appui long sur une ligne pour la sélectionner (puis tape les autres), ou Ctrl/Cmd+clic — pratique pour marquer plusieurs commandes « payées en entier ».
       </p>
 
       <OrdersTable rows={rows} />
