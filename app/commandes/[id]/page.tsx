@@ -8,7 +8,7 @@ import { chf } from "@/lib/money";
 import { paymentState } from "@/lib/payments";
 import { waLink } from "@/lib/wa";
 import { getSettings } from "@/lib/settings";
-import { updateOrder, addNote, setOrderPartner, recordPayment, markPaidInFull, refundDeposit, assistantSend, setRevenueCategory } from "@/app/actions";
+import { updateOrder, addNote, setOrderPartner, assistantSend, setRevenueCategory } from "@/app/actions";
 import DeleteOrderButton from "./DeleteOrderButton";
 import MediaViewer from "@/app/components/MediaViewer";
 import CopyButton from "./CopyButton";
@@ -18,6 +18,7 @@ import { SaveStatusProvider, SaveToast } from "./SaveStatus";
 import { StatusPicker } from "./StatusPicker";
 import { OccasionPicker } from "./OccasionPicker";
 import { EventDatePicker } from "./EventDatePicker";
+import { PaymentModal } from "./PaymentModal";
 import { TiersParts, FourrageChips, DeliveryFields } from "./OrderFields";
 import { BISCUITS } from "@/lib/order-options";
 import { cn } from "@/lib/ui";
@@ -95,7 +96,18 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
         </div>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Paiement</p>
-          <p className="mt-1 text-sm font-medium text-zinc-900">{fmtCHF(order.priceQuoted)}</p>
+          <div className="mt-1 flex items-center gap-1">
+            <p className="text-sm font-medium text-zinc-900">{fmtCHF(order.priceQuoted)}</p>
+            <PaymentModal
+              orderId={order.id}
+              priceQuoted={order.priceQuoted}
+              depositCents={order.depositCents}
+              balanceCents={order.balanceCents}
+              depositPaidAt={d(order.depositPaidAt)}
+              balancePaidAt={d(order.balancePaidAt)}
+              status={order.status}
+            />
+          </div>
           {payBadge && <p className="mt-1">{payBadge}</p>}
         </div>
       </div>
@@ -116,17 +128,14 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Cake className="size-4 text-(--color-brand)" /> Le gâteau</div>
               <div className="space-y-4">
                 <TiersParts tiers={order.tiers} parts={order.parts} />
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label><span className={label}>Prix (CHF)</span><input name="priceQuoted" type="number" defaultValue={order.priceQuoted ?? ""} className={input} /></label>
-                  <label>
-                    <span className={label}>Biscuit</span>
-                    <select name="biscuit" defaultValue={order.biscuit} className={input}>
-                      <option value="">—</option>
-                      {BISCUITS.map((b) => <option key={b} value={b}>{b}</option>)}
-                      {order.biscuit && !(BISCUITS as readonly string[]).includes(order.biscuit) && <option value={order.biscuit}>{order.biscuit}</option>}
-                    </select>
-                  </label>
-                </div>
+                <label className="block">
+                  <span className={label}>Biscuit</span>
+                  <select name="biscuit" defaultValue={order.biscuit} className={input}>
+                    <option value="">—</option>
+                    {BISCUITS.map((b) => <option key={b} value={b}>{b}</option>)}
+                    {order.biscuit && !(BISCUITS as readonly string[]).includes(order.biscuit) && <option value={order.biscuit}>{order.biscuit}</option>}
+                  </select>
+                </label>
                 <FourrageChips selected={order.fourrages} />
                 <label className="block"><span className={label}>Thème & style</span><input name="themeNote" defaultValue={order.themeNote} className={input} placeholder="Ex. licorne pastel arc-en-ciel, semi-naked fleurs fraîches…" /></label>
               </div>
@@ -230,54 +239,6 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
             {!eff.assistantActive && <p className="mt-2 text-[11px] text-amber-600">Assistant désactivé dans les réglages — message de base uniquement.</p>}
           </div>
 
-          {/* -------- paiement -------- */}
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Paiement</p>
-            <dl className="space-y-1.5">
-              <div className="flex justify-between"><dt className="text-zinc-500">Total</dt><dd className="font-medium">{fmtCHF(order.priceQuoted)}</dd></div>
-              <div className="flex justify-between"><dt className="text-zinc-500">Acompte</dt><dd className="font-medium">{order.depositCents ? chf(order.depositCents) : "—"}{order.depositPaidAt ? ` · ${fmtDate(order.depositPaidAt)}` : ""}</dd></div>
-              <div className="flex justify-between"><dt className="text-zinc-500">Solde</dt><dd className="font-medium">{order.balanceCents ? chf(order.balanceCents) : "—"}{order.balancePaidAt ? ` · ${fmtDate(order.balancePaidAt)}` : ""}</dd></div>
-            </dl>
-            {order.status === "ANNULE" ? (
-              pay.paidCents > 0 && (
-                <div className="mt-3 rounded-lg bg-zinc-50 px-3 py-2">
-                  <p className="text-xs font-semibold text-zinc-600">
-                    Acompte conservé (annulation) : {chf(pay.paidCents)} — compté en recette.
-                  </p>
-                  <form action={refundDeposit.bind(null, order.id)} className="mt-1.5">
-                    <button className="text-xs font-semibold text-amber-700 underline-offset-2 hover:underline">
-                      Marquer remboursé (retirer des recettes)
-                    </button>
-                  </form>
-                </div>
-              )
-            ) : (
-              <>
-                <div className={`mt-3 flex items-center justify-between rounded-lg px-3 py-2 font-semibold ${pay.isPaid ? "bg-emerald-50 text-emerald-700" : pay.dueCents > 0 ? "bg-amber-50 text-amber-700" : "bg-zinc-50 text-zinc-500"}`}>
-                  <span>{pay.isPaid ? "Soldé" : "Reste à encaisser"}</span>
-                  {!pay.isPaid && <span>{pay.hasTotal ? chf(pay.dueCents) : "—"}</span>}
-                </div>
-                <form action={recordPayment.bind(null, order.id)} className="mt-4 flex flex-wrap items-end gap-2">
-                  <label className="min-w-24 flex-1">
-                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Acompte CHF</span>
-                    <input name="depositChf" type="number" step="0.05" min="0" defaultValue={order.depositCents ? order.depositCents / 100 : ""} className={input} />
-                  </label>
-                  <label className="min-w-24 flex-1">
-                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Solde CHF</span>
-                    <input name="balanceChf" type="number" step="0.05" min="0" defaultValue={order.balanceCents ? order.balanceCents / 100 : ""} className={input} />
-                  </label>
-                  <button className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-700">OK</button>
-                </form>
-                {order.priceQuoted && !pay.isPaid && (
-                  <form action={markPaidInFull.bind(null, order.id)} className="mt-2">
-                    <button className="w-full rounded-lg border border-zinc-300 py-1.5 text-xs font-semibold text-zinc-500 hover:border-zinc-500">
-                      Marquer payé en entier
-                    </button>
-                  </form>
-                )}
-              </>
-            )}
-          </div>
 
           <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Catégorie de revenu (Cap)</p>

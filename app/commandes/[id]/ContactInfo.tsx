@@ -45,7 +45,7 @@ export function ContactInfo(props: Props) {
         className={cn("group inline-flex items-center gap-2 text-left", props.className)}
       >
         <span className="min-w-0">{props.name}</span>
-        <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-100 group-hover:text-blue-700">
+        <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-(--color-brand-soft) text-(--color-brand) transition-colors group-hover:bg-(--color-brand) group-hover:text-white">
           <Info className="size-[18px]" />
         </span>
       </button>
