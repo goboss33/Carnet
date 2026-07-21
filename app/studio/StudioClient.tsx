@@ -203,7 +203,7 @@ export default function StudioClient({
                 value={selected.length === 1 ? (selected[0].orderId ?? null) : null}
                 onChange={(v) => start(async () => { await linkStudioAssets(selected.map((a) => a.id), v); toast.success("Liaison mise à jour."); router.refresh(); })}
               />
-              {onlyPhoto && <Button size="icon-sm" variant="ghost" title="Retoucher" aria-label="Retoucher" onClick={() => setEditId(selected[0].id)}><Wand2 /></Button>}
+              <Button size="icon-sm" variant="ghost" disabled={!onlyPhoto} title={onlyPhoto ? "Retoucher" : "Retoucher — sélectionne une seule photo"} aria-label="Retoucher" onClick={() => onlyPhoto && setEditId(selected[0].id)}><Wand2 /></Button>
               <Button size="icon-sm" variant="ghost" title="Supprimer" aria-label="Supprimer" className="text-red-600 hover:bg-red-50 hover:text-red-700" disabled={pending} onClick={bulkDelete}><Trash2 /></Button>
               <Button size="icon-sm" variant="ghost" title="Annuler la sélection" aria-label="Annuler" onClick={() => setSel({})}><X /></Button>
             </div>
