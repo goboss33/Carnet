@@ -34,7 +34,7 @@ export const SOURCES = [
   { id: "SMS", label: "SMS" },
   { id: "TELEPHONE", label: "Téléphone" },
   { id: "BOUCHE_A_OREILLE", label: "Bouche-à-oreille" },
-  { id: "AUTRE", label: "Autre" },
+  { id: "AUTRE", label: "Non précisé" },
 ] as const;
 
 export const fmtCHF = (n?: number | null) => (n == null ? "—" : `CHF ${n}`);

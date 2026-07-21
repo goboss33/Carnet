@@ -23,7 +23,7 @@ export default function Nouveau() {
           <label><span className={label}>Instagram</span><input name="instagram" className={input} placeholder="@…" /></label>
           <label>
             <span className={label}>Canal *</span>
-            <select name="source" className={input} defaultValue="WHATSAPP">
+            <select name="source" className={input} defaultValue="AUTRE">
               {SOURCES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           </label>
