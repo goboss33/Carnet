@@ -3,9 +3,7 @@ import InspirationManager from "./InspirationManager";
 import StudioPanel from "./StudioPanel";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { SOURCES, fmtCHF, fmtDate } from "@/lib/statuts";
-import { chf } from "@/lib/money";
-import { paymentState } from "@/lib/payments";
+import { SOURCES, fmtDate } from "@/lib/statuts";
 import { waLink } from "@/lib/wa";
 import { getSettings } from "@/lib/settings";
 import { updateOrder, addNote, setOrderPartner, assistantSend, setRevenueCategory } from "@/app/actions";
@@ -44,7 +42,13 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
   if (!order) notFound();
   const partners = await prisma.partner.findMany({ where: { tenantId: order.tenantId, active: true }, orderBy: { name: "asc" } });
   const c = order.contact;
-  const pay = paymentState(order);
+  const paidCents = (order.depositCents ?? 0) + (order.balanceCents ?? 0);
+  const totalCents = (order.priceQuoted ?? 0) * 100;
+  const payPct = totalCents > 0 ? Math.min(100, Math.round((paidCents / totalCents) * 100)) : 0;
+  const payTone = order.status === "ANNULE" || totalCents === 0 ? "zinc" : paidCents >= totalCents ? "emerald" : paidCents > 0 ? "amber" : "red";
+  const payBar = { zinc: "bg-zinc-300", red: "bg-red-500", amber: "bg-amber-500", emerald: "bg-emerald-500" }[payTone];
+  const payText = { zinc: "text-zinc-400", red: "text-red-600", amber: "text-amber-700", emerald: "text-emerald-600" }[payTone];
+  const paidChf = paidCents / 100;
   const eff = await getSettings(order.tenantId);
   const lastAssistant = order.aiMessages.filter((m) => m.role === "assistant").at(-1);
   const d = (x?: Date | null) => (x ? x.toISOString().slice(0, 10) : "");
@@ -52,12 +56,6 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
   const days = order.eventDate ? Math.ceil((order.eventDate.getTime() - Date.now()) / 86400000) : null;
   const jx = days === null ? null : days < 0 ? "passé" : days === 0 ? "aujourd'hui" : days === 1 ? "demain" : `J-${days}`;
   const jxTone = days === null ? "" : days < 0 ? "bg-zinc-100 text-zinc-400" : days <= 1 ? "bg-red-50 text-red-600" : days <= 7 ? "bg-amber-50 text-amber-700" : "bg-zinc-100 text-zinc-500";
-  const payBadge =
-    order.status === "ANNULE" ? null
-    : pay.isPaid ? <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700">Soldé</span>
-    : pay.hasTotal && pay.dueCents > 0 ? <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">reste {chf(pay.dueCents)}</span>
-    : null;
-
   return (
     <SaveStatusProvider>
       <SaveToast />
@@ -95,9 +93,8 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           {jx && <p className="mt-1"><span className={cn("inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold", jxTone)}>{jx}</span></p>}
         </div>
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Paiement</p>
-          <div className="mt-1 flex items-center gap-1">
-            <p className="text-sm font-medium text-zinc-900">{fmtCHF(order.priceQuoted)}</p>
+          <div className="flex items-center justify-between gap-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Paiement</p>
             <PaymentModal
               orderId={order.id}
               priceQuoted={order.priceQuoted}
@@ -106,7 +103,15 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               status={order.status}
             />
           </div>
-          {payBadge && <p className="mt-1">{payBadge}</p>}
+          <p className="mt-1 text-sm font-medium text-zinc-900">
+            CHF {paidChf % 1 ? paidChf.toFixed(2) : paidChf} / {order.priceQuoted ?? "—"}
+          </p>
+          <div className="mt-1.5 flex items-center gap-2">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-100">
+              <div className={cn("h-full rounded-full transition-[width]", payBar)} style={{ width: `${Math.max(payPct, paidCents > 0 ? 6 : 0)}%` }} />
+            </div>
+            <span className={cn("text-[11px] font-semibold", payText)}>{payPct}%</span>
+          </div>
         </div>
       </div>
 

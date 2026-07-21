@@ -291,19 +291,23 @@ export async function setDeposit(orderId: string, chf: number) {
   revalidatePath("/compta");
 }
 
-/** Solde seul (montant en CHF), sans toucher à l'acompte. */
+/** Solde seul (montant en CHF), sans toucher à l'acompte. Confirme la commande
+   si on solde directement un lead/devis (encaissement = commande confirmée). */
 export async function setBalance(orderId: string, chf: number) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return;
   const cents = Math.max(0, Math.round((Number(chf) || 0) * 100));
+  const promote = cents > 0 && (order.status === "LEAD" || order.status === "DEVIS_ENVOYE");
   await prisma.order.update({
     where: { id: orderId },
     data: {
+      ...(promote ? { status: "ACOMPTE_RECU" as OrderStatus } : {}),
       balanceCents: cents || null,
       balancePaidAt: cents ? (order.balancePaidAt ?? new Date()) : null,
-      activities: { create: { type: "STATUS", body: "Solde mis à jour." } },
+      activities: { create: { type: "STATUS", body: promote ? "Paiement encaissé — commande confirmée." : "Solde mis à jour." } },
     },
   });
+  if (promote) void syncOrderEvent(orderId).catch(() => null);
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
   revalidatePath("/compta");
