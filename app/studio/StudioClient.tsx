@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Clapperboard, FileText, Images, Upload, Trash2, Link2, X, Wand2, LayoutGrid, List, Search } from "lucide-react";
+import { Clapperboard, FileText, Images, Upload, Trash2, Link2, X, Wand2, LayoutGrid, List, Search, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,44 @@ export type AssetRow = {
 const fmtDur = (s: number | null) => (s ? `${Math.round(s)}s` : "");
 const fmtMb = (b: number) => `${(b / 1e6).toFixed(1)} Mo`;
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "2-digit" });
+
+/* Sélecteur de commande cherchable (bulk « lier à une commande »). */
+function OrderPicker({ orders, value, onChange }: { orders: OrderOption[]; value: string | null; onChange: (id: string | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  const current = orders.find((o) => o.id === value);
+  const filtered = orders.filter((o) => o.label.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 60);
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        className="flex h-8 w-52 max-w-full items-center justify-between gap-1 rounded-lg border border-zinc-300 bg-white px-2 text-[13px] text-zinc-600 hover:border-zinc-400">
+        <span className="truncate">{current ? current.label : "Lier à une commande…"}</span>
+        <ChevronDown className="size-3.5 shrink-0 text-zinc-400" />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-72 max-w-[80vw] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg">
+          <div className="border-b border-zinc-100 p-1.5">
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher une commande…" className="h-8 w-full rounded-md border border-zinc-200 px-2 text-[13px] outline-none focus:border-(--color-brand)" />
+          </div>
+          <div className="max-h-64 overflow-y-auto py-1">
+            <button type="button" onClick={() => { onChange(null); setOpen(false); }} className="block w-full px-3 py-1.5 text-left text-[13px] text-zinc-500 hover:bg-zinc-50">— Ne pas lier —</button>
+            {filtered.map((o) => (
+              <button key={o.id} type="button" onClick={() => { onChange(o.id); setOpen(false); }}
+                className={cn("block w-full truncate px-3 py-1.5 text-left text-[13px] hover:bg-zinc-50", o.id === value ? "font-medium text-zinc-900" : "text-zinc-600")}>{o.label}</button>
+            ))}
+            {filtered.length === 0 && <p className="px-3 py-2 text-[12px] text-zinc-400">Aucune commande.</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function StudioClient({
   assets, orders, entries, siteBase, initialTab, pageOrderId,
@@ -136,12 +174,14 @@ export default function StudioClient({
           </div>
         </div>
 
-        {/* ligne 2 : recherche + filtres + purge */}
+        {/* ligne 2 : recherche pleine largeur */}
+        <div className="relative mb-2">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher une photo (cliente, thème, occasion…)" className="h-9 w-full rounded-lg border border-zinc-300 bg-white pl-9 pr-3 text-[13px] outline-none focus:border-(--color-brand)" />
+        </div>
+
+        {/* ligne 3 : filtres + purge */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <div className="relative min-w-0 flex-1 sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher (cliente, thème, occasion…)" className="h-8 w-full rounded-lg border border-zinc-300 bg-white pl-8 pr-2 text-[13px] outline-none focus:border-(--color-brand)" />
-          </div>
           <select value={fKind} onChange={(e) => setFKind(e.target.value as typeof fKind)} className="h-8 rounded-lg border border-zinc-300 bg-white px-2 text-[13px]">
             <option value="all">Tous types</option>
             <option value="PHOTO">Photos</option>
@@ -165,14 +205,11 @@ export default function StudioClient({
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-(--color-line) bg-white px-3 py-2 shadow-sm">
             <span className="text-[13px] font-medium text-zinc-700">{selected.length} sélectionné{selected.length > 1 ? "s" : ""}</span>
             <div className="ml-auto flex flex-wrap items-center gap-1.5">
-              <select
-                className="h-8 min-w-[170px] max-w-full rounded-lg border border-zinc-300 bg-white px-2 text-[13px] text-zinc-600"
-                value={selected.length === 1 ? (selected[0].orderId ?? "") : ""}
-                onChange={(e) => { const v = e.target.value || null; start(async () => { await linkStudioAssets(selected.map((a) => a.id), v); toast.success("Liaison mise à jour."); router.refresh(); }); }}
-              >
-                <option value="">Lier à une commande…</option>
-                {orders.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </select>
+              <OrderPicker
+                orders={orders}
+                value={selected.length === 1 ? (selected[0].orderId ?? null) : null}
+                onChange={(v) => start(async () => { await linkStudioAssets(selected.map((a) => a.id), v); toast.success("Liaison mise à jour."); router.refresh(); })}
+              />
               {onlyPhoto && <Button size="sm" variant="ghost" onClick={() => setEditId(selected[0].id)}><Wand2 /> Retoucher</Button>}
               <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700" disabled={pending} onClick={bulkDelete}><Trash2 /> Supprimer</Button>
               <Button size="sm" variant="ghost" aria-label="Annuler la sélection" onClick={() => setSel({})}><X /></Button>
