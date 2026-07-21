@@ -34,7 +34,7 @@ export function TileAction({
 }
 
 export function MediaTile({
-  thumb, alt = "", selected, onClick, actions, badge, footer, className,
+  thumb, alt = "", selected, onClick, actions, badge, footer, footerLeft, className,
 }: {
   thumb: string;
   alt?: string;
@@ -43,6 +43,7 @@ export function MediaTile({
   actions?: React.ReactNode;
   badge?: React.ReactNode;
   footer?: React.ReactNode;
+  footerLeft?: React.ReactNode;
   className?: string;
 }) {
   const interactive = Boolean(onClick);
@@ -64,6 +65,7 @@ export function MediaTile({
       {badge && <span className="absolute left-1 top-1 flex items-center gap-1">{badge}</span>}
       {actions && <div className="absolute right-1 top-1 flex gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">{actions}</div>}
       {footer && <span className="absolute bottom-1 right-1">{footer}</span>}
+      {footerLeft && <span className="absolute bottom-1 left-1 flex items-center gap-1">{footerLeft}</span>}
       {selected && <span className="pointer-events-none absolute inset-0 bg-(--color-brand)/10" />}
     </div>
   );

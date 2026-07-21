@@ -599,10 +599,10 @@ function Wizard({
                       selected={idx >= 0}
                       onClick={() => toggle(p.id)}
                       className="aspect-square"
-                      badge={
+                      badge={cover === p.id ? <Star className="size-4 fill-amber-400 text-amber-400 drop-shadow" /> : undefined}
+                      footerLeft={
                         <>
                           {idx >= 0 && <span className="rounded bg-(--color-brand) px-1.5 text-[11px] font-bold text-white">{idx + 1}</span>}
-                          {cover === p.id && <Star className="size-4 fill-amber-400 text-amber-400" />}
                           {p.orderId === orderId && orderId && <span className="rounded bg-black/60 px-1 text-[9px] text-white">commande</span>}
                         </>
                       }
