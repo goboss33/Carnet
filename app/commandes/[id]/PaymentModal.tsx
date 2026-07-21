@@ -38,10 +38,31 @@ export function PaymentModal(props: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  const paidCents = (props.depositCents ?? 0) + (props.balanceCents ?? 0);
+  const totalCents = (props.priceQuoted ?? 0) * 100;
+  const pct = totalCents > 0 ? Math.min(100, Math.round((paidCents / totalCents) * 100)) : 0;
+  const tone: "zinc" | "red" | "amber" | "emerald" =
+    props.status === "ANNULE" || totalCents === 0 ? "zinc" : paidCents >= totalCents ? "emerald" : paidCents > 0 ? "amber" : "red";
+  const bar = { zinc: "bg-zinc-300", red: "bg-red-500", amber: "bg-amber-500", emerald: "bg-emerald-500" }[tone];
+  const txt = { zinc: "text-zinc-400", red: "text-red-600", amber: "text-amber-700", emerald: "text-emerald-600" }[tone];
+  const paidChf = paidCents / 100;
+
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} aria-label="Gérer le paiement" className="shrink-0 rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700">
-        <Pencil className="size-3.5" />
+      <button type="button" onClick={() => setOpen(true)} className="group block w-full min-w-0 text-left">
+        <span className="flex items-center justify-between gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Paiement</span>
+          <Pencil className="size-3.5 shrink-0 text-zinc-300 transition-colors group-hover:text-zinc-500" />
+        </span>
+        <span className="mt-1 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2.5">
+          <span className="whitespace-nowrap text-sm font-medium text-zinc-900">CHF {paidChf % 1 ? paidChf.toFixed(2) : paidChf} / {props.priceQuoted ?? "—"}</span>
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="block h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-zinc-100">
+              <span className={cn("block h-full rounded-full", bar)} style={{ width: `${Math.max(pct, paidCents > 0 ? 6 : 0)}%` }} />
+            </span>
+            <span className={cn("shrink-0 text-[11px] font-semibold", txt)}>{pct}%</span>
+          </span>
+        </span>
       </button>
       {mounted && open && createPortal(
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true">

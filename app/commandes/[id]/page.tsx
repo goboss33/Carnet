@@ -19,7 +19,6 @@ import { EventDatePicker } from "./EventDatePicker";
 import { PaymentModal } from "./PaymentModal";
 import { TiersParts, FourrageChips, DeliveryFields } from "./OrderFields";
 import { BISCUITS } from "@/lib/order-options";
-import { cn } from "@/lib/ui";
 import { ContactInfo } from "./ContactInfo";
 import { Calendar, Cake, Truck, StickyNote, Images } from "lucide-react";
 
@@ -43,12 +42,6 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
   const partners = await prisma.partner.findMany({ where: { tenantId: order.tenantId, active: true }, orderBy: { name: "asc" } });
   const c = order.contact;
   const paidCents = (order.depositCents ?? 0) + (order.balanceCents ?? 0);
-  const totalCents = (order.priceQuoted ?? 0) * 100;
-  const payPct = totalCents > 0 ? Math.min(100, Math.round((paidCents / totalCents) * 100)) : 0;
-  const payTone = order.status === "ANNULE" || totalCents === 0 ? "zinc" : paidCents >= totalCents ? "emerald" : paidCents > 0 ? "amber" : "red";
-  const payBar = { zinc: "bg-zinc-300", red: "bg-red-500", amber: "bg-amber-500", emerald: "bg-emerald-500" }[payTone];
-  const payText = { zinc: "text-zinc-400", red: "text-red-600", amber: "text-amber-700", emerald: "text-emerald-600" }[payTone];
-  const paidChf = paidCents / 100;
   const eff = await getSettings(order.tenantId);
   const lastAssistant = order.aiMessages.filter((m) => m.role === "assistant").at(-1);
   const d = (x?: Date | null) => (x ? x.toISOString().slice(0, 10) : "");
@@ -78,41 +71,11 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
       />
 
       {/* bandeau résumé — l'essentiel d'un coup d'œil */}
-      <div className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-(--color-line) bg-white p-4 sm:grid-cols-4">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Statut</p>
-          <div className="mt-1"><StatusPicker orderId={order.id} current={order.status} paidCents={paidCents} /></div>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Occasion</p>
-          <OccasionPicker orderId={order.id} current={order.occasion} />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Événement</p>
-          <EventDatePicker orderId={order.id} value={d(order.eventDate)} display={order.eventDate ? fmtDate(order.eventDate) : "—"} />
-          {jx && <p className="mt-1"><span className={cn("inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold", jxTone)}>{jx}</span></p>}
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center justify-between gap-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Paiement</p>
-            <PaymentModal
-              orderId={order.id}
-              priceQuoted={order.priceQuoted}
-              depositCents={order.depositCents}
-              balanceCents={order.balanceCents}
-              status={order.status}
-            />
-          </div>
-          <p className="mt-1 text-sm font-medium text-zinc-900">
-            CHF {paidChf % 1 ? paidChf.toFixed(2) : paidChf} / {order.priceQuoted ?? "—"}
-          </p>
-          <div className="mt-1.5 flex items-center gap-2">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-100">
-              <div className={cn("h-full rounded-full transition-[width]", payBar)} style={{ width: `${Math.max(payPct, paidCents > 0 ? 6 : 0)}%` }} />
-            </div>
-            <span className={cn("text-[11px] font-semibold", payText)}>{payPct}%</span>
-          </div>
-        </div>
+      <div className="mb-4 grid grid-cols-2 items-start gap-x-4 gap-y-4 rounded-2xl border border-(--color-line) bg-white p-4 sm:grid-cols-4">
+        <StatusPicker orderId={order.id} current={order.status} paidCents={paidCents} />
+        <OccasionPicker orderId={order.id} current={order.occasion} />
+        <EventDatePicker orderId={order.id} value={d(order.eventDate)} display={order.eventDate ? fmtDate(order.eventDate) : "—"} badge={jx} badgeTone={jxTone} />
+        <PaymentModal orderId={order.id} priceQuoted={order.priceQuoted} depositCents={order.depositCents} balanceCents={order.balanceCents} status={order.status} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">

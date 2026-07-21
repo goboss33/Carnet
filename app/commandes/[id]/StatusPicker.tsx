@@ -17,11 +17,12 @@ const OPTIONS: { id: OrderStatus; label: string; dot: string }[] = [
   { id: "ANNULE" as OrderStatus, label: "Annulé / sans suite", dot: "bg-red-500" },
 ];
 
+// Pastilles alignées sur les points de couleur du menu (dot de STATUTS).
 const TONE: Record<string, string> = {
-  LEAD: "bg-zinc-100 text-zinc-600",
-  DEVIS_ENVOYE: "bg-blue-50 text-blue-700",
-  ACOMPTE_RECU: "bg-amber-50 text-amber-700",
-  EN_PRODUCTION: "bg-violet-50 text-violet-700",
+  LEAD: "bg-sky-50 text-sky-700",
+  DEVIS_ENVOYE: "bg-amber-50 text-amber-700",
+  ACOMPTE_RECU: "bg-violet-50 text-violet-700",
+  EN_PRODUCTION: "bg-orange-50 text-orange-700",
   LIVRE: "bg-emerald-50 text-emerald-700",
   ANNULE: "bg-red-50 text-red-700",
 };
@@ -55,10 +56,13 @@ export function StatusPicker({ orderId, current, paidCents }: { orderId: string;
   const kept = Math.max(0, paidCents - Math.round((Number(refund) || 0) * 100));
 
   return (
-    <div className="relative inline-flex items-center gap-1">
-      <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-[12px] font-semibold", TONE[current] ?? "bg-zinc-100 text-zinc-600")}>{label}</span>
-      <button type="button" onClick={() => setOpen((v) => !v)} disabled={pending} aria-label="Changer le statut" className="rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700">
-        <Pencil className="size-3.5" />
+    <div className="relative min-w-0">
+      <button type="button" onClick={() => setOpen((v) => !v)} disabled={pending} className="group block w-full text-left">
+        <span className="flex items-center justify-between gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Statut</span>
+          <Pencil className="size-3.5 shrink-0 text-zinc-300 transition-colors group-hover:text-zinc-500" />
+        </span>
+        <span className={cn("mt-1 inline-block rounded-full px-2.5 py-0.5 text-[12px] font-semibold", TONE[current] ?? "bg-zinc-100 text-zinc-600")}>{label}</span>
       </button>
 
       {open && (

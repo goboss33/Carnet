@@ -40,19 +40,24 @@ export function OccasionPicker({ orderId, current }: { orderId: string; current:
   const choose = (occ: string) => { setOpen(false); if (occ !== current) start(() => setOccasion(orderId, occ)); };
 
   return (
-    <div className="relative mt-1 flex items-center gap-1">
-      <span
-        title={current || undefined}
-        className={cn(
-          "inline-flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-semibold",
-          current ? "bg-(--color-brand-soft) text-(--color-brand)" : "bg-zinc-100 text-zinc-500",
-        )}
-      >
-        <Icon className="size-3.5 shrink-0" />
-        <span className="truncate">{short}</span>
-      </span>
-      <button type="button" onClick={() => setOpen((v) => !v)} disabled={pending} aria-label="Changer l'occasion" className="shrink-0 rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700">
-        <Pencil className="size-3.5" />
+    <div className="relative min-w-0">
+      <button type="button" onClick={() => setOpen((v) => !v)} disabled={pending} className="group block w-full text-left">
+        <span className="flex items-center justify-between gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Occasion</span>
+          <Pencil className="size-3.5 shrink-0 text-zinc-300 transition-colors group-hover:text-zinc-500" />
+        </span>
+        <span className="mt-1 flex min-w-0">
+          <span
+            title={current || undefined}
+            className={cn(
+              "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-semibold",
+              current ? "bg-(--color-brand-soft) text-(--color-brand)" : "bg-zinc-100 text-zinc-500",
+            )}
+          >
+            <Icon className="size-3.5 shrink-0" />
+            <span className="truncate">{short}</span>
+          </span>
+        </span>
       </button>
       {open && (
         <>
