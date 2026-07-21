@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createLead } from "@/app/actions";
+import { SOURCES } from "@/lib/statuts";
 import { Button } from "@/components/ui/button";
 
 const input = "w-full rounded-lg border border-zinc-300 px-3.5 py-2.5 text-[15px] outline-none focus:border-(--color-brand)";
@@ -23,11 +24,7 @@ export default function Nouveau() {
           <label>
             <span className={label}>Canal *</span>
             <select name="source" className={input} defaultValue="WHATSAPP">
-              <option value="WHATSAPP">WhatsApp</option>
-              <option value="INSTAGRAM">Instagram</option>
-              <option value="TELEPHONE">Téléphone</option>
-              <option value="CONFIGURATEUR">Configurateur</option>
-              <option value="AUTRE">Autre</option>
+              {SOURCES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           </label>
           <label><span className={label}>Occasion</span><input name="occasion" className={input} placeholder="Anniversaire 6 ans, mariage…" /></label>

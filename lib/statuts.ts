@@ -29,7 +29,10 @@ export const SOURCES = [
   { id: "CONFIGURATEUR", label: "Configurateur" },
   { id: "WHATSAPP", label: "WhatsApp" },
   { id: "INSTAGRAM", label: "Instagram" },
+  { id: "FACEBOOK", label: "Facebook" },
+  { id: "EMAIL", label: "E-mail" },
   { id: "TELEPHONE", label: "Téléphone" },
+  { id: "BOUCHE_A_OREILLE", label: "Bouche-à-oreille" },
   { id: "AUTRE", label: "Autre" },
 ] as const;
 
