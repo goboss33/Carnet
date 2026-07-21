@@ -81,7 +81,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
       <div className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-(--color-line) bg-white p-4 sm:grid-cols-4">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Statut</p>
-          <div className="mt-1"><StatusPicker orderId={order.id} current={order.status} /></div>
+          <div className="mt-1"><StatusPicker orderId={order.id} current={order.status} paidCents={paidCents} /></div>
         </div>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Occasion</p>

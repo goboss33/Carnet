@@ -356,6 +356,30 @@ export async function refundDeposit(orderId: string) {
   revalidatePath("/");
 }
 
+/** Annule une commande en précisant le montant CONSERVÉ (encaissé − remboursé).
+   keptCents = tout l'encaissé (rien remboursé), 0 (tout remboursé) ou partiel. */
+export async function cancelOrder(orderId: string, keptCents: number) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) return;
+  const kept = Math.max(0, Math.round(Number(keptCents) || 0));
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: "ANNULE",
+      cancelledAt: order.cancelledAt ?? new Date(),
+      depositCents: kept || null,
+      balanceCents: null,
+      depositPaidAt: kept ? (order.depositPaidAt ?? order.balancePaidAt ?? new Date()) : null,
+      balancePaidAt: null,
+      activities: { create: { type: "STATUS", body: kept > 0 ? `Annulée — conservé CHF ${Math.round(kept / 100)} (compté en recette).` : "Annulée — intégralement remboursée." } },
+    },
+  });
+  revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/");
+  revalidatePath("/compta");
+  void syncOrderEvent(orderId).catch(() => null);
+}
+
 /* ------------------------------------------------------------- compta */
 
 const expensePatch = z.object({
