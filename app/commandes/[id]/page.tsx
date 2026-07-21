@@ -13,8 +13,9 @@ import DeleteOrderButton from "./DeleteOrderButton";
 import MediaViewer from "@/app/components/MediaViewer";
 import CopyButton from "./CopyButton";
 import { PageHeader } from "@/components/ui/page-header";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { cn } from "@/lib/ui";
-import { Phone, MessageCircle } from "lucide-react";
+import { Phone, MessageCircle, Calendar, Cake, Truck, StickyNote, Images } from "lucide-react";
 import type { OrderStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -115,36 +116,58 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        {/* -------- commande -------- */}
-        <form action={updateOrder.bind(null, order.id)} className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-6">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <label><span className={label}>Occasion</span><input name="occasion" defaultValue={order.occasion} className={input} /></label>
-            <label><span className={label}>Date de l'événement</span><input name="eventDate" type="date" defaultValue={d(order.eventDate)} className={input} /></label>
-            <label><span className={label} title="Heure du retrait ou de la livraison">RDV de remise</span><input name="handoverAt" type="datetime-local" defaultValue={order.handoverAt ? new Date(order.handoverAt.getTime() - order.handoverAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""} className={input} /></label>
-            <label><span className={label}>Prix (CHF)</span><input name="priceQuoted" type="number" defaultValue={order.priceQuoted ?? ""} className={input} /></label>
-            <label><span className={label}>Fêté·e</span><input name="celebrant" defaultValue={order.celebrant} className={input} /></label>
-            <label><span className={label}>Âge</span><input name="celebrantAge" type="number" defaultValue={order.celebrantAge ?? ""} className={input} /></label>
-            <label><span className={label}>Parts</span><input name="parts" type="number" defaultValue={order.parts ?? ""} className={input} /></label>
-            <label><span className={label}>Étages</span><input name="tiers" type="number" defaultValue={order.tiers ?? ""} className={input} /></label>
-            <label><span className={label}>Biscuit</span><input name="biscuit" defaultValue={order.biscuit} className={input} /></label>
-            <label className="sm:col-span-3"><span className={label}>Thème & style</span><input name="themeNote" defaultValue={order.themeNote} className={input} placeholder="Ex. licorne pastel arc-en-ciel, semi-naked fleurs fraîches…" /></label>
-            <label>
-              <span className={label}>Remise</span>
-              <select name="deliveryMode" defaultValue={order.deliveryMode} className={input}>
-                <option value="retrait">Retrait atelier</option>
-                <option value="livraison">Livraison</option>
-              </select>
-            </label>
-            <label className="sm:col-span-2"><span className={label}>Adresse de livraison</span><input name="deliveryAddress" defaultValue={order.deliveryAddress} className={input} /></label>
-          </div>
-          <label><span className={label}>Notes internes</span><textarea name="notes" rows={3} defaultValue={order.notes} className={input} /></label>
-          {order.fourrages.length > 0 && (
-            <p className="text-sm text-zinc-500">Fourrages demandés : <span className="font-medium text-zinc-700">{order.fourrages.join(" + ")}</span></p>
-          )}
-          <InspirationManager orderId={order.id} photos={order.inspirationPhotos} />
-          <button className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-700">
-            Enregistrer
-          </button>
+        {/* -------- commande (sectionné) -------- */}
+        <form action={updateOrder.bind(null, order.id)} className="space-y-6 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6">
+          <section>
+            <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Calendar className="size-4 text-(--color-brand)" /> L'événement</div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label><span className={label}>Occasion</span><input name="occasion" defaultValue={order.occasion} className={input} /></label>
+              <label><span className={label}>Fêté·e</span><input name="celebrant" defaultValue={order.celebrant} className={input} /></label>
+              <label><span className={label}>Âge</span><input name="celebrantAge" type="number" defaultValue={order.celebrantAge ?? ""} className={input} /></label>
+              <label><span className={label}>Date de l'événement</span><input name="eventDate" type="date" defaultValue={d(order.eventDate)} className={input} /></label>
+              <label className="sm:col-span-2"><span className={label} title="Heure du retrait ou de la livraison">RDV de remise</span><input name="handoverAt" type="datetime-local" defaultValue={order.handoverAt ? new Date(order.handoverAt.getTime() - order.handoverAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""} className={input} /></label>
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Cake className="size-4 text-(--color-brand)" /> Le gâteau</div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <label><span className={label}>Parts</span><input name="parts" type="number" defaultValue={order.parts ?? ""} className={input} /></label>
+              <label><span className={label}>Étages</span><input name="tiers" type="number" defaultValue={order.tiers ?? ""} className={input} /></label>
+              <label><span className={label}>Prix (CHF)</span><input name="priceQuoted" type="number" defaultValue={order.priceQuoted ?? ""} className={input} /></label>
+              <label className="sm:col-span-3"><span className={label}>Biscuit</span><input name="biscuit" defaultValue={order.biscuit} className={input} /></label>
+              <label className="sm:col-span-3"><span className={label}>Thème & style</span><input name="themeNote" defaultValue={order.themeNote} className={input} placeholder="Ex. licorne pastel arc-en-ciel, semi-naked fleurs fraîches…" /></label>
+            </div>
+            {order.fourrages.length > 0 && (
+              <p className="mt-3 text-sm text-zinc-500">Fourrages demandés : <span className="font-medium text-zinc-700">{order.fourrages.join(" + ")}</span></p>
+            )}
+          </section>
+
+          <section>
+            <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Truck className="size-4 text-(--color-brand)" /> Remise</div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <label>
+                <span className={label}>Mode</span>
+                <select name="deliveryMode" defaultValue={order.deliveryMode} className={input}>
+                  <option value="retrait">Retrait atelier</option>
+                  <option value="livraison">Livraison</option>
+                </select>
+              </label>
+              <label className="sm:col-span-2"><span className={label}>Adresse de livraison</span><input name="deliveryAddress" defaultValue={order.deliveryAddress} className={input} /></label>
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><StickyNote className="size-4 text-(--color-brand)" /> Notes internes</div>
+            <textarea name="notes" rows={3} defaultValue={order.notes} className={input} />
+          </section>
+
+          <section>
+            <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Images className="size-4 text-(--color-brand)" /> Photos d'inspiration</div>
+            <InspirationManager orderId={order.id} photos={order.inspirationPhotos} />
+          </section>
+
+          <SubmitButton className="px-5">Enregistrer</SubmitButton>
         </form>
 
         {/* -------- contact + journal -------- */}
