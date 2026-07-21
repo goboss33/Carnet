@@ -4,6 +4,7 @@
    témoin FLOTTANT en haut à droite l'affiche puis s'estompe tout seul. */
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/ui";
 
@@ -23,16 +24,19 @@ export function useSaveStatus() {
 /** Témoin flottant (fixe en haut à droite) : apparaît puis disparaît en fondu. */
 export function SaveToast() {
   const { state, setSaveState } = useSaveStatus();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   useEffect(() => {
     if (state === "saved") { const t = setTimeout(() => setSaveState("idle"), 2200); return () => clearTimeout(t); }
     if (state === "error") { const t = setTimeout(() => setSaveState("idle"), 4000); return () => clearTimeout(t); }
   }, [state, setSaveState]);
 
-  return (
+  if (!mounted) return null;
+  return createPortal(
     <div
       aria-live="polite"
       className={cn(
-        "pointer-events-none fixed right-4 top-16 z-50 transition-opacity duration-500 md:top-6",
+        "pointer-events-none fixed right-4 top-16 z-[70] transition-opacity duration-500 md:top-6",
         state === "idle" ? "opacity-0" : "opacity-100"
       )}
     >
@@ -52,6 +56,7 @@ export function SaveToast() {
           )}
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
