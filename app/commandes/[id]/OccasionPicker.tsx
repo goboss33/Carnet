@@ -57,7 +57,7 @@ export function OccasionPicker({ orderId, current }: { orderId: string; current:
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full z-50 mt-1 w-60 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-lg">
+          <div className="absolute right-0 top-full z-50 mt-1 w-60 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-lg">
             {OCCASIONS.map((o) => {
               const I = iconFor(o);
               return (
