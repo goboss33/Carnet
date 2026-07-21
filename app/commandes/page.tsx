@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 const STATUT: Record<string, { label: string; cls: string }> = {
   LEAD: { label: "Lead", cls: "bg-sky-100 text-sky-700" },
   DEVIS_ENVOYE: { label: "Devis envoyé", cls: "bg-amber-100 text-amber-700" },
-  ACOMPTE_RECU: { label: "Acompte reçu", cls: "bg-violet-100 text-violet-700" },
+  ACOMPTE_RECU: { label: "Confirmé", cls: "bg-violet-100 text-violet-700" },
   EN_PRODUCTION: { label: "En production", cls: "bg-orange-100 text-orange-700" },
   LIVRE: { label: "Livré", cls: "bg-emerald-100 text-emerald-700" },
   ANNULE: { label: "Annulé", cls: "bg-zinc-200 text-zinc-500" },

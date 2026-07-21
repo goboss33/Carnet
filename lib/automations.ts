@@ -23,7 +23,7 @@ export type Automation = {
 export const LIFECYCLE = [
   "Lead",
   "Devis envoyé",
-  "Acompte reçu",
+  "Confirmé",
   "Production",
   "Livré",
   "Avis",

@@ -380,7 +380,7 @@ function convStatus(conv: ConversationData): "LEAD" | "DEVIS_ENVOYE" | "ACOMPTE_
   return "LEAD";
 }
 
-const STATUS_LABEL: Record<string, string> = { LEAD: "Lead", DEVIS_ENVOYE: "Devis envoyé", ACOMPTE_RECU: "Acompte reçu" };
+const STATUS_LABEL: Record<string, string> = { LEAD: "Lead", DEVIS_ENVOYE: "Devis envoyé", ACOMPTE_RECU: "Confirmé" };
 const CHANNEL_LABEL: Record<string, string> = { whatsapp: "WhatsApp", instagram: "Instagram", facebook: "Facebook", sms: "SMS", autre: "autre canal" };
 
 /** Manques bloquants au stade proposé — calculés avant création. */

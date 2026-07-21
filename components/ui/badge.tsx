@@ -28,7 +28,7 @@ export function Badge({ className, variant, ...props }: React.HTMLAttributes<HTM
 export const STATUS_BADGE: Record<string, { label: string; variant: NonNullable<VariantProps<typeof badgeVariants>["variant"]> }> = {
   LEAD: { label: "Lead", variant: "info" },
   DEVIS_ENVOYE: { label: "Devis envoyé", variant: "warning" },
-  ACOMPTE_RECU: { label: "Acompte reçu", variant: "violet" },
+  ACOMPTE_RECU: { label: "Confirmé", variant: "violet" },
   EN_PRODUCTION: { label: "En production", variant: "brand" },
   LIVRE: { label: "Livré", variant: "success" },
   ANNULE: { label: "Annulé", variant: "default" },

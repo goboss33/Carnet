@@ -3,7 +3,7 @@ import type { OrderStatus } from "@prisma/client";
 export const STATUTS: { id: OrderStatus; label: string; hint: string; dot: string }[] = [
   { id: "LEAD", label: "Leads", hint: "premier contact", dot: "bg-sky-500" },
   { id: "DEVIS_ENVOYE", label: "Devis envoyé", hint: "en attente de réponse", dot: "bg-amber-500" },
-  { id: "ACOMPTE_RECU", label: "Acompte reçu", hint: "date bloquée", dot: "bg-violet-500" },
+  { id: "ACOMPTE_RECU", label: "Confirmé", hint: "acompte reçu · date bloquée", dot: "bg-violet-500" },
   { id: "EN_PRODUCTION", label: "En production", hint: "cette semaine", dot: "bg-orange-500" },
   { id: "LIVRE", label: "Livré", hint: "à relancer pour avis", dot: "bg-emerald-500" },
 ];
