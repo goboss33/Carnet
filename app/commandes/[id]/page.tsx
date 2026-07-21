@@ -13,7 +13,7 @@ import DeleteOrderButton from "./DeleteOrderButton";
 import MediaViewer from "@/app/components/MediaViewer";
 import CopyButton from "./CopyButton";
 import { PageHeader } from "@/components/ui/page-header";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { AutoSaveForm, AutoSelect } from "./AutoSave";
 import { cn } from "@/lib/ui";
 import { Phone, MessageCircle, Calendar, Cake, Truck, StickyNote, Images } from "lucide-react";
 import type { OrderStatus } from "@prisma/client";
@@ -116,59 +116,59 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        {/* -------- commande (sectionné) -------- */}
-        <form action={updateOrder.bind(null, order.id)} className="space-y-6 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6">
-          <section>
-            <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Calendar className="size-4 text-(--color-brand)" /> L'événement</div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label><span className={label}>Occasion</span><input name="occasion" defaultValue={order.occasion} className={input} /></label>
-              <label><span className={label}>Fêté·e</span><input name="celebrant" defaultValue={order.celebrant} className={input} /></label>
-              <label><span className={label}>Âge</span><input name="celebrantAge" type="number" defaultValue={order.celebrantAge ?? ""} className={input} /></label>
-              <label><span className={label}>Date de l'événement</span><input name="eventDate" type="date" defaultValue={d(order.eventDate)} className={input} /></label>
-              <label className="sm:col-span-2"><span className={label} title="Heure du retrait ou de la livraison">RDV de remise</span><input name="handoverAt" type="datetime-local" defaultValue={order.handoverAt ? new Date(order.handoverAt.getTime() - order.handoverAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""} className={input} /></label>
-            </div>
-          </section>
+        {/* -------- commande (auto-save) -------- */}
+        <div className="space-y-6">
+          <AutoSaveForm action={updateOrder.bind(null, order.id)} className="space-y-6 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6">
+            <section>
+              <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Calendar className="size-4 text-(--color-brand)" /> L'événement</div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label><span className={label}>Occasion</span><input name="occasion" defaultValue={order.occasion} className={input} /></label>
+                <label><span className={label}>Fêté·e</span><input name="celebrant" defaultValue={order.celebrant} className={input} /></label>
+                <label><span className={label}>Âge</span><input name="celebrantAge" type="number" defaultValue={order.celebrantAge ?? ""} className={input} /></label>
+                <label><span className={label}>Date de l'événement</span><input name="eventDate" type="date" defaultValue={d(order.eventDate)} className={input} /></label>
+                <label className="sm:col-span-2"><span className={label} title="Heure du retrait ou de la livraison">RDV de remise</span><input name="handoverAt" type="datetime-local" defaultValue={order.handoverAt ? new Date(order.handoverAt.getTime() - order.handoverAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""} className={input} /></label>
+              </div>
+            </section>
 
-          <section>
-            <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Cake className="size-4 text-(--color-brand)" /> Le gâteau</div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <label><span className={label}>Parts</span><input name="parts" type="number" defaultValue={order.parts ?? ""} className={input} /></label>
-              <label><span className={label}>Étages</span><input name="tiers" type="number" defaultValue={order.tiers ?? ""} className={input} /></label>
-              <label><span className={label}>Prix (CHF)</span><input name="priceQuoted" type="number" defaultValue={order.priceQuoted ?? ""} className={input} /></label>
-              <label className="sm:col-span-3"><span className={label}>Biscuit</span><input name="biscuit" defaultValue={order.biscuit} className={input} /></label>
-              <label className="sm:col-span-3"><span className={label}>Thème & style</span><input name="themeNote" defaultValue={order.themeNote} className={input} placeholder="Ex. licorne pastel arc-en-ciel, semi-naked fleurs fraîches…" /></label>
-            </div>
-            {order.fourrages.length > 0 && (
-              <p className="mt-3 text-sm text-zinc-500">Fourrages demandés : <span className="font-medium text-zinc-700">{order.fourrages.join(" + ")}</span></p>
-            )}
-          </section>
+            <section>
+              <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Cake className="size-4 text-(--color-brand)" /> Le gâteau</div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <label><span className={label}>Parts</span><input name="parts" type="number" defaultValue={order.parts ?? ""} className={input} /></label>
+                <label><span className={label}>Étages</span><input name="tiers" type="number" defaultValue={order.tiers ?? ""} className={input} /></label>
+                <label><span className={label}>Prix (CHF)</span><input name="priceQuoted" type="number" defaultValue={order.priceQuoted ?? ""} className={input} /></label>
+                <label className="sm:col-span-3"><span className={label}>Biscuit</span><input name="biscuit" defaultValue={order.biscuit} className={input} /></label>
+                <label className="sm:col-span-3"><span className={label}>Thème & style</span><input name="themeNote" defaultValue={order.themeNote} className={input} placeholder="Ex. licorne pastel arc-en-ciel, semi-naked fleurs fraîches…" /></label>
+              </div>
+              {order.fourrages.length > 0 && (
+                <p className="mt-3 text-sm text-zinc-500">Fourrages demandés : <span className="font-medium text-zinc-700">{order.fourrages.join(" + ")}</span></p>
+              )}
+            </section>
 
-          <section>
-            <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Truck className="size-4 text-(--color-brand)" /> Remise</div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <label>
-                <span className={label}>Mode</span>
-                <select name="deliveryMode" defaultValue={order.deliveryMode} className={input}>
-                  <option value="retrait">Retrait atelier</option>
-                  <option value="livraison">Livraison</option>
-                </select>
-              </label>
-              <label className="sm:col-span-2"><span className={label}>Adresse de livraison</span><input name="deliveryAddress" defaultValue={order.deliveryAddress} className={input} /></label>
-            </div>
-          </section>
+            <section>
+              <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Truck className="size-4 text-(--color-brand)" /> Remise</div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <label>
+                  <span className={label}>Mode</span>
+                  <select name="deliveryMode" defaultValue={order.deliveryMode} className={input}>
+                    <option value="retrait">Retrait atelier</option>
+                    <option value="livraison">Livraison</option>
+                  </select>
+                </label>
+                <label className="sm:col-span-2"><span className={label}>Adresse de livraison</span><input name="deliveryAddress" defaultValue={order.deliveryAddress} className={input} /></label>
+              </div>
+            </section>
 
-          <section>
-            <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><StickyNote className="size-4 text-(--color-brand)" /> Notes internes</div>
-            <textarea name="notes" rows={3} defaultValue={order.notes} className={input} />
-          </section>
+            <section>
+              <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><StickyNote className="size-4 text-(--color-brand)" /> Notes internes</div>
+              <textarea name="notes" rows={3} defaultValue={order.notes} className={input} />
+            </section>
+          </AutoSaveForm>
 
-          <section>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5">
             <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Images className="size-4 text-(--color-brand)" /> Photos d'inspiration</div>
             <InspirationManager orderId={order.id} photos={order.inspirationPhotos} />
-          </section>
-
-          <SubmitButton className="px-5">Enregistrer</SubmitButton>
-        </form>
+          </div>
+        </div>
 
         {/* -------- contact + journal -------- */}
         <div className="space-y-5">
@@ -299,27 +299,23 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
 
           <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Catégorie de revenu (Cap)</p>
-            <form action={setRevenueCategory.bind(null, order.id)} className="mb-5 flex items-center gap-2">
-              <select name="revenueCategory" defaultValue={order.revenueCategory} className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)">
+            <div className="mb-5">
+              <AutoSelect action={setRevenueCategory.bind(null, order.id)} name="revenueCategory" defaultValue={order.revenueCategory} className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)">
                 <option value="SUR_MESURE">Sur-mesure</option>
                 <option value="COLLECTION">Collection / standard</option>
                 <option value="ATELIER">Atelier / cours</option>
                 <option value="BON_CADEAU">Bon cadeau</option>
                 <option value="DECORS">Décors / e-shop</option>
                 <option value="B2B">Entreprise (B2B)</option>
-              </select>
-              <button className="shrink-0 rounded-lg bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-700">OK</button>
-            </form>
+              </AutoSelect>
+            </div>
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Partenaire apporteur</p>
-            <form action={setOrderPartner.bind(null, order.id)} className="flex items-center gap-2">
-              <select name="partnerId" defaultValue={order.partnerId ?? ""} className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)">
-                <option value="">— Aucun (client direct)</option>
-                {partners.map((pt) => (
-                  <option key={pt.id} value={pt.id}>{pt.name} · {pt.ratePct} %</option>
-                ))}
-              </select>
-              <button className="shrink-0 rounded-lg bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-700">OK</button>
-            </form>
+            <AutoSelect action={setOrderPartner.bind(null, order.id)} name="partnerId" defaultValue={order.partnerId ?? ""} className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)">
+              <option value="">— Aucun (client direct)</option>
+              {partners.map((pt) => (
+                <option key={pt.id} value={pt.id}>{pt.name} · {pt.ratePct} %</option>
+              ))}
+            </AutoSelect>
             {order.partner && order.priceQuoted && (
               <p className="mt-2 text-xs text-zinc-500">
                 Commission : CHF {Math.round((order.priceQuoted * order.partner.ratePct) / 100)}
