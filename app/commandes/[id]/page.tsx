@@ -14,6 +14,7 @@ import MediaViewer from "@/app/components/MediaViewer";
 import CopyButton from "./CopyButton";
 import { PageHeader } from "@/components/ui/page-header";
 import { AutoSaveForm, AutoSelect } from "./AutoSave";
+import { SaveStatusProvider, SaveStatusBadge } from "./SaveStatus";
 import { cn } from "@/lib/ui";
 import { Phone, MessageCircle, Calendar, Cake, Truck, StickyNote, Images } from "lucide-react";
 import type { OrderStatus } from "@prisma/client";
@@ -62,9 +63,9 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
     : null;
 
   return (
-    <>
+    <SaveStatusProvider>
       <PageHeader
-        title={`${c.firstName} ${c.lastName}`}
+        title={<span className="inline-flex items-center gap-2">{c.firstName} {c.lastName} <SaveStatusBadge /></span>}
         subtitle={`${SOURCES.find((s) => s.id === order.source)?.label ?? ""} · créé le ${fmtDate(order.createdAt)}`}
         actions={
           c.phone ? (
@@ -100,16 +101,16 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* changer le statut */}
-      <div className="mb-6 flex flex-wrap gap-1.5">
+      <div className="mb-6 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {STATUTS.map((s) => (
-          <form key={s.id} action={setStatus.bind(null, order.id, s.id as OrderStatus)}>
-            <button className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${order.status === s.id ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 text-zinc-500 hover:border-zinc-500"}`}>
+          <form key={s.id} className="shrink-0" action={setStatus.bind(null, order.id, s.id as OrderStatus)}>
+            <button className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${order.status === s.id ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 text-zinc-500 hover:border-zinc-500"}`}>
               {s.label}
             </button>
           </form>
         ))}
-        <form action={setStatus.bind(null, order.id, "ANNULE" as OrderStatus)}>
-          <button className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${order.status === "ANNULE" ? "border-red-700 bg-red-700 text-white" : "border-red-200 text-red-400 hover:border-red-400 hover:text-red-600"}`}>
+        <form className="shrink-0" action={setStatus.bind(null, order.id, "ANNULE" as OrderStatus)}>
+          <button className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${order.status === "ANNULE" ? "border-red-700 bg-red-700 text-white" : "border-red-200 text-red-400 hover:border-red-400 hover:text-red-600"}`}>
             Annulé / sans suite
           </button>
         </form>
@@ -192,7 +193,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               {c.email && <div className="flex justify-between"><dt className="text-zinc-500">E-mail</dt><dd><a className="font-medium hover:underline" href={`mailto:${c.email}`}>{c.email}</a></dd></div>}
               {c.instagram && <div className="flex justify-between"><dt className="text-zinc-500">Instagram</dt><dd className="font-medium">{c.instagram}</dd></div>}
             </dl>
-            {c.notes && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-zinc-600">📝 {c.notes}</p>}
+            {c.notes && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-zinc-600">{c.notes}</p>}
             {c.consentNewsletter && <p className="mt-2 text-[11px] font-semibold text-emerald-600">✓ Accepte la newsletter</p>}
             {c.phone && (
               <a
@@ -227,7 +228,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               <div className="mb-3 flex flex-wrap gap-2">
                 {c.phone && (
                   <a href={waLink(c.phone, lastAssistant.content)} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-emerald-600/30 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                    📲 WhatsApp
+                    WhatsApp
                   </a>
                 )}
                 <CopyButton text={lastAssistant.content} />
@@ -242,7 +243,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                 className={input}
               />
               <button className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-zinc-700">
-                {order.aiMessages.length ? "Envoyer" : "✍️ Générer"}
+                {order.aiMessages.length ? "Envoyer" : "Générer"}
               </button>
             </form>
             {!eff.assistantActive && <p className="mt-2 text-[11px] text-amber-600">Assistant désactivé dans les réglages — message de base uniquement.</p>}
@@ -264,7 +265,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                   </p>
                   <form action={refundDeposit.bind(null, order.id)} className="mt-1.5">
                     <button className="text-xs font-semibold text-amber-700 underline-offset-2 hover:underline">
-                      ↩️ Marquer remboursé (retirer des recettes)
+                      Marquer remboursé (retirer des recettes)
                     </button>
                   </form>
                 </div>
@@ -326,7 +327,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
 
           <div className="rounded-2xl border border-zinc-200 bg-white p-5">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Journal</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Activité</p>
               <DeleteOrderButton orderId={order.id} name={`${c.firstName} ${c.lastName}`.trim()} />
             </div>
             <form action={addNote.bind(null, order.id)} className="mb-4 flex gap-2">
@@ -344,6 +345,6 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           </div>
         </div>
       </div>
-    </>
+    </SaveStatusProvider>
   );
 }

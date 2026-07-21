@@ -49,7 +49,7 @@ export default async function StudioMedia({ orderId }: { orderId: string }) {
             <FileText className="size-4" /> Créer la page du site (Journal)
           </Link>
         ) : (
-          <p className="text-[12px] text-zinc-400">📰 Une fois livrée, cette commande pourra devenir une page du site (Journal).</p>
+          <p className="text-[12px] text-zinc-400">Une fois livrée, cette commande pourra devenir une page du site (Journal).</p>
         )}
       </div>
     </div>
