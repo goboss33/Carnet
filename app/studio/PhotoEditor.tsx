@@ -70,15 +70,15 @@ export default function PhotoEditor({
     start(async () => {
       setPreview(null);
       const sub = await aiEditSubmit(asset.id, { ...opts, model, format });
-      if (sub.error) return toast.error(sub.error);
+      if (sub.error) { toast.error(sub.error); return; }
       if (sub.url) { setPreview(sub.url); setPos(50); return; }
-      if (!sub.requestId) return toast.error("Envoi impossible.");
+      if (!sub.requestId) { toast.error("Envoi impossible."); return; }
       const rid = sub.requestId;
       const deadline = Date.now() + 180_000;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 2500));
         const p = await aiEditPoll(rid);
-        if (p.error) return toast.error(p.error);
+        if (p.error) { toast.error(p.error); return; }
         if (p.url) { setPreview(p.url); setPos(50); return; }
       }
       toast.error("La retouche prend trop de temps — réessaie.");
@@ -88,7 +88,7 @@ export default function PhotoEditor({
     start(async () => {
       if (!preview) return;
       const r = await aiEditKeep(asset.id, preview, prompt || "retouche IA");
-      if (r.error) return toast.error(r.error);
+      if (r.error) { toast.error(r.error); return; }
       toast.success("Variante enregistrée.");
       onKept(r.id!);
     });
