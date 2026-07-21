@@ -6,39 +6,10 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/ui";
-import { OCCASIONS, FOURRAGES, MAX_FOURRAGES, TIERS_PARTS } from "@/lib/order-options";
+import { FOURRAGES, MAX_FOURRAGES, TIERS_PARTS } from "@/lib/order-options";
 
 const inputCls = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
 const labelCls = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
-
-/* Occasion : liste standard + « Autre (préciser) » qui rouvre un champ libre.
-   Conserve une valeur existante hors liste. */
-export function OccasionSelect({ defaultValue }: { defaultValue: string }) {
-  const isStd = (OCCASIONS as readonly string[]).includes(defaultValue);
-  const [custom, setCustom] = useState(Boolean(defaultValue) && !isStd);
-  return (
-    <label className="block">
-      <span className={labelCls}>Occasion</span>
-      {custom ? (
-        <div className="flex items-center gap-2">
-          <input name="occasion" defaultValue={isStd ? "" : defaultValue} placeholder="Précise l'occasion…" className={inputCls} />
-          <button type="button" onClick={() => setCustom(false)} className="shrink-0 text-[12px] font-medium text-zinc-500 hover:text-zinc-800">Liste</button>
-        </div>
-      ) : (
-        <select
-          name="occasion"
-          defaultValue={isStd ? defaultValue : ""}
-          className={inputCls}
-          onChange={(e) => { if (e.currentTarget.value === "__autre__") setCustom(true); }}
-        >
-          <option value="">—</option>
-          {OCCASIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-          <option value="__autre__">Autre (préciser)…</option>
-        </select>
-      )}
-    </label>
-  );
-}
 
 /* Étages 1 / 2 (toggle) + slider de parts dont les bornes suivent l'étage. */
 export function TiersParts({ tiers, parts }: { tiers: number | null; parts: number | null }) {

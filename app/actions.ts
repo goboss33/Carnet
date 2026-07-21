@@ -167,7 +167,6 @@ export async function setStatus(orderId: string, status: OrderStatus) {
 }
 
 const orderPatch = z.object({
-  occasion: z.string().default(""),
   eventDate: z.string().default(""),
   handoverAt: z.string().default(""),
   celebrant: z.string().default(""),
@@ -187,7 +186,6 @@ export async function updateOrder(orderId: string, formData: FormData) {
   await prisma.order.update({
     where: { id: orderId },
     data: {
-      occasion: d.occasion,
       eventDate: d.eventDate ? new Date(d.eventDate) : null,
       handoverAt: d.handoverAt ? new Date(d.handoverAt) : null,
       celebrant: d.celebrant,
@@ -206,6 +204,13 @@ export async function updateOrder(orderId: string, formData: FormData) {
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
   void syncOrderEvent(orderId).catch(() => null);
+}
+
+/** Occasion pilotée depuis la pastille du résumé (hors formulaire auto-save). */
+export async function setOccasion(orderId: string, occasion: string) {
+  await prisma.order.update({ where: { id: orderId }, data: { occasion: occasion.trim() } });
+  revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/");
 }
 
 export async function addNote(orderId: string, formData: FormData) {

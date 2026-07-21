@@ -16,7 +16,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { AutoSaveForm, AutoSelect } from "./AutoSave";
 import { SaveStatusProvider, SaveToast } from "./SaveStatus";
 import { StatusPicker } from "./StatusPicker";
-import { OccasionSelect, TiersParts, FourrageChips, DeliveryFields } from "./OrderFields";
+import { OccasionPicker } from "./OccasionPicker";
+import { TiersParts, FourrageChips, DeliveryFields } from "./OrderFields";
 import { BISCUITS } from "@/lib/order-options";
 import { cn } from "@/lib/ui";
 import { Phone, MessageCircle, Calendar, Cake, Truck, StickyNote, Images } from "lucide-react";
@@ -78,14 +79,12 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
         </div>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Occasion</p>
-          <p className="mt-1 truncate text-sm font-medium text-zinc-900">{order.occasion || "—"}{order.celebrant ? ` · ${order.celebrant}` : ""}</p>
+          <OccasionPicker orderId={order.id} current={order.occasion} />
         </div>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Événement</p>
-          <p className="mt-1 flex items-center gap-1 text-sm font-medium text-zinc-900">
-            <span className="truncate">{order.eventDate ? fmtDate(order.eventDate) : "—"}</span>
-            {jx && <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold", jxTone)}>{jx}</span>}
-          </p>
+          <p className="mt-1 text-sm font-medium text-zinc-900">{order.eventDate ? fmtDate(order.eventDate) : "—"}</p>
+          {jx && <p className="mt-1"><span className={cn("inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold", jxTone)}>{jx}</span></p>}
         </div>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Paiement</p>
@@ -101,7 +100,6 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
             <section>
               <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Calendar className="size-4 text-(--color-brand)" /> L'événement</div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <OccasionSelect defaultValue={order.occasion} />
                 <label><span className={label}>Fêté·e</span><input name="celebrant" defaultValue={order.celebrant} className={input} /></label>
                 <label><span className={label}>Âge</span><input name="celebrantAge" type="number" defaultValue={order.celebrantAge ?? ""} className={input} /></label>
                 <label><span className={label}>Date de l'événement</span><input name="eventDate" type="date" defaultValue={d(order.eventDate)} className={input} /></label>
