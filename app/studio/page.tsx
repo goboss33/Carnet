@@ -36,6 +36,14 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
     prisma.journalEntry.findMany({ where: { tenantId: tenant.id }, orderBy: { updatedAt: "desc" }, take: 100 }),
   ]);
 
+  // Index de recherche : texte des commandes liées (cliente, occasion, thème)
+  const orderIndex = await prisma.order.findMany({
+    where: { tenantId: tenant.id },
+    select: { id: true, occasion: true, themeNote: true, celebrant: true, contact: { select: { firstName: true, lastName: true } } },
+  });
+  const orderText: Record<string, string> = {};
+  for (const o of orderIndex) orderText[o.id] = `${o.contact.firstName} ${o.contact.lastName} ${o.occasion} ${o.themeNote} ${o.celebrant}`.toLowerCase();
+
   const assetRows: AssetRow[] = assets.map((a) => ({
     id: a.id,
     kind: a.kind,
@@ -46,6 +54,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
     note: a.note,
     orderId: a.orderId,
     createdAt: a.createdAt.toISOString(),
+    search: `${a.note} ${a.orderId ? orderText[a.orderId] ?? "" : ""}`.toLowerCase(),
   }));
 
   const orderOptions = orders.map((o) => ({

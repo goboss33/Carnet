@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Clapperboard, FileText, Images, Upload, Trash2, Link2, X, Wand2, LayoutGrid, List } from "lucide-react";
+import { Clapperboard, FileText, Images, Upload, Trash2, Link2, X, Wand2, LayoutGrid, List, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import { MediaTile, TileAction } from "./MediaTile";
 export type AssetRow = {
   id: string; kind: "VIDEO" | "PHOTO"; thumb: string; file: string;
   durationSec: number | null; sizeBytes: number; note: string;
-  orderId: string | null; createdAt: string;
+  orderId: string | null; createdAt: string; search: string;
 };
 
 const fmtDur = (s: number | null) => (s ? `${Math.round(s)}s` : "");
@@ -50,9 +50,14 @@ export default function StudioClient({
   const [fLink, setFLink] = useState<"all" | "linked" | "unlinked">("all");
   useEffect(() => { const v = localStorage.getItem("studioView"); if (v === "grid" || v === "list") setView(v); }, []);
   const chooseView = (v: "grid" | "list") => { setView(v); try { localStorage.setItem("studioView", v); } catch { /* ignore */ } };
+  const [q, setQ] = useState("");
   const shown = useMemo(
-    () => assets.filter((a) => (fKind === "all" || a.kind === fKind) && (fLink === "all" || (fLink === "linked" ? !!a.orderId : !a.orderId))),
-    [assets, fKind, fLink]
+    () => assets.filter((a) =>
+      (fKind === "all" || a.kind === fKind) &&
+      (fLink === "all" || (fLink === "linked" ? !!a.orderId : !a.orderId)) &&
+      (q.trim() === "" || a.search.includes(q.trim().toLowerCase()))
+    ),
+    [assets, fKind, fLink, q]
   );
   const onlyPhoto = selected.length === 1 && selected[0].kind === "PHOTO";
   const bulkDelete = () => confirm({
@@ -119,11 +124,24 @@ export default function StudioClient({
 
       {/* ============================================== BIBLIOTHÈQUE */}
       <TabsContent value="library" className="pt-5">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        {/* ligne 1 : ajouter (gauche) + bascule de vue (droite) */}
+        <div className="mb-3 flex items-center justify-between gap-2">
           <Button onClick={() => fileInput.current?.click()} disabled={uploading}>
             <Upload /> {uploading ? "Compression…" : "Ajouter des médias"}
           </Button>
           <input ref={fileInput} type="file" accept="video/*,image/*" multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
+          <div className="flex shrink-0 rounded-lg border border-zinc-200 p-0.5">
+            <button type="button" title="Mosaïque" aria-label="Mosaïque" onClick={() => chooseView("grid")} className={cn("rounded-md p-1.5 transition-colors", view === "grid" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}><LayoutGrid className="size-4" /></button>
+            <button type="button" title="Liste" aria-label="Liste" onClick={() => chooseView("list")} className={cn("rounded-md p-1.5 transition-colors", view === "list" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}><List className="size-4" /></button>
+          </div>
+        </div>
+
+        {/* ligne 2 : recherche + filtres + purge */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="relative min-w-0 flex-1 sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher (cliente, thème, occasion…)" className="h-8 w-full rounded-lg border border-zinc-300 bg-white pl-8 pr-2 text-[13px] outline-none focus:border-(--color-brand)" />
+          </div>
           <select value={fKind} onChange={(e) => setFKind(e.target.value as typeof fKind)} className="h-8 rounded-lg border border-zinc-300 bg-white px-2 text-[13px]">
             <option value="all">Tous types</option>
             <option value="PHOTO">Photos</option>
@@ -131,39 +149,34 @@ export default function StudioClient({
           </select>
           <select value={fLink} onChange={(e) => setFLink(e.target.value as typeof fLink)} className="h-8 rounded-lg border border-zinc-300 bg-white px-2 text-[13px]">
             <option value="all">Liés + non liés</option>
-            <option value="linked">Liés à une commande</option>
+            <option value="linked">Liés</option>
             <option value="unlinked">Non liés</option>
           </select>
-          <div className="ml-auto flex items-center gap-1">
-            <div className="flex rounded-lg border border-zinc-200 p-0.5">
-              <button type="button" title="Mosaïque" aria-label="Mosaïque" onClick={() => chooseView("grid")} className={cn("rounded-md p-1.5 transition-colors", view === "grid" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}><LayoutGrid className="size-4" /></button>
-              <button type="button" title="Liste" aria-label="Liste" onClick={() => chooseView("list")} className={cn("rounded-md p-1.5 transition-colors", view === "list" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}><List className="size-4" /></button>
-            </div>
-            <Button
-              size="sm" variant="ghost" disabled={pending}
-              onClick={() => confirm({ title: "Purger les médias inutilisés de plus de 6 mois", desc: "Les médias liés à une commande ou utilisés dans une page sont conservés.", confirmLabel: "Purger", action: async () => { const r = await purgeStudioAssets(); toast.success(`${r.purged ?? 0} média(s) purgé(s).`); router.refresh(); } })}
-            >
-              Purge 6 mois+
-            </Button>
-          </div>
+          <Button
+            size="sm" variant="ghost" className="ml-auto" disabled={pending}
+            onClick={() => confirm({ title: "Purger les médias inutilisés de plus de 6 mois", desc: "Les médias liés à une commande ou utilisés dans une page sont conservés.", confirmLabel: "Purger", action: async () => { const r = await purgeStudioAssets(); toast.success(`${r.purged ?? 0} média(s) purgé(s).`); router.refresh(); } })}
+          >
+            Purge 6 mois+
+          </Button>
         </div>
 
-        {/* barre d'actions groupées */}
+        {/* barre d'actions groupées — minimaliste */}
         {selected.length > 0 && (
-          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-(--color-brand)/40 bg-(--color-brand-soft) px-3 py-2">
-            <Badge variant="brand">{selected.length} sélectionné{selected.length > 1 ? "s" : ""}</Badge>
-            <span className="text-[13px] text-zinc-600">Lier à :</span>
-            <select
-              className="h-8 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 text-[13px] sm:max-w-xs sm:flex-none"
-              value={selected.length === 1 ? (selected[0].orderId ?? "") : ""}
-              onChange={(e) => { const v = e.target.value || null; start(async () => { await linkStudioAssets(selected.map((a) => a.id), v); toast.success("Liaison mise à jour."); router.refresh(); }); }}
-            >
-              <option value="">— commande —</option>
-              {orders.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-            </select>
-            {onlyPhoto && <Button size="sm" variant="outline" onClick={() => setEditId(selected[0].id)}><Wand2 /> Retoucher</Button>}
-            <Button size="sm" variant="destructive-outline" disabled={pending} onClick={bulkDelete}><Trash2 /> Supprimer</Button>
-            <Button size="sm" variant="ghost" onClick={() => setSel({})}><X /> Annuler</Button>
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-(--color-line) bg-white px-3 py-2 shadow-sm">
+            <span className="text-[13px] font-medium text-zinc-700">{selected.length} sélectionné{selected.length > 1 ? "s" : ""}</span>
+            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              <select
+                className="h-8 min-w-[170px] max-w-full rounded-lg border border-zinc-300 bg-white px-2 text-[13px] text-zinc-600"
+                value={selected.length === 1 ? (selected[0].orderId ?? "") : ""}
+                onChange={(e) => { const v = e.target.value || null; start(async () => { await linkStudioAssets(selected.map((a) => a.id), v); toast.success("Liaison mise à jour."); router.refresh(); }); }}
+              >
+                <option value="">Lier à une commande…</option>
+                {orders.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+              {onlyPhoto && <Button size="sm" variant="ghost" onClick={() => setEditId(selected[0].id)}><Wand2 /> Retoucher</Button>}
+              <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700" disabled={pending} onClick={bulkDelete}><Trash2 /> Supprimer</Button>
+              <Button size="sm" variant="ghost" aria-label="Annuler la sélection" onClick={() => setSel({})}><X /></Button>
+            </div>
           </div>
         )}
 
