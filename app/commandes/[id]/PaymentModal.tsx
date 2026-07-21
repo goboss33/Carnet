@@ -1,9 +1,10 @@
 "use client";
 
 /* Paiement — modale réactive ouverte par le crayon du résumé.
-   • Total + acompte s'enregistrent automatiquement (debounce), pas de bouton.
-   • Acompte = slider % + champ CHF liés (défaut 30 %).
-   • Solde = un seul bouton d'action « Marquer soldé » (encaisse le reste).
+   Modèle : un ACOMPTE (montant, slider % + champ CHF) + un état SOLDÉ (oui/non).
+   Le solde est DÉRIVÉ (soldé ? total − acompte : 0) — jamais un montant figé,
+   donc rebouger l'acompte ne casse jamais les calculs.
+   • Auto-save (debounce 400 ms) + flush à la fermeture : aucune perte.
    • Code couleur : rien encaissé = rouge, acompte reçu = orange, soldé = vert.
    Rendu via portail pour échapper au transform de <main>. */
 
@@ -11,7 +12,7 @@ import { useState, useEffect, useRef, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { Pencil, X, Check } from "lucide-react";
 import { cn } from "@/lib/ui";
-import { setPrice, setDeposit, setBalance, refundDeposit } from "@/app/actions";
+import { setPrice, savePayment, refundDeposit } from "@/app/actions";
 import type { OrderStatus } from "@prisma/client";
 
 type Props = {
@@ -57,31 +58,31 @@ export function PaymentModal(props: Props) {
 }
 
 function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, status, onClose }: Props & { onClose: () => void }) {
-  const [depPending, startDep] = useTransition();
   const [pricePending, startPrice] = useTransition();
-  const [balPending, startBal] = useTransition();
+  const [payPending, startPay] = useTransition();
 
   const [total, setTotal] = useState(priceQuoted ?? 0);
   const [deposit, setDepAmt] = useState(depositCents ? depositCents / 100 : 0);
-  const [balance, setBalAmt] = useState(balanceCents ? balanceCents / 100 : 0);
+  const [full, setFull] = useState((balanceCents ?? 0) > 0); // « soldé » = un solde a été encaissé
 
   const savedTotal = priceQuoted ?? 0;
-  const savedDep = depositCents ? depositCents / 100 : 0;
+  const savedDeposit = depositCents ? depositCents / 100 : 0;
+  const savedBalance = balanceCents ? balanceCents / 100 : 0;
   const cancelled = status === "ANNULE";
 
-  const paid = deposit + balance;
+  // Solde DÉRIVÉ de l'état soldé — jamais figé.
+  const balance = full ? Math.max(0, round2(total - deposit)) : 0;
+  const paid = round2(deposit + balance);
   const due = Math.max(0, round2(total - paid));
   const hasTotal = total > 0;
   const isPaid = hasTotal && due < 0.005;
   const pct = hasTotal ? Math.min(100, Math.round((paid / total) * 100)) : 0;
   const depPct = hasTotal ? Math.min(100, Math.round((deposit / total) * 100)) : 0;
-  const rest = Math.max(0, round2(total - deposit));
 
-  // code couleur : rien encaissé = rouge, acompte reçu = orange, soldé = vert
   const tone: "zinc" | "red" | "amber" | "emerald" = !hasTotal ? "zinc" : isPaid ? "emerald" : paid > 0 ? "amber" : "red";
   const barCls = { zinc: "bg-zinc-300", red: "bg-red-500", amber: "bg-amber-500", emerald: "bg-emerald-500" }[tone];
   const textCls = { zinc: "text-zinc-400", red: "text-red-600", amber: "text-amber-700", emerald: "text-emerald-600" }[tone];
-  const saving = depPending || pricePending || balPending;
+  const saving = pricePending || payPending;
 
   // auto-save du total (debounce court)
   useEffect(() => {
@@ -90,24 +91,22 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, status
     return () => clearTimeout(t);
   }, [total, savedTotal, orderId, startPrice]);
 
-  // auto-save de l'acompte (debounce court)
+  // auto-save du paiement (acompte + solde dérivé, debounce court)
   useEffect(() => {
-    if (Math.abs(deposit - savedDep) < 0.005) return;
-    const t = setTimeout(() => startDep(() => setDeposit(orderId, deposit)), 400);
+    if (Math.abs(deposit - savedDeposit) < 0.005 && Math.abs(balance - savedBalance) < 0.005) return;
+    const t = setTimeout(() => startPay(() => savePayment(orderId, deposit, balance)), 400);
     return () => clearTimeout(t);
-  }, [deposit, savedDep, orderId, startDep]);
+  }, [deposit, balance, savedDeposit, savedBalance, orderId, startPay]);
 
-  // Filet de sécurité : à la fermeture (démontage), on force l'enregistrement
-  // de tout ce qui n'a pas encore été persisté — aucune perte si on ferme vite.
-  const latest = useRef({ total, deposit, savedTotal, savedDep });
-  latest.current = { total, deposit, savedTotal, savedDep };
+  // Filet de sécurité : à la fermeture, on force l'enregistrement de tout ce qui
+  // n'a pas encore été persisté — aucune perte si on ferme vite.
+  const latest = useRef({ total, deposit, balance, savedTotal, savedDeposit, savedBalance });
+  latest.current = { total, deposit, balance, savedTotal, savedDeposit, savedBalance };
   useEffect(() => () => {
     const l = latest.current;
     if (round2(l.total) !== round2(l.savedTotal)) void setPrice(orderId, String(l.total));
-    if (Math.abs(l.deposit - l.savedDep) > 0.005) void setDeposit(orderId, l.deposit);
+    if (Math.abs(l.deposit - l.savedDeposit) > 0.005 || Math.abs(l.balance - l.savedBalance) > 0.005) void savePayment(orderId, l.deposit, l.balance);
   }, [orderId]);
-
-  const markSolde = () => { setBalAmt(rest); startBal(() => setBalance(orderId, rest)); };
 
   return (
     <>
@@ -180,12 +179,13 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, status
 
           {/* Solde : action secondaire discrète (la sortie se fait par la croix) */}
           {isPaid ? (
-            <div className="mt-5 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-50 py-2 text-[13px] font-semibold text-emerald-700">
-              <Check className="size-4" /> Soldé
+            <div className="mt-5 flex items-center justify-center gap-2 rounded-lg bg-emerald-50 py-2 text-[13px] font-semibold text-emerald-700">
+              <span className="inline-flex items-center gap-1.5"><Check className="size-4" /> Soldé</span>
+              {full && <button type="button" onClick={() => setFull(false)} className="text-emerald-600/70 underline underline-offset-2 hover:text-emerald-800">annuler</button>}
             </div>
           ) : hasTotal && due > 0 ? (
             <button
-              type="button" onClick={markSolde} disabled={balPending}
+              type="button" onClick={() => setFull(true)} disabled={payPending}
               className="mt-5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 py-2 text-[13px] font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-100 disabled:opacity-40"
             >
               <Check className="size-4" /> Encaisser le solde · {fmt(due)} CHF

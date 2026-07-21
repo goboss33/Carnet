@@ -269,42 +269,24 @@ export async function setPrice(orderId: string, value: string) {
   revalidatePath("/compta");
 }
 
-/** Acompte seul (montant en CHF), sans toucher au solde. Date = aujourd'hui
-   (posée à la 1re fois, conservée ensuite). */
-export async function setDeposit(orderId: string, chf: number) {
+/** Enregistre l'état de paiement en une fois (acompte + solde, en CHF).
+   Dates posées à la 1re fois, conservées ensuite. Tout encaissement confirme
+   un lead/devis (→ Acompte reçu). */
+export async function savePayment(orderId: string, depositChf: number, balanceChf: number) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return;
-  const cents = Math.max(0, Math.round((Number(chf) || 0) * 100));
-  const promote = cents > 0 && (order.status === "LEAD" || order.status === "DEVIS_ENVOYE");
+  const dep = Math.max(0, Math.round((Number(depositChf) || 0) * 100));
+  const bal = Math.max(0, Math.round((Number(balanceChf) || 0) * 100));
+  const promote = dep + bal > 0 && (order.status === "LEAD" || order.status === "DEVIS_ENVOYE");
   await prisma.order.update({
     where: { id: orderId },
     data: {
       ...(promote ? { status: "ACOMPTE_RECU" as OrderStatus } : {}),
-      depositCents: cents || null,
-      depositPaidAt: cents ? (order.depositPaidAt ?? new Date()) : null,
-      activities: { create: { type: "STATUS", body: promote ? "Acompte encaissé — commande confirmée (Acompte reçu)." : "Acompte mis à jour." } },
-    },
-  });
-  if (promote) void syncOrderEvent(orderId).catch(() => null);
-  revalidatePath(`/commandes/${orderId}`);
-  revalidatePath("/");
-  revalidatePath("/compta");
-}
-
-/** Solde seul (montant en CHF), sans toucher à l'acompte. Confirme la commande
-   si on solde directement un lead/devis (encaissement = commande confirmée). */
-export async function setBalance(orderId: string, chf: number) {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order) return;
-  const cents = Math.max(0, Math.round((Number(chf) || 0) * 100));
-  const promote = cents > 0 && (order.status === "LEAD" || order.status === "DEVIS_ENVOYE");
-  await prisma.order.update({
-    where: { id: orderId },
-    data: {
-      ...(promote ? { status: "ACOMPTE_RECU" as OrderStatus } : {}),
-      balanceCents: cents || null,
-      balancePaidAt: cents ? (order.balancePaidAt ?? new Date()) : null,
-      activities: { create: { type: "STATUS", body: promote ? "Paiement encaissé — commande confirmée." : "Solde mis à jour." } },
+      depositCents: dep || null,
+      balanceCents: bal || null,
+      depositPaidAt: dep ? (order.depositPaidAt ?? new Date()) : null,
+      balancePaidAt: bal ? (order.balancePaidAt ?? new Date()) : null,
+      activities: { create: { type: "STATUS", body: promote ? "Paiement encaissé — commande confirmée." : "Paiement mis à jour." } },
     },
   });
   if (promote) void syncOrderEvent(orderId).catch(() => null);
