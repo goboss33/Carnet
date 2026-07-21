@@ -112,14 +112,14 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* -------- commande (auto-save) -------- */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <AutoSaveForm action={updateOrder.bind(null, order.id)} className="space-y-6 rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6">
             <section>
               <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Calendar className="size-4 text-(--color-brand)" /> L'événement</div>
               <div className="flex gap-4">
-                <label className="flex-1"><span className={label}>Fêté·e</span><input name="celebrant" defaultValue={order.celebrant} className={input} /></label>
+                <label className="min-w-0 flex-1"><span className={label}>Fêté·e</span><input name="celebrant" defaultValue={order.celebrant} className={input} /></label>
                 <label className="w-24 shrink-0"><span className={label}>Âge</span><input name="celebrantAge" type="number" defaultValue={order.celebrantAge ?? ""} className={input} /></label>
               </div>
             </section>
@@ -162,7 +162,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
         </div>
 
         {/* -------- contact + journal -------- */}
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           <div className="hidden rounded-2xl border border-zinc-200 bg-white p-5 text-sm lg:block">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Contact</p>
