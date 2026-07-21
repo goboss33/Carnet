@@ -136,19 +136,30 @@ export default function JournalSection({
         <div className="overflow-hidden rounded-xl border border-(--color-line) bg-white">
           {entries.map((e, i) => {
             const b = STATUS_BADGE[e.status];
+            const coverId = e.coverAssetId || e.images[0]?.assetId;
+            const coverThumb = coverId ? photos.find((p) => p.id === coverId)?.thumb : undefined;
             return (
-              <div key={e.id} className={cn("flex flex-wrap items-center gap-3 px-4 py-3", i > 0 && "border-t border-zinc-100")}>
+              <div key={e.id} className={cn("flex gap-3 px-4 py-3", i > 0 && "border-t border-zinc-100")}>
+                <div className="size-12 shrink-0 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-100">
+                  {coverThumb ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={coverThumb} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-zinc-300"><FileText className="size-5" /></span>
+                  )}
+                </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-zinc-900">{e.title || "(sans titre)"}</p>
-                  <p className="truncate text-[12px] text-zinc-400">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-900">{e.title || "(sans titre)"}</p>
+                    <Badge variant={e.type === "CREATION" ? "brand" : "info"}>{e.type === "CREATION" ? "Création" : "Conseil"}</Badge>
+                    <Badge variant={b.variant}>{b.label}</Badge>
+                  </div>
+                  <p className="mt-0.5 truncate text-[12px] text-zinc-400">
                     /{e.slug} · {CATEGORIES.find((c) => c.id === e.category)?.label ?? e.category}
                     {e.status === "PUBLIEE" && e.publishedAt ? ` · en ligne depuis le ${fmtDT(e.publishedAt).split(",")[0]}` : ""}
                     {e.status === "PROGRAMMEE" && e.scheduledFor ? ` · publication le ${fmtDT(e.scheduledFor)}` : ""}
                   </p>
-                </div>
-                <Badge variant={e.type === "CREATION" ? "brand" : "info"}>{e.type === "CREATION" ? "Création" : "Conseil"}</Badge>
-                <Badge variant={b.variant}>{b.label}</Badge>
-                <div className="flex items-center gap-1">
+                  <div className="mt-2 flex items-center gap-1">
                   {e.status === "PUBLIEE" && siteBase && (
                     <a href={`${siteBase}/${e.slug}`} target="_blank" rel="noreferrer" className="inline-flex size-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800" title="Voir la page">
                       <ExternalLink className="size-4" />
@@ -183,6 +194,7 @@ export default function JournalSection({
                   >
                     <Trash2 className="size-4" />
                   </button>
+                  </div>
                 </div>
               </div>
             );
