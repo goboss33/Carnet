@@ -152,49 +152,62 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, status
         )
       ) : (
         <>
-          {/* Acompte : slider % + champ CHF liés (auto-save) */}
+          {/* Acompte : raccourcis (20/30/50 % + Soldé) + slider % + champ CHF */}
           <div className="mt-5">
             <div className="mb-2 flex items-baseline justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Acompte</span>
               <span className="text-[12px] font-semibold text-(--color-brand)">{depPct}%</span>
             </div>
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+              <div className="flex gap-1.5">
+                {[20, 30, 50].map((p) => (
+                  <button
+                    key={p} type="button" disabled={!hasTotal || full}
+                    onClick={() => { setFull(false); setDepAmt(Math.round((total * p) / 100)); }}
+                    className={cn(
+                      "rounded-md border px-2.5 py-1 text-[12px] font-semibold transition-colors",
+                      !full && depPct === p ? "border-(--color-brand) bg-(--color-brand-soft) text-(--color-brand)" : "border-zinc-300 text-zinc-600 hover:border-zinc-400",
+                      (!hasTotal || full) && "cursor-not-allowed opacity-40",
+                    )}
+                  >
+                    {p}%
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button" disabled={!hasTotal} onClick={() => setFull((f) => !f)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[12px] font-semibold transition-colors",
+                  full ? "border-emerald-500 bg-emerald-500 text-white" : "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+                  !hasTotal && "cursor-not-allowed opacity-40",
+                )}
+              >
+                <Check className="size-3.5" /> Soldé
+              </button>
+            </div>
             <div className="flex items-center gap-3">
               <input
-                type="range" min={0} max={100} value={depPct} disabled={!hasTotal}
+                type="range" min={0} max={100} value={depPct} disabled={!hasTotal || full}
                 onChange={(e) => setDepAmt(Math.round((total * Number(e.target.value)) / 100))}
-                className="h-2 flex-1 cursor-pointer accent-(--color-brand) disabled:opacity-40"
+                className="h-2 flex-1 cursor-pointer accent-(--color-brand) disabled:cursor-not-allowed disabled:opacity-40"
               />
               <div className="relative w-24 shrink-0">
                 <input
-                  type="number" min="0" step="0.05"
+                  type="number" min="0" step="0.05" disabled={!hasTotal || full}
                   value={deposit === 0 ? "" : deposit}
                   placeholder={hasTotal ? String(Math.round(total * 0.3)) : "CHF"}
                   onChange={(e) => setDepAmt(clamp(Number(e.target.value)))}
-                  className={cn(inputCls, "pr-9 text-right")}
+                  className={cn(inputCls, "pr-9 text-right disabled:opacity-50")}
                 />
                 <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-zinc-400">CHF</span>
               </div>
             </div>
           </div>
-
-          {/* Solde : action secondaire discrète (la sortie se fait par la croix) */}
-          {isPaid ? (
-            <div className="mt-5 flex items-center justify-center gap-2 rounded-lg bg-emerald-50 py-2 text-[13px] font-semibold text-emerald-700">
-              <span className="inline-flex items-center gap-1.5"><Check className="size-4" /> Soldé</span>
-              {full && <button type="button" onClick={() => setFull(false)} className="text-emerald-600/70 underline underline-offset-2 hover:text-emerald-800">annuler</button>}
-            </div>
-          ) : hasTotal && due > 0 ? (
-            <button
-              type="button" onClick={() => setFull(true)} disabled={payPending}
-              className="mt-5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 py-2 text-[13px] font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-100 disabled:opacity-40"
-            >
-              <Check className="size-4" /> Encaisser le solde · {fmt(due)} CHF
-            </button>
-          ) : null}
         </>
       )}
 
-      <p className="mt-3 h-4 text-center text-[11px] text-zinc-400">{saving ? "Enregistrement…" : ""}</p>
+      <button type="button" onClick={onClose} className="mt-6 w-full rounded-lg bg-zinc-900 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700">OK</button>
+      <p className="mt-2 h-4 text-center text-[11px] text-zinc-400">{saving ? "Enregistrement…" : ""}</p>
     </>
   );
 }
