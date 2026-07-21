@@ -24,6 +24,7 @@ import {
   saveJournalEntry, unpublishJournalEntry, deleteJournalEntry, type JournalPayload,
 } from "./journal-actions";
 import PhotoEditor from "./PhotoEditor";
+import { MediaTile, TileAction } from "./MediaTile";
 
 export type EntryRow = {
   id: string; type: "CREATION" | "ARTICLE"; status: "BROUILLON" | "PROGRAMMEE" | "PUBLIEE";
@@ -592,13 +593,26 @@ function Wizard({
                 {sortedPhotos.map((p) => {
                   const idx = selected.indexOf(p.id);
                   return (
-                    <button key={p.id} type="button" onClick={() => toggle(p.id)} className={cn("relative aspect-square overflow-hidden rounded-lg border-2 bg-zinc-100", idx >= 0 ? "border-(--color-brand)" : "border-transparent hover:border-zinc-300")}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.thumb} alt="" className="h-full w-full object-cover" />
-                      {idx >= 0 && <span className="absolute left-1 top-1 rounded bg-(--color-brand) px-1.5 text-[11px] font-bold text-white">{idx + 1}</span>}
-                      {cover === p.id && <Star className="absolute right-1 top-1 size-4 fill-amber-400 text-amber-400" />}
-                      {p.orderId === orderId && orderId && <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1 text-[9px] text-white">commande</span>}
-                    </button>
+                    <MediaTile
+                      key={p.id}
+                      thumb={p.thumb}
+                      selected={idx >= 0}
+                      onClick={() => toggle(p.id)}
+                      className="aspect-square"
+                      badge={
+                        <>
+                          {idx >= 0 && <span className="rounded bg-(--color-brand) px-1.5 text-[11px] font-bold text-white">{idx + 1}</span>}
+                          {cover === p.id && <Star className="size-4 fill-amber-400 text-amber-400" />}
+                          {p.orderId === orderId && orderId && <span className="rounded bg-black/60 px-1 text-[9px] text-white">commande</span>}
+                        </>
+                      }
+                      actions={
+                        <>
+                          <TileAction icon={<Wand2 />} label="Retoucher" tone="brand" onClick={() => setEditId(p.id)} />
+                          <TileAction icon={<Star className={cn(cover === p.id && "fill-amber-400 text-amber-400")} />} label={cover === p.id ? "Couverture actuelle" : "Définir comme couverture"} active={cover === p.id} onClick={() => setCover(p.id)} />
+                        </>
+                      }
+                    />
                   );
                 })}
               </div>
@@ -613,12 +627,6 @@ function Wizard({
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {p && <img src={p.thumb} alt="" className="size-9 shrink-0 rounded object-cover" />}
                       <Input value={alts[id] ?? ""} onChange={(e) => setAlts((a) => ({ ...a, [id]: e.target.value }))} placeholder="Ex. gâteau licorne pâte à sucre rose et doré" />
-                      <button type="button" title="Retoucher avec l'IA (décor, lumière, cadrage)" onClick={() => setEditId(id)} className="shrink-0 rounded-lg p-1.5 text-zinc-400 hover:text-(--color-brand)">
-                        <Wand2 className="size-4" />
-                      </button>
-                      <button type="button" title="Définir comme couverture" onClick={() => setCover(id)} className={cn("shrink-0 rounded-lg p-1.5", cover === id ? "text-amber-500" : "text-zinc-300 hover:text-zinc-500")}>
-                        <Star className={cn("size-4", cover === id && "fill-amber-400")} />
-                      </button>
                     </div>
                   );
                 })}
