@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   const rows = [
     ["type", "date", "libelle", "categorie", "montant_chf", "tva", "note"].join(";"),
     ...delivered.map((o) =>
-      ["recette", o.deliveredAt!.toISOString().slice(0, 10), esc(`Commande ${o.contact.firstName} ${o.contact.lastName} — ${o.occasion}`), "vente", ((o.priceQuoted ?? 0)).toFixed(2), "", ""].join(";")
+      ["recette", o.deliveredAt!.toISOString().slice(0, 10), esc(`Commande ${o.contact.firstName} ${o.contact.lastName} — ${o.occasion}`), "vente", ((o.priceQuoted ?? 0) + (o.tipCents ?? 0) / 100).toFixed(2), "", o.tipCents ? esc(`dont pourboire ${(o.tipCents / 100).toFixed(2)}`) : ""].join(";")
     ),
     ...cancelledKept.map((o) =>
       ["recette", o.cancelledAt!.toISOString().slice(0, 10), esc(`Acompte conservé — annulation ${o.contact.firstName} ${o.contact.lastName}`), "acompte conservé", (((o.depositCents ?? 0) + (o.balanceCents ?? 0)) / 100).toFixed(2), "", ""].join(";")

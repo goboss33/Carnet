@@ -39,7 +39,7 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
   const kmTotal = delivered.reduce((a, o) => a + (o.deliveryMode === "livraison" && o.deliveryKm ? o.deliveryKm * 2 : 0), 0);
   const totalExp = expenses.reduce((a, e) => a + e.totalCents, 0);
   const keptRev = cancelledKept.reduce((a, o) => a + paymentState(o).paidCents, 0);
-  const totalRev = delivered.reduce((a, o) => a + (o.priceQuoted ?? 0) * 100, 0) + keptRev;
+  const totalRev = delivered.reduce((a, o) => a + (o.priceQuoted ?? 0) * 100 + (o.tipCents ?? 0), 0) + keptRev;
   const byCat = CATEGORIES.map((c) => ({ ...c, total: expenses.filter((e) => e.category === c.id).reduce((a, e) => a + e.totalCents, 0) })).filter((c) => c.total > 0);
   const label = start.toLocaleDateString("fr-CH", { month: "long", year: "numeric", timeZone: "UTC" });
 
@@ -120,7 +120,7 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
                 {!pay.isPaid && pay.dueCents > 0 && (
                   <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">reste {chf(pay.dueCents)}</span>
                 )}
-                <span className="ml-auto font-semibold">{fmtCHF(o.priceQuoted)}</span>
+                <span className="ml-auto font-semibold">{fmtCHF(o.priceQuoted)}{o.tipCents ? <span className="ml-1 text-[11px] font-normal text-emerald-600">+{chf(o.tipCents)}</span> : null}</span>
               </Link>
             );
           })}

@@ -72,10 +72,10 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
 
       {/* bandeau résumé — l'essentiel d'un coup d'œil */}
       <div className="mb-4 grid grid-cols-2 items-start gap-x-4 gap-y-4 rounded-2xl border border-(--color-line) bg-white p-4 sm:grid-cols-4">
-        <StatusPicker orderId={order.id} current={order.status} paidCents={paidCents} />
+        <StatusPicker orderId={order.id} current={order.status} paidCents={paidCents} totalCents={(order.priceQuoted ?? 0) * 100} />
         <OccasionPicker orderId={order.id} current={order.occasion} />
         <EventDatePicker orderId={order.id} value={d(order.eventDate)} display={order.eventDate ? fmtDate(order.eventDate) : "—"} badge={jx} badgeTone={jxTone} />
-        <PaymentModal orderId={order.id} priceQuoted={order.priceQuoted} depositCents={order.depositCents} balanceCents={order.balanceCents} status={order.status} />
+        <PaymentModal orderId={order.id} priceQuoted={order.priceQuoted} depositCents={order.depositCents} balanceCents={order.balanceCents} tipCents={order.tipCents} status={order.status} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">

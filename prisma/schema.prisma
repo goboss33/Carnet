@@ -194,6 +194,7 @@ model Order {
   cancelledAt         DateTime?
   depositCents     Int?
   balanceCents     Int?
+  tipCents         Int? // pourboire encaissé à la livraison (au-delà du devis)
   partnerId        String?
   partner          Partner?   @relation(fields: [partnerId], references: [id])
   commissionPaidAt DateTime?

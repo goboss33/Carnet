@@ -272,20 +272,21 @@ export async function setPrice(orderId: string, value: string) {
 /** Enregistre l'état de paiement en une fois (acompte + solde, en CHF).
    Dates posées à la 1re fois, conservées ensuite. Tout encaissement confirme
    un lead/devis (→ Acompte reçu). */
-export async function savePayment(orderId: string, depositChf: number, balanceChf: number) {
+export async function savePayment(orderId: string, collectedChf: number, tipChf: number) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return;
-  const dep = Math.max(0, Math.round((Number(depositChf) || 0) * 100));
-  const bal = Math.max(0, Math.round((Number(balanceChf) || 0) * 100));
-  const promote = dep + bal > 0 && (order.status === "LEAD" || order.status === "DEVIS_ENVOYE");
+  const dep = Math.max(0, Math.round((Number(collectedChf) || 0) * 100));
+  const tip = Math.max(0, Math.round((Number(tipChf) || 0) * 100));
+  const promote = dep > 0 && (order.status === "LEAD" || order.status === "DEVIS_ENVOYE");
   await prisma.order.update({
     where: { id: orderId },
     data: {
       ...(promote ? { status: "ACOMPTE_RECU" as OrderStatus } : {}),
       depositCents: dep || null,
-      balanceCents: bal || null,
+      balanceCents: null,
       depositPaidAt: dep ? (order.depositPaidAt ?? new Date()) : null,
-      balancePaidAt: bal ? (order.balancePaidAt ?? new Date()) : null,
+      balancePaidAt: null,
+      tipCents: tip || null,
       activities: { create: { type: "STATUS", body: promote ? "Paiement encaissé — commande confirmée." : "Paiement mis à jour." } },
     },
   });
@@ -369,9 +370,36 @@ export async function cancelOrder(orderId: string, keptCents: number) {
       cancelledAt: order.cancelledAt ?? new Date(),
       depositCents: kept || null,
       balanceCents: null,
+      tipCents: null,
       depositPaidAt: kept ? (order.depositPaidAt ?? order.balancePaidAt ?? new Date()) : null,
       balancePaidAt: null,
       activities: { create: { type: "STATUS", body: kept > 0 ? `Annulée — conservé CHF ${Math.round(kept / 100)} (compté en recette).` : "Annulée — intégralement remboursée." } },
+    },
+  });
+  revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/");
+  revalidatePath("/compta");
+  void syncOrderEvent(orderId).catch(() => null);
+}
+
+/** Livraison + encaissement du solde en une fois (soldé à la livraison).
+   collectedChf = total encaissé (généralement le total du devis), tipChf = pourboire. */
+export async function deliverOrder(orderId: string, collectedChf: number, tipChf: number) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) return;
+  const dep = Math.max(0, Math.round((Number(collectedChf) || 0) * 100));
+  const tip = Math.max(0, Math.round((Number(tipChf) || 0) * 100));
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: "LIVRE",
+      deliveredAt: order.deliveredAt ?? new Date(),
+      depositCents: dep || null,
+      balanceCents: null,
+      depositPaidAt: dep ? (order.depositPaidAt ?? new Date()) : order.depositPaidAt,
+      balancePaidAt: null,
+      tipCents: tip || null,
+      activities: { create: { type: "STATUS", body: `Livrée — soldée${tip ? ` (+ pourboire CHF ${Math.round(tip / 100)})` : ""}.` } },
     },
   });
   revalidatePath(`/commandes/${orderId}`);

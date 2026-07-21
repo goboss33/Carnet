@@ -19,6 +19,7 @@ type Props = {
   priceQuoted: number | null;
   depositCents: number | null;
   balanceCents: number | null;
+  tipCents: number | null;
   status: OrderStatus;
 };
 
@@ -55,7 +56,7 @@ export function PaymentModal(props: Props) {
           <Pencil className="size-3.5 shrink-0 text-zinc-300 transition-colors group-hover:text-zinc-500" />
         </span>
         <span className="mt-1 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2.5">
-          <span className="whitespace-nowrap text-sm font-medium text-zinc-900">CHF {paidChf % 1 ? paidChf.toFixed(2) : paidChf} / {props.priceQuoted ?? "—"}</span>
+          <span className="whitespace-nowrap text-sm font-medium text-zinc-900">CHF {paidChf % 1 ? paidChf.toFixed(2) : paidChf} / {props.priceQuoted ?? "—"}{props.tipCents ? <span className="ml-1 text-[11px] font-normal text-emerald-600">+{props.tipCents % 100 ? (props.tipCents / 100).toFixed(2) : props.tipCents / 100}</span> : null}</span>
           <span className="flex min-w-0 flex-1 items-center gap-2">
             <span className="block h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-zinc-100">
               <span className={cn("block h-full rounded-full", bar)} style={{ width: `${Math.max(pct, paidCents > 0 ? 6 : 0)}%` }} />
@@ -77,13 +78,15 @@ export function PaymentModal(props: Props) {
   );
 }
 
-function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, status, onClose }: Props & { onClose: () => void }) {
+function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, tipCents, status, onClose }: Props & { onClose: () => void }) {
   const [pricePending, startPrice] = useTransition();
   const [payPending, startPay] = useTransition();
 
   const savedPaid = round2(((depositCents ?? 0) + (balanceCents ?? 0)) / 100);
+  const savedTip = round2((tipCents ?? 0) / 100);
   const [total, setTotal] = useState(priceQuoted ?? 0);
   const [collected, setCollected] = useState(savedPaid); // montant encaissé (acompte + solde)
+  const [tip, setTip] = useState(savedTip); // pourboire (au-delà du total)
 
   const savedTotal = priceQuoted ?? 0;
   const cancelled = status === "ANNULE";
@@ -106,20 +109,20 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, status
     return () => clearTimeout(t);
   }, [total, savedTotal, orderId, startPrice]);
 
-  // auto-save de l'encaissé (debounce court) — tout stocké côté acompte
+  // auto-save de l'encaissé + pourboire (debounce court)
   useEffect(() => {
-    if (Math.abs(collected - savedPaid) < 0.005) return;
-    const t = setTimeout(() => startPay(() => savePayment(orderId, collected, 0)), 400);
+    if (Math.abs(collected - savedPaid) < 0.005 && Math.abs(tip - savedTip) < 0.005) return;
+    const t = setTimeout(() => startPay(() => savePayment(orderId, collected, tip)), 400);
     return () => clearTimeout(t);
-  }, [collected, savedPaid, orderId, startPay]);
+  }, [collected, tip, savedPaid, savedTip, orderId, startPay]);
 
   // Filet de sécurité : à la fermeture, on force l'enregistrement non persisté.
-  const latest = useRef({ total, collected, savedTotal, savedPaid });
-  latest.current = { total, collected, savedTotal, savedPaid };
+  const latest = useRef({ total, collected, tip, savedTotal, savedPaid, savedTip });
+  latest.current = { total, collected, tip, savedTotal, savedPaid, savedTip };
   useEffect(() => () => {
     const l = latest.current;
     if (round2(l.total) !== round2(l.savedTotal)) void setPrice(orderId, String(l.total));
-    if (Math.abs(l.collected - l.savedPaid) > 0.005) void savePayment(orderId, l.collected, 0);
+    if (Math.abs(l.collected - l.savedPaid) > 0.005 || Math.abs(l.tip - l.savedTip) > 0.005) void savePayment(orderId, l.collected, l.tip);
   }, [orderId]);
 
   return (
@@ -206,6 +209,23 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, status
               <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-zinc-400">CHF</span>
             </div>
           </div>
+
+          {/* Pourboire — visible une fois soldé */}
+          {isPaid && (
+            <div className="mt-4">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Pourboire (optionnel)</span>
+              <div className="relative">
+                <input
+                  type="number" min="0" step="0.05"
+                  value={tip === 0 ? "" : tip}
+                  placeholder="0"
+                  onChange={(e) => setTip(clamp(Number(e.target.value)))}
+                  className={cn(inputCls, "pr-9 text-right")}
+                />
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-zinc-400">CHF</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

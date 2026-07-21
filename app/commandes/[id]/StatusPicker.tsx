@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 import { Pencil, Check, X } from "lucide-react";
 import { cn } from "@/lib/ui";
 import { STATUTS } from "@/lib/statuts";
-import { setStatus, cancelOrder } from "@/app/actions";
+import { setStatus, cancelOrder, deliverOrder } from "@/app/actions";
 import type { OrderStatus } from "@prisma/client";
 
 const OPTIONS: { id: OrderStatus; label: string; dot: string }[] = [
@@ -29,31 +29,40 @@ const TONE: Record<string, string> = {
 
 const fmt = (cents: number) => (cents / 100).toLocaleString("fr-CH", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
-export function StatusPicker({ orderId, current, paidCents }: { orderId: string; current: OrderStatus; paidCents: number }) {
+export function StatusPicker({ orderId, current, paidCents, totalCents }: { orderId: string; current: OrderStatus; paidCents: number; totalCents: number }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [cancel, setCancel] = useState<null | "ask" | "partial">(null);
   const [refund, setRefund] = useState(0); // montant remboursé (CHF) en mode partiel
+  const [deliver, setDeliver] = useState(false); // confirmation solde à la livraison
+  const [tip, setTip] = useState(0); // pourboire (CHF) saisi à la livraison
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   useEffect(() => {
-    if (!cancel) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setCancel(null); };
+    if (!cancel && !deliver) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setCancel(null); setDeliver(false); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cancel]);
+  }, [cancel, deliver]);
 
   const label = OPTIONS.find((o) => o.id === current)?.label ?? current;
+  const dueCents = Math.max(0, totalCents - paidCents);
 
   const choose = (s: OrderStatus) => {
     setOpen(false);
     if (s === current) return;
     if (s === "ANNULE" && paidCents > 0) { setRefund(0); setCancel("ask"); return; }
+    if (s === "LIVRE" && totalCents > 0 && dueCents > 0) { setTip(0); setDeliver(true); return; }
     start(() => setStatus(orderId, s));
   };
 
   const doCancel = (keptCents: number) => { setCancel(null); start(() => cancelOrder(orderId, Math.max(0, keptCents))); };
   const kept = Math.max(0, paidCents - Math.round((Number(refund) || 0) * 100));
+  const doDeliver = (paidNow: boolean) => {
+    setDeliver(false);
+    if (paidNow) start(() => deliverOrder(orderId, totalCents / 100, tip));
+    else start(() => setStatus(orderId, "LIVRE"));
+  };
 
   return (
     <div className="relative min-w-0">
@@ -127,6 +136,34 @@ export function StatusPicker({ orderId, current, paidCents }: { orderId: string;
                 </div>
               </div>
             )}
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {mounted && deliver && createPortal(
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-zinc-900/40 backdrop-blur-[1px]" onClick={() => setDeliver(false)} />
+          <div className="relative z-10 w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <p className="text-[15px] font-bold text-zinc-900">Commande livrée 🎉</p>
+              <button type="button" onClick={() => setDeliver(false)} aria-label="Fermer" className="-mt-1 shrink-0 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="size-5" /></button>
+            </div>
+            <p className="mb-3 text-sm text-zinc-600">Il reste <span className="font-semibold text-zinc-900">{fmt(dueCents)} CHF</span> à encaisser. Le solde a-t-il été réglé à la livraison ?</p>
+            <label className="mb-4 block">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Pourboire (optionnel)</span>
+              <input
+                type="number" min="0" step="0.05"
+                value={tip === 0 ? "" : tip}
+                placeholder="0"
+                onChange={(e) => setTip(Math.max(0, Number(e.target.value) || 0))}
+                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)"
+              />
+            </label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => doDeliver(false)} className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-600 hover:border-zinc-400">Pas encore</button>
+              <button type="button" onClick={() => doDeliver(true)} className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Oui, soldé</button>
+            </div>
           </div>
         </div>,
         document.body,
