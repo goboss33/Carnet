@@ -1,8 +1,9 @@
 "use client";
 
-/* Icône « i » + modale contact — utilisée sur mobile (la carte latérale reste
-   affichée sur desktop). Regroupe les coordonnées + WhatsApp + lien fiche.
-   Rendu via portail pour échapper au transform de <main> (comme SaveToast). */
+/* Nom du client cliquable + « i » bleu → modale contact (coordonnées + WhatsApp
+   + lien fiche). Le composant rend AUSSI le nom : tout le bloc nom+i est le
+   déclencheur. Modale centrée, rendue via portail pour échapper au transform
+   de <main> (comme SaveToast). La carte latérale reste sur desktop. */
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
@@ -40,16 +41,19 @@ export function ContactInfo(props: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Infos du contact"
-        className={cn("inline-flex size-6 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600", props.className)}
+        aria-label="Voir la fiche contact"
+        className={cn("group inline-flex items-center gap-2 text-left", props.className)}
       >
-        <Info className="size-[18px]" />
+        <span className="min-w-0">{props.name}</span>
+        <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-100 group-hover:text-blue-700">
+          <Info className="size-[18px]" />
+        </span>
       </button>
 
       {mounted && open && createPortal(
-        <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-zinc-900/40 backdrop-blur-[1px]" onClick={() => setOpen(false)} />
-          <div className="relative z-10 w-full max-w-sm rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl">
+          <div className="relative z-10 max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Contact</p>

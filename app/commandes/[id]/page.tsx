@@ -62,22 +62,18 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
       <SaveToast />
       <PageHeader
         title={
-          <span className="inline-flex items-center gap-2">
-            <span className="min-w-0">{c.firstName} {c.lastName}</span>
-            <ContactInfo
-              contactId={c.id}
-              name={`${c.firstName} ${c.lastName}`.trim()}
-              sourceLabel={SOURCES.find((s) => s.id === c.source)?.label ?? ""}
-              meta={`${c._count.orders > 1 ? `${c._count.orders} commandes` : "1re commande"} · client depuis ${c.createdAt.getFullYear()}`}
-              phone={c.phone}
-              email={c.email}
-              instagram={c.instagram}
-              notes={c.notes}
-              consentNewsletter={c.consentNewsletter}
-              waHref={c.phone ? `https://wa.me/${c.phone.replace(/[^0-9]/g, "")}` : null}
-              className="lg:hidden"
-            />
-          </span>
+          <ContactInfo
+            contactId={c.id}
+            name={`${c.firstName} ${c.lastName}`.trim()}
+            sourceLabel={SOURCES.find((s) => s.id === c.source)?.label ?? ""}
+            meta={`${c._count.orders > 1 ? `${c._count.orders} commandes` : "1re commande"} · client depuis ${c.createdAt.getFullYear()}`}
+            phone={c.phone}
+            email={c.email}
+            instagram={c.instagram}
+            notes={c.notes}
+            consentNewsletter={c.consentNewsletter}
+            waHref={c.phone ? `https://wa.me/${c.phone.replace(/[^0-9]/g, "")}` : null}
+          />
         }
         subtitle={`${SOURCES.find((s) => s.id === order.source)?.label ?? ""} · créé le ${fmtDate(order.createdAt)}`}
       />
