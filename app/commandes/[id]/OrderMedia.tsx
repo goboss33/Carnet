@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clapperboard, Wand2 } from "lucide-react";
 import PhotoEditor from "@/app/studio/PhotoEditor";
+import { MediaTile, TileAction } from "@/app/studio/MediaTile";
 
 type Item = { id: string; kind: "VIDEO" | "PHOTO"; file: string; thumb: string; durationSec: number | null };
 
@@ -18,16 +19,13 @@ export default function OrderMedia({ assets }: { assets: Item[] }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {assets.map((a) => (
-        <div key={a.id} className="group relative">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={a.thumb} alt="" className="h-20 w-14 rounded-lg border border-zinc-200 object-cover" title={a.kind === "VIDEO" ? `Clip ${Math.round(a.durationSec ?? 0)}s` : "Photo"} />
-          {a.kind === "PHOTO" && (
-            <button type="button" title="Retoucher avec l'IA" onClick={() => setEditId(a.id)}
-              className="absolute right-1 top-1 hidden rounded-md bg-white/90 p-1 text-zinc-600 shadow-sm hover:text-(--color-brand) group-hover:flex">
-              <Wand2 className="size-3.5" />
-            </button>
-          )}
-        </div>
+        <MediaTile
+          key={a.id}
+          thumb={a.thumb}
+          className="h-20 w-14"
+          badge={a.kind === "VIDEO" ? <span className="rounded bg-black/60 px-1 text-[10px] text-white">{Math.round(a.durationSec ?? 0)}s</span> : undefined}
+          actions={a.kind === "PHOTO" ? <TileAction icon={<Wand2 />} label="Retoucher" tone="brand" onClick={() => setEditId(a.id)} /> : undefined}
+        />
       ))}
       <Link href="/studio" className="inline-flex h-20 w-14 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-300 text-zinc-400 hover:border-zinc-400 hover:text-zinc-600">
         <Clapperboard className="size-4" />

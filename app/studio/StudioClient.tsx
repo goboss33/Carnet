@@ -11,10 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/table";
 import { useConfirm } from "@/components/ui/table-kit";
-import { cn } from "@/lib/ui";
 import { deleteStudioAsset, linkStudioAsset, purgeStudioAssets } from "./actions";
 import JournalSection, { type EntryRow, type OrderOption } from "./JournalSection";
 import PhotoEditor from "./PhotoEditor";
+import { MediaTile, TileAction } from "./MediaTile";
 
 export type AssetRow = {
   id: string; kind: "VIDEO" | "PHOTO"; thumb: string; file: string;
@@ -119,57 +119,42 @@ export default function StudioClient({
         ) : (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
             {assets.map((a) => (
-              <button
+              <MediaTile
                 key={a.id}
-                type="button"
+                thumb={a.thumb}
+                selected={sel[a.id]}
                 onClick={() => setSel((s) => ({ ...s, [a.id]: !s[a.id] }))}
-                className={cn(
-                  "group relative aspect-[3/4] overflow-hidden rounded-lg border-2 bg-zinc-100 text-left",
-                  sel[a.id] ? "border-(--color-brand)" : "border-transparent hover:border-zinc-300"
-                )}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={a.thumb} alt="" className="h-full w-full object-cover" />
-                <span className="absolute left-1 top-1 flex items-center gap-1">
-                  {a.kind === "VIDEO" && <Badge variant="default" className="bg-black/60 text-white">{fmtDur(a.durationSec)}</Badge>}
-                  {a.orderId && <span title="Lié à une commande" className="rounded bg-black/60 p-0.5 text-white"><Link2 className="size-3" /></span>}
-                </span>
-                <span className="absolute bottom-1 right-1 hidden rounded bg-black/60 px-1 text-[10px] text-white group-hover:block">{fmtMb(a.sizeBytes)}</span>
-                {a.kind === "PHOTO" && (
-                  <span role="button" tabIndex={-1} title="Retoucher avec l'IA"
-                    onClick={(e) => { e.stopPropagation(); setEditId(a.id); }}
-                    className="absolute right-1 top-1 hidden rounded-md bg-white/90 p-1 text-zinc-600 shadow-sm hover:text-(--color-brand) group-hover:flex">
-                    <Wand2 className="size-3.5" />
-                  </span>
-                )}
-                {sel[a.id] && <span className="absolute inset-0 bg-(--color-brand)/15" />}
-              </button>
+                className="aspect-[3/4]"
+                badge={
+                  <>
+                    {a.kind === "VIDEO" && <Badge variant="default" className="bg-black/60 text-white">{fmtDur(a.durationSec)}</Badge>}
+                    {a.orderId && <span title="Lié à une commande" className="rounded bg-black/60 p-0.5 text-white"><Link2 className="size-3" /></span>}
+                  </>
+                }
+                footer={<span className="hidden rounded bg-black/60 px-1 text-[10px] text-white group-hover:block">{fmtMb(a.sizeBytes)}</span>}
+                actions={
+                  <>
+                    {a.kind === "PHOTO" && <TileAction icon={<Wand2 />} label="Retoucher" tone="brand" onClick={() => setEditId(a.id)} />}
+                    <TileAction icon={<Trash2 />} label="Supprimer" tone="danger"
+                      onClick={() => confirm({ title: "Supprimer ce média", desc: "Définitif.", confirmLabel: "Supprimer", action: async () => { const r = await deleteStudioAsset(a.id); if (r.error) toast.error(r.error); setSel((s) => { const n = { ...s }; delete n[a.id]; return n; }); router.refresh(); } })} />
+                  </>
+                }
+              />
             ))}
           </div>
         )}
 
         {selected.length === 1 && (
           <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-(--color-line) bg-white px-4 py-2.5">
-            <span className="text-[13px] text-zinc-600">Média sélectionné :</span>
+            <span className="text-[13px] text-zinc-600">Lier ce média à une commande :</span>
             <select
-              className="h-8 rounded-lg border border-zinc-300 bg-white px-2 text-[13px]"
+              className="h-8 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 text-[13px] sm:flex-none"
               defaultValue={selected[0].orderId ?? ""}
               onChange={(e) => start(async () => { await linkStudioAsset(selected[0].id, e.target.value || null); toast.success("Liaison mise à jour."); router.refresh(); })}
             >
               <option value="">— non lié à une commande —</option>
               {orders.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
             </select>
-            {selected[0].kind === "PHOTO" && (
-              <Button size="sm" variant="outline" onClick={() => setEditId(selected[0].id)}>
-                <Wand2 /> Retoucher
-              </Button>
-            )}
-            <Button
-              size="sm" variant="destructive-outline" disabled={pending}
-              onClick={() => confirm({ title: "Supprimer ce média", desc: "Définitif.", confirmLabel: "Supprimer", action: async () => { const r = await deleteStudioAsset(selected[0].id); if (r.error) toast.error(r.error); setSel({}); router.refresh(); } })}
-            >
-              <Trash2 /> Supprimer
-            </Button>
           </div>
         )}
       </TabsContent>
