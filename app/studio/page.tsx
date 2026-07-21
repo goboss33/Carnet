@@ -89,7 +89,7 @@ export default async function Studio({ searchParams }: { searchParams: Promise<{
 
   const siteBase = s.siteUrl ? `${s.siteUrl}/${s.sitePathPrefix}` : null;
 
-  const initialTab = sp.page ? "pages" : sp.tab === "pages" ? "pages" : sp.tab === "posts" ? "posts" : "library";
+  const initialTab = sp.page || sp.tab === "pages" || sp.tab === "posts" ? "publications" : "library";
 
   return (
     <>

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Sparkles, ExternalLink, Trash2, Pencil, EyeOff,
-  ChevronLeft, ChevronRight, Star, Loader2, X, Images, Upload, Search, Megaphone, Wand2,
+  ChevronLeft, ChevronRight, Star, Loader2, X, Images, Upload, Search, Megaphone, Wand2, Clapperboard,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -113,12 +113,13 @@ export default function JournalSection({
   const [wizard, setWizard] = useState<{ entry: EntryRow | null; orderId: string | null; subject?: string } | null>(
     openWizardForOrder ? { entry: null, orderId: openWizardForOrder } : null
   );
+  const [chooser, setChooser] = useState(false);
 
   return (
     <div>
       {node}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Button onClick={() => setWizard({ entry: null, orderId: null })}><Plus /> Nouvelle page</Button>
+        <Button onClick={() => setChooser(true)}><Plus /> Créer un contenu</Button>
         {siteBase && (
           <a href={siteBase} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-[13px] font-medium text-zinc-500 hover:text-zinc-800">
             Voir le journal sur le site <ExternalLink className="size-3.5" />
@@ -202,6 +203,41 @@ export default function JournalSection({
         </div>
       )}
 
+      {chooser && (
+        <Dialog open onOpenChange={(o) => !o && setChooser(false)}>
+          <DialogContent title="Créer un contenu" desc="Choisis le type de contenu à produire." className="max-w-md">
+            <div className="grid gap-2">
+              <button
+                type="button"
+                onClick={() => { setChooser(false); setWizard({ entry: null, orderId: null }); }}
+                className="flex items-center gap-3 rounded-xl border border-(--color-line) p-3 text-left transition-colors hover:border-(--color-brand) hover:bg-(--color-brand-soft)"
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-(--color-brand-soft) text-(--color-brand)"><FileText className="size-5" /></span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-zinc-900">Page du site (SEO)</span>
+                  <span className="block text-[12px] text-zinc-500">Une page Journal optimisée pour Google.</span>
+                </span>
+              </button>
+              <div className="flex cursor-not-allowed items-center gap-3 rounded-xl border border-(--color-line) p-3 opacity-60">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-400"><Megaphone className="size-5" /></span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-zinc-700">Post Instagram</span>
+                  <span className="block text-[12px] text-zinc-400">Publier une photo ou un carrousel.</span>
+                </span>
+                <Badge variant="default" className="ml-auto shrink-0">Bientôt</Badge>
+              </div>
+              <div className="flex cursor-not-allowed items-center gap-3 rounded-xl border border-(--color-line) p-3 opacity-60">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-400"><Clapperboard className="size-5" /></span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-zinc-700">Vidéo YouTube</span>
+                  <span className="block text-[12px] text-zinc-400">Un Short ou une vidéo à partir d'un clip.</span>
+                </span>
+                <Badge variant="default" className="ml-auto shrink-0">Bientôt</Badge>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
       {wizard && (
         <Wizard
           entry={wizard.entry}

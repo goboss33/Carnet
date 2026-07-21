@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Clapperboard, FileText, Images, Upload, Trash2, Link2, X, Wand2, LayoutGrid, List, Search, ChevronDown } from "lucide-react";
+import { FileText, Images, Upload, Trash2, Link2, X, Wand2, LayoutGrid, List, Search, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -145,12 +145,11 @@ export default function StudioClient({
       {node}
       <TabsList>
         <TabsTrigger value="library"><Images /> Bibliothèque</TabsTrigger>
-        <TabsTrigger value="pages"><FileText /> Pages du site</TabsTrigger>
-        <TabsTrigger value="posts"><Clapperboard /> Publications</TabsTrigger>
+        <TabsTrigger value="publications"><FileText /> Publications</TabsTrigger>
       </TabsList>
 
-      {/* ============================================== PAGES DU SITE */}
-      <TabsContent value="pages" className="pt-5">
+      {/* ============================================== PUBLICATIONS */}
+      <TabsContent value="publications" className="pt-5">
         <JournalSection
           entries={entries}
           orders={orders}
@@ -264,20 +263,6 @@ export default function StudioClient({
             ))}
           </div>
         )}
-      </TabsContent>
-
-      {/* ============================================== PUBLICATIONS (à venir) */}
-      <TabsContent value="posts" className="pt-5">
-        <EmptyState
-          icon={<Clapperboard />}
-          title="Publications réseaux sociaux"
-          hint="Bientôt : composer un reel depuis la bibliothèque et le publier sur Instagram, YouTube et Facebook."
-        />
-        <div className="mt-4 flex justify-center">
-          <Button disabled title="En préparation — le montage arrive dans une prochaine version">
-            <Clapperboard /> Créer une publication
-          </Button>
-        </div>
       </TabsContent>
 
       {editId && (() => {
