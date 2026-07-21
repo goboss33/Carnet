@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
 import { fmtCHF, fmtDate, SOURCES } from "@/lib/statuts";
-import { chf } from "@/lib/money";
-import { paymentState } from "@/lib/payments";
 import OrdersTable, { type Row } from "./OrdersTable";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import { PageHeader } from "@/components/ui/page-header";
@@ -53,21 +51,18 @@ export default async function Historique({
   const years: string[] = [];
   for (let yy = now.getFullYear(); yy >= 2023; yy--) years.push(String(yy));
 
-  const rows: Row[] = orders.map((o) => {
-    const pay = paymentState(o);
-    return {
-      id: o.id,
-      name: `${o.contact.firstName} ${o.contact.lastName}`.trim(),
-      occasion: o.occasion || "—",
-      date: o.eventDate ? fmtDate(o.eventDate) : "—",
-      dateISO: o.eventDate ? o.eventDate.toISOString() : null,
-      status: o.status,
-      source: SOURCES.find((s) => s.id === o.source)?.label ?? "",
-      amount: fmtCHF(o.priceQuoted),
-      amountCents: o.priceQuoted ?? 0,
-      due: o.status !== "ANNULE" && !pay.isPaid && pay.dueCents > 0 ? chf(pay.dueCents) : null,
-    };
-  });
+  const rows: Row[] = orders.map((o) => ({
+    id: o.id,
+    name: `${o.contact.firstName} ${o.contact.lastName}`.trim(),
+    occasion: o.occasion || "—",
+    date: o.eventDate ? fmtDate(o.eventDate) : "—",
+    dateISO: o.eventDate ? o.eventDate.toISOString() : null,
+    status: o.status,
+    source: SOURCES.find((s) => s.id === o.source)?.label ?? "",
+    amount: fmtCHF(o.priceQuoted),
+    amountCents: o.priceQuoted ?? 0,
+    paidCents: (o.depositCents ?? 0) + (o.balanceCents ?? 0),
+  }));
 
   return (
     <>

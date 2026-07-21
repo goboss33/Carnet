@@ -8,7 +8,7 @@ import { useState, useEffect, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { Pencil, Check, X } from "lucide-react";
 import { cn } from "@/lib/ui";
-import { STATUTS } from "@/lib/statuts";
+import { STATUTS, STATUS_TONE } from "@/lib/statuts";
 import { setStatus, cancelOrder, deliverOrder } from "@/app/actions";
 import type { OrderStatus } from "@prisma/client";
 
@@ -16,16 +16,6 @@ const OPTIONS: { id: OrderStatus; label: string; dot: string }[] = [
   ...STATUTS.map((s) => ({ id: s.id, label: s.label, dot: s.dot })),
   { id: "ANNULE" as OrderStatus, label: "Annulé / sans suite", dot: "bg-red-500" },
 ];
-
-// Pastilles alignées sur les points de couleur du menu (dot de STATUTS).
-const TONE: Record<string, string> = {
-  LEAD: "bg-sky-50 text-sky-700",
-  DEVIS_ENVOYE: "bg-amber-50 text-amber-700",
-  ACOMPTE_RECU: "bg-violet-50 text-violet-700",
-  EN_PRODUCTION: "bg-orange-50 text-orange-700",
-  LIVRE: "bg-emerald-50 text-emerald-700",
-  ANNULE: "bg-red-50 text-red-700",
-};
 
 const fmt = (cents: number) => (cents / 100).toLocaleString("fr-CH", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
@@ -71,7 +61,7 @@ export function StatusPicker({ orderId, current, paidCents, totalCents }: { orde
           <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Statut</span>
           <Pencil className="size-3.5 shrink-0 text-zinc-300 transition-colors group-hover:text-zinc-500" />
         </span>
-        <span className={cn("mt-1 inline-block rounded-full px-2.5 py-0.5 text-[12px] font-semibold", TONE[current] ?? "bg-zinc-100 text-zinc-600")}>{label}</span>
+        <span className={cn("mt-1 inline-block rounded-full px-2.5 py-0.5 text-[12px] font-semibold", STATUS_TONE[current] ?? "bg-zinc-100 text-zinc-600")}>{label}</span>
       </button>
 
       {open && (

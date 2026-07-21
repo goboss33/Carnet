@@ -13,9 +13,11 @@ import { toast } from "sonner";
 import { markManyPaidInFull, duplicateOrder, deleteOrder, markManyDelivered, deleteManyOrders } from "@/app/actions";
 import { downloadCSV } from "@/components/ui/table-kit";
 import { Table, THead, TR, TD, TH, EmptyState } from "@/components/ui/table";
-import { Badge, STATUS_BADGE } from "@/components/ui/badge";
+import { STATUS_BADGE } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSort, SortableTH, RowMenu, useConfirm } from "@/components/ui/table-kit";
+import { STATUS_TONE } from "@/lib/statuts";
+import { occasionIcon, occasionShort } from "@/lib/occasions";
 import { cn } from "@/lib/ui";
 
 export type Row = {
@@ -27,8 +29,8 @@ export type Row = {
   status: string;
   source: string;
   amount: string;
-  amountCents: number;
-  due: string | null;
+  amountCents: number; // priceQuoted en CHF
+  paidCents: number; // acompte + solde encaissés
 };
 
 const ACCESSORS = {
@@ -163,7 +165,12 @@ export default function OrdersTable({ rows }: { rows: Row[] }) {
         </THead>
         <tbody>
           {sorted.map((r) => {
-            const b = STATUS_BADGE[r.status] ?? STATUS_BADGE.LEAD;
+            const OccIcon = occasionIcon(r.occasion);
+            const totalC = r.amountCents * 100;
+            const pct = totalC > 0 ? Math.min(100, Math.round((r.paidCents / totalC) * 100)) : 0;
+            const payTone = r.status === "ANNULE" || totalC === 0 ? "zinc" : r.paidCents >= totalC ? "emerald" : r.paidCents > 0 ? "amber" : "red";
+            const payBar = { zinc: "bg-zinc-300", red: "bg-red-500", amber: "bg-amber-500", emerald: "bg-emerald-500" }[payTone];
+            const paidChf = r.paidCents / 100;
             return (
               <TR
                 key={r.id}
@@ -189,11 +196,28 @@ export default function OrdersTable({ rows }: { rows: Row[] }) {
                   <span className="font-medium text-zinc-900">{r.name}</span>
                   {r.source ? <span className="ml-1.5 text-xs text-zinc-400">{r.source}</span> : null}
                 </TD>
-                <TD>{r.occasion}</TD>
-                <TD><Badge variant={b.variant}>{b.label}</Badge></TD>
-                <TD className="whitespace-nowrap text-right">
-                  <span className="font-medium tabular-nums text-zinc-900">{r.amount}</span>
-                  {r.due && <Badge variant="warning" className="ml-1.5">reste {r.due}</Badge>}
+                <TD>
+                  {r.occasion === "—" ? (
+                    <span className="text-zinc-400">—</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-zinc-700">
+                      <OccIcon className="size-3.5 shrink-0 text-(--color-brand)" />
+                      <span className="truncate">{occasionShort(r.occasion)}</span>
+                    </span>
+                  )}
+                </TD>
+                <TD>
+                  <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-[12px] font-semibold", STATUS_TONE[r.status] ?? "bg-zinc-100 text-zinc-600")}>
+                    {STATUS_BADGE[r.status]?.label ?? r.status}
+                  </span>
+                </TD>
+                <TD className="text-right">
+                  <div className="inline-block min-w-28 text-right">
+                    <div className="whitespace-nowrap font-medium tabular-nums text-zinc-900">CHF {paidChf % 1 ? paidChf.toFixed(2) : paidChf} / {r.amountCents || "—"}</div>
+                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-zinc-100">
+                      <div className={cn("h-full rounded-full", payBar)} style={{ width: `${Math.max(pct, r.paidCents > 0 ? 6 : 0)}%` }} />
+                    </div>
+                  </div>
                 </TD>
                 <TD className="w-10" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                   <RowMenu

@@ -8,6 +8,16 @@ export const STATUTS: { id: OrderStatus; label: string; hint: string; dot: strin
   { id: "LIVRE", label: "Livré", hint: "à relancer pour avis", dot: "bg-emerald-500" },
 ];
 
+/** Teinte de pastille par statut (alignée sur les points de couleur du menu). */
+export const STATUS_TONE: Record<string, string> = {
+  LEAD: "bg-sky-50 text-sky-700",
+  DEVIS_ENVOYE: "bg-amber-50 text-amber-700",
+  ACOMPTE_RECU: "bg-violet-50 text-violet-700",
+  EN_PRODUCTION: "bg-orange-50 text-orange-700",
+  LIVRE: "bg-emerald-50 text-emerald-700",
+  ANNULE: "bg-red-50 text-red-700",
+};
+
 export const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   LEAD: "DEVIS_ENVOYE",
   DEVIS_ENVOYE: "ACOMPTE_RECU",
