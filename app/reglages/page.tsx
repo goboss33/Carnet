@@ -11,6 +11,7 @@ import SettingsTabs from "./SettingsTabs";
 import { Card, CardBody } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { SubmitButton } from "@/components/ui/submit-button";
+import StudioMaintenance from "./StudioMaintenance";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,7 @@ export default async function Reglages() {
             <input type="checkbox" name="studioEnabled" defaultChecked={eff.studioEnabled} className="size-4 accent-(--color-brand)" />
             Activer <b>Contenu</b> — bibliothèque de médias, pages du site (Journal) et publications réseaux sociaux
           </label>
+          {eff.studioEnabled && <StudioMaintenance />}
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className={label}>URL du site vitrine</span>

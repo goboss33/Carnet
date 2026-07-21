@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/table";
 import { useConfirm } from "@/components/ui/table-kit";
 import { cn } from "@/lib/ui";
-import { deleteStudioAsset, linkStudioAssets, purgeStudioAssets } from "./actions";
+import { deleteStudioAsset, linkStudioAssets } from "./actions";
 import JournalSection, { type EntryRow, type OrderOption } from "./JournalSection";
 import PhotoEditor from "./PhotoEditor";
 import { MediaTile, TileAction } from "./MediaTile";
@@ -47,7 +47,7 @@ function OrderPicker({ orders, value, onChange }: { orders: OrderOption[]; value
         <ChevronDown className="size-3.5 shrink-0 text-zinc-400" />
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1 w-72 max-w-[80vw] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg">
+        <div className="absolute left-0 z-20 mt-1 w-72 max-w-[calc(100vw-3rem)] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg">
           <div className="border-b border-zinc-100 p-1.5">
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher une commande…" className="h-8 w-full rounded-md border border-zinc-200 px-2 text-[13px] outline-none focus:border-(--color-brand)" />
           </div>
@@ -180,7 +180,7 @@ export default function StudioClient({
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher une photo (cliente, thème, occasion…)" className="h-9 w-full rounded-lg border border-zinc-300 bg-white pl-9 pr-3 text-[13px] outline-none focus:border-(--color-brand)" />
         </div>
 
-        {/* ligne 3 : filtres + purge */}
+        {/* ligne 3 : filtres */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <select value={fKind} onChange={(e) => setFKind(e.target.value as typeof fKind)} className="h-8 rounded-lg border border-zinc-300 bg-white px-2 text-[13px]">
             <option value="all">Tous types</option>
@@ -192,27 +192,21 @@ export default function StudioClient({
             <option value="linked">Liés</option>
             <option value="unlinked">Non liés</option>
           </select>
-          <Button
-            size="sm" variant="ghost" className="ml-auto" disabled={pending}
-            onClick={() => confirm({ title: "Purger les médias inutilisés de plus de 6 mois", desc: "Les médias liés à une commande ou utilisés dans une page sont conservés.", confirmLabel: "Purger", action: async () => { const r = await purgeStudioAssets(); toast.success(`${r.purged ?? 0} média(s) purgé(s).`); router.refresh(); } })}
-          >
-            Purge 6 mois+
-          </Button>
         </div>
 
         {/* barre d'actions groupées — minimaliste */}
         {selected.length > 0 && (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-(--color-line) bg-white px-3 py-2 shadow-sm">
             <span className="text-[13px] font-medium text-zinc-700">{selected.length} sélectionné{selected.length > 1 ? "s" : ""}</span>
-            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            <div className="ml-auto flex items-center gap-1">
               <OrderPicker
                 orders={orders}
                 value={selected.length === 1 ? (selected[0].orderId ?? null) : null}
                 onChange={(v) => start(async () => { await linkStudioAssets(selected.map((a) => a.id), v); toast.success("Liaison mise à jour."); router.refresh(); })}
               />
-              {onlyPhoto && <Button size="sm" variant="ghost" onClick={() => setEditId(selected[0].id)}><Wand2 /> Retoucher</Button>}
-              <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700" disabled={pending} onClick={bulkDelete}><Trash2 /> Supprimer</Button>
-              <Button size="sm" variant="ghost" aria-label="Annuler la sélection" onClick={() => setSel({})}><X /></Button>
+              {onlyPhoto && <Button size="icon-sm" variant="ghost" title="Retoucher" aria-label="Retoucher" onClick={() => setEditId(selected[0].id)}><Wand2 /></Button>}
+              <Button size="icon-sm" variant="ghost" title="Supprimer" aria-label="Supprimer" className="text-red-600 hover:bg-red-50 hover:text-red-700" disabled={pending} onClick={bulkDelete}><Trash2 /></Button>
+              <Button size="icon-sm" variant="ghost" title="Annuler la sélection" aria-label="Annuler" onClick={() => setSel({})}><X /></Button>
             </div>
           </div>
         )}
