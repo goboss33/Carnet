@@ -103,8 +103,6 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               priceQuoted={order.priceQuoted}
               depositCents={order.depositCents}
               balanceCents={order.balanceCents}
-              depositPaidAt={d(order.depositPaidAt)}
-              balancePaidAt={d(order.balancePaidAt)}
               status={order.status}
             />
           </div>

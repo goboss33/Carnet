@@ -269,24 +269,19 @@ export async function setPrice(orderId: string, value: string) {
   revalidatePath("/compta");
 }
 
-const depositPatch = z.object({
-  depositChf: z.coerce.number().min(0).optional(),
-  depositDate: z.string().default(""),
-});
-
-/** Acompte seul (montant + date), sans toucher au solde. */
-export async function setDeposit(orderId: string, formData: FormData) {
-  const d = depositPatch.parse(Object.fromEntries(formData));
+/** Acompte seul (montant en CHF), sans toucher au solde. Date = aujourd'hui
+   (posée à la 1re fois, conservée ensuite). */
+export async function setDeposit(orderId: string, chf: number) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return;
-  const cents = Math.round((d.depositChf ?? 0) * 100);
+  const cents = Math.max(0, Math.round((Number(chf) || 0) * 100));
   const promote = cents > 0 && (order.status === "LEAD" || order.status === "DEVIS_ENVOYE");
   await prisma.order.update({
     where: { id: orderId },
     data: {
       ...(promote ? { status: "ACOMPTE_RECU" as OrderStatus } : {}),
       depositCents: cents || null,
-      depositPaidAt: cents ? (d.depositDate ? new Date(d.depositDate) : order.depositPaidAt ?? new Date()) : null,
+      depositPaidAt: cents ? (order.depositPaidAt ?? new Date()) : null,
       activities: { create: { type: "STATUS", body: promote ? "Acompte encaissé — commande confirmée (Acompte reçu)." : "Acompte mis à jour." } },
     },
   });
@@ -296,22 +291,16 @@ export async function setDeposit(orderId: string, formData: FormData) {
   revalidatePath("/compta");
 }
 
-const balancePatchZ = z.object({
-  balanceChf: z.coerce.number().min(0).optional(),
-  balanceDate: z.string().default(""),
-});
-
-/** Solde seul (montant + date), sans toucher à l'acompte. */
-export async function setBalance(orderId: string, formData: FormData) {
-  const d = balancePatchZ.parse(Object.fromEntries(formData));
+/** Solde seul (montant en CHF), sans toucher à l'acompte. */
+export async function setBalance(orderId: string, chf: number) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return;
-  const cents = Math.round((d.balanceChf ?? 0) * 100);
+  const cents = Math.max(0, Math.round((Number(chf) || 0) * 100));
   await prisma.order.update({
     where: { id: orderId },
     data: {
       balanceCents: cents || null,
-      balancePaidAt: cents ? (d.balanceDate ? new Date(d.balanceDate) : order.balancePaidAt ?? new Date()) : null,
+      balancePaidAt: cents ? (order.balancePaidAt ?? new Date()) : null,
       activities: { create: { type: "STATUS", body: "Solde mis à jour." } },
     },
   });

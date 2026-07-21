@@ -1,13 +1,12 @@
 "use client";
 
-/* Paiement — géré entièrement depuis une modale (crayon dans le résumé).
-   Total éditable (source unique du prix), barre de progression, acompte (défaut
-   30 %) et solde (défaut = reste) guidés avec date d'encaissement, « payé en
-   entier », et cas annulé (acompte conservé + remboursement).
+/* Paiement — modale réactive ouverte par le crayon du résumé.
+   Total éditable (source unique du prix), barre de progression EN TEMPS RÉEL,
+   acompte via slider % + champ CHF liés (défaut 30 %), solde pré-calculé sur le
+   reste courant. Une seule action « Enregistrer » persiste ce qui a changé.
    Rendu via portail pour échapper au transform de <main>. */
 
-import { useState, useEffect, useRef } from "react";
-import { useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { Pencil, X, Check } from "lucide-react";
 import { cn } from "@/lib/ui";
@@ -19,15 +18,13 @@ type Props = {
   priceQuoted: number | null;
   depositCents: number | null;
   balanceCents: number | null;
-  depositPaidAt: string; // yyyy-mm-dd ou ""
-  balancePaidAt: string;
   status: OrderStatus;
 };
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const clamp = (n: number) => (Number.isFinite(n) && n > 0 ? n : 0);
+const fmt = (n: number) => n.toLocaleString("fr-CH", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
 const inputCls = "w-full min-w-0 rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
-const chf = (cents: number) => (cents / 100).toLocaleString("fr-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " CHF";
-const frDate = (iso: string) => (iso ? new Date(iso + "T12:00:00").toLocaleDateString("fr-CH", { day: "numeric", month: "short", year: "numeric" }) : "");
-const today = () => new Date().toISOString().slice(0, 10);
 
 export function PaymentModal(props: Props) {
   const [open, setOpen] = useState(false);
@@ -49,7 +46,7 @@ export function PaymentModal(props: Props) {
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-zinc-900/40 backdrop-blur-[1px]" onClick={() => setOpen(false)} />
           <div className="relative z-10 max-h-[88vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
-            <PaymentPanel key={`${props.priceQuoted}-${props.depositCents}-${props.balanceCents}-${props.depositPaidAt}-${props.balancePaidAt}`} {...props} onClose={() => setOpen(false)} />
+            <PaymentPanel key={`${props.priceQuoted}-${props.depositCents}-${props.balanceCents}`} {...props} onClose={() => setOpen(false)} />
           </div>
         </div>,
         document.body,
@@ -58,22 +55,34 @@ export function PaymentModal(props: Props) {
   );
 }
 
-function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, depositPaidAt, balancePaidAt, status, onClose }: Props & { onClose: () => void }) {
+function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, status, onClose }: Props & { onClose: () => void }) {
+  const [pending, start] = useTransition();
   const [pricePending, startPrice] = useTransition();
-  const depRef = useRef<HTMLInputElement>(null);
-  const balRef = useRef<HTMLInputElement>(null);
 
-  const total = priceQuoted ?? 0;
-  const paidCents = (depositCents ?? 0) + (balanceCents ?? 0);
-  const totalCents = total * 100;
-  const dueCents = Math.max(0, totalCents - paidCents);
-  const hasTotal = totalCents > 0;
-  const isPaid = hasTotal && dueCents === 0;
+  const [total, setTotal] = useState(priceQuoted ?? 0);
+  const [deposit, setDep] = useState(depositCents ? depositCents / 100 : 0);
+  const [balance, setBal] = useState(balanceCents ? balanceCents / 100 : 0);
+
   const cancelled = status === "ANNULE";
-  const pct = hasTotal ? Math.min(100, Math.round((paidCents / totalCents) * 100)) : 0;
+  const savedDep = depositCents ? depositCents / 100 : 0;
+  const savedBal = balanceCents ? balanceCents / 100 : 0;
+  const depDirty = Math.abs(deposit - savedDep) > 0.005;
+  const balDirty = Math.abs(balance - savedBal) > 0.005;
+  const dirty = depDirty || balDirty;
 
-  const sugDeposit = Math.round(total * 0.3);
-  const sugBalance = Math.max(0, totalCents - (depositCents ?? 0)) / 100;
+  const paid = deposit + balance;
+  const due = Math.max(0, round2(total - paid));
+  const hasTotal = total > 0;
+  const isPaid = hasTotal && due < 0.005;
+  const pct = hasTotal ? Math.min(100, Math.round((paid / total) * 100)) : 0;
+  const depPct = hasTotal ? Math.min(100, Math.round((deposit / total) * 100)) : 0;
+  const rest = Math.max(0, round2(total - deposit)); // reste courant pour le solde
+
+  const saveTotal = () => { if (round2(total) !== round2(priceQuoted ?? 0)) startPrice(() => setPrice(orderId, String(total))); };
+  const save = () => start(async () => {
+    if (depDirty) await setDeposit(orderId, deposit);
+    if (balDirty) await setBalance(orderId, balance);
+  });
 
   return (
     <>
@@ -86,36 +95,35 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, deposi
       <label className="block">
         <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Total du devis (CHF)</span>
         <input
-          type="number"
-          step="1"
-          min="0"
-          defaultValue={priceQuoted ?? ""}
+          type="number" min="0" step="1"
+          value={total === 0 ? "" : total}
           disabled={pricePending}
-          onBlur={(e) => { const v = e.currentTarget.value; if (Number(v || 0) !== total) startPrice(() => setPrice(orderId, v)); }}
+          onChange={(e) => setTotal(clamp(Number(e.target.value)))}
+          onBlur={saveTotal}
           onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
           className={cn(inputCls, "text-base font-semibold")}
         />
       </label>
 
-      {/* Progression */}
+      {/* Barre de progression — temps réel */}
       <div className="mt-4">
-        <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100">
-          <div className={cn("h-full rounded-full transition-all", isPaid ? "bg-emerald-500" : "bg-(--color-brand)")} style={{ width: `${pct}%` }} />
+        <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-100">
+          <div className={cn("h-full rounded-full transition-[width] duration-150", isPaid ? "bg-emerald-500" : "bg-(--color-brand)")} style={{ width: `${pct}%` }} />
         </div>
         <div className="mt-1.5 flex items-center justify-between text-sm">
-          <span className="text-zinc-500">{hasTotal ? `Encaissé ${chf(paidCents)}` : "Fixe d'abord un total"}</span>
+          <span className="text-zinc-500">{hasTotal ? `Encaissé ${fmt(paid)} CHF` : "Fixe d'abord un total"}</span>
           {isPaid ? (
             <span className="inline-flex items-center gap-1 font-semibold text-emerald-600"><Check className="size-4" /> Soldé</span>
           ) : hasTotal ? (
-            <span className="font-semibold text-amber-700">Reste {chf(dueCents)}</span>
+            <span className="font-semibold text-amber-700">Reste {fmt(due)} CHF</span>
           ) : null}
         </div>
       </div>
 
       {cancelled ? (
-        paidCents > 0 && (
+        paid > 0 && (
           <div className="mt-4 rounded-lg bg-zinc-50 px-3 py-2.5">
-            <p className="text-xs font-semibold text-zinc-600">Acompte conservé (annulation) : {chf(paidCents)} — compté en recette.</p>
+            <p className="text-xs font-semibold text-zinc-600">Acompte conservé (annulation) : {fmt(paid)} CHF — compté en recette.</p>
             <form action={refundDeposit.bind(null, orderId)} className="mt-1.5">
               <button className="text-xs font-semibold text-amber-700 underline-offset-2 hover:underline">Marquer remboursé (retirer des recettes)</button>
             </form>
@@ -123,50 +131,65 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, deposi
         )
       ) : (
         <>
-          {/* Acompte */}
+          {/* Acompte : slider % + champ CHF liés */}
           <div className="mt-5">
-            <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div className="mb-2 flex items-baseline justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Acompte</span>
-              {depositCents ? <span className="text-[11px] text-zinc-400">reçu le {frDate(depositPaidAt)}</span> : null}
+              <span className="text-[12px] font-semibold text-(--color-brand)">{depPct}%</span>
             </div>
-            <form action={setDeposit.bind(null, orderId)} className="space-y-2">
-              <div className="flex items-center gap-2">
-                <input ref={depRef} name="depositChf" type="number" step="0.05" min="0" defaultValue={depositCents ? depositCents / 100 : ""} placeholder={hasTotal ? `≈ ${sugDeposit}` : "CHF"} className={inputCls} />
-                {hasTotal && (
-                  <button type="button" onClick={() => { if (depRef.current) depRef.current.value = String(sugDeposit); }} className="shrink-0 whitespace-nowrap rounded-lg border border-zinc-300 px-2.5 py-2 text-[12px] font-semibold text-zinc-600 transition-colors hover:border-(--color-brand) hover:text-(--color-brand)">30 %</button>
-                )}
+            <div className="flex items-center gap-3">
+              <input
+                type="range" min={0} max={100} value={depPct} disabled={!hasTotal}
+                onChange={(e) => setDep(Math.round((total * Number(e.target.value)) / 100))}
+                className="h-2 flex-1 cursor-pointer accent-(--color-brand) disabled:opacity-40"
+              />
+              <div className="relative w-24 shrink-0">
+                <input
+                  type="number" min="0" step="0.05"
+                  value={deposit === 0 ? "" : deposit}
+                  placeholder={hasTotal ? String(Math.round(total * 0.3)) : "CHF"}
+                  onChange={(e) => setDep(clamp(Number(e.target.value)))}
+                  className={cn(inputCls, "pr-9 text-right")}
+                />
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-zinc-400">CHF</span>
               </div>
-              <div className="flex items-center gap-2">
-                <input name="depositDate" type="date" defaultValue={depositPaidAt || today()} className={inputCls} />
-                <button className="shrink-0 whitespace-nowrap rounded-lg bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-700">Enregistrer</button>
-              </div>
-            </form>
+            </div>
           </div>
 
-          {/* Solde */}
+          {/* Solde : champ pré-calculé sur le reste courant */}
           <div className="mt-5">
-            <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div className="mb-2 flex items-baseline justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Solde</span>
-              {balanceCents ? <span className="text-[11px] text-zinc-400">reçu le {frDate(balancePaidAt)}</span> : null}
+              {hasTotal && (
+                <button type="button" onClick={() => setBal(rest)} className="text-[12px] font-medium text-zinc-500 transition-colors hover:text-(--color-brand)">= reste ({fmt(rest)})</button>
+              )}
             </div>
-            <form action={setBalance.bind(null, orderId)} className="space-y-2">
-              <div className="flex items-center gap-2">
-                <input ref={balRef} name="balanceChf" type="number" step="0.05" min="0" defaultValue={balanceCents ? balanceCents / 100 : ""} placeholder={hasTotal ? `≈ ${sugBalance}` : "CHF"} className={inputCls} />
-                {hasTotal && (
-                  <button type="button" onClick={() => { if (balRef.current) balRef.current.value = String(sugBalance); }} className="shrink-0 whitespace-nowrap rounded-lg border border-zinc-300 px-2.5 py-2 text-[12px] font-semibold text-zinc-600 transition-colors hover:border-(--color-brand) hover:text-(--color-brand)">= reste</button>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <input name="balanceDate" type="date" defaultValue={balancePaidAt || today()} className={inputCls} />
-                <button className="shrink-0 whitespace-nowrap rounded-lg bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-700">Encaisser</button>
-              </div>
-            </form>
+            <div className="relative">
+              <input
+                type="number" min="0" step="0.05"
+                value={balance === 0 ? "" : balance}
+                placeholder={hasTotal ? fmt(rest) : "CHF"}
+                onChange={(e) => setBal(clamp(Number(e.target.value)))}
+                className={cn(inputCls, "pr-9 text-right")}
+              />
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-zinc-400">CHF</span>
+            </div>
           </div>
 
+          {/* Actions */}
+          <button
+            type="button" onClick={save} disabled={!dirty || pending}
+            className="mt-5 w-full rounded-lg bg-zinc-900 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700 disabled:opacity-40"
+          >
+            {pending ? "Enregistrement…" : "Enregistrer"}
+          </button>
           {hasTotal && !isPaid && (
-            <form action={markPaidInFull.bind(null, orderId)} className="mt-4">
-              <button className="w-full rounded-lg border border-zinc-300 py-2 text-sm font-semibold text-zinc-600 transition-colors hover:border-zinc-500">Marquer payé en entier</button>
-            </form>
+            <button
+              type="button" onClick={() => start(() => markPaidInFull(orderId))} disabled={pending}
+              className="mt-2 w-full rounded-lg border border-zinc-300 py-2 text-sm font-semibold text-zinc-600 transition-colors hover:border-zinc-500 disabled:opacity-40"
+            >
+              Marquer payé en entier
+            </button>
           )}
         </>
       )}
