@@ -5,6 +5,7 @@
    pour que l'auto-save (AutoSaveForm) capte leurs événements sans bricolage. */
 
 import { useState } from "react";
+import { Pencil, Check } from "lucide-react";
 import { cn } from "@/lib/ui";
 import { FOURRAGES, MAX_FOURRAGES, TIERS_PARTS } from "@/lib/order-options";
 
@@ -39,16 +40,39 @@ export function TiersParts({ tiers, parts }: { tiers: number | null; parts: numb
   );
 }
 
-/* Fourrages : puces à cocher, maximum 2 (garde d'éventuels choix hors liste). */
+/* Fourrages : replié, on ne montre que les choisis (max 2) + « Modifier » ;
+   déplié, toute la liste. Les cases restent dans le DOM (juste masquées) pour
+   que l'auto-save continue de lire leur valeur. Garde d'éventuels choix hors liste. */
 export function FourrageChips({ selected }: { selected: string[] }) {
   const extras = selected.filter((s) => !(FOURRAGES as readonly string[]).includes(s));
   const all = [...FOURRAGES, ...extras];
   const [chosen, setChosen] = useState<string[]>(selected);
+  const [editing, setEditing] = useState(false);
   const toggle = (f: string) => setChosen((c) => (c.includes(f) ? c.filter((x) => x !== f) : c.length < MAX_FOURRAGES ? [...c, f] : c));
   return (
     <div>
-      <span className={labelCls}>Fourrages (max {MAX_FOURRAGES})</span>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Fourrages (max {MAX_FOURRAGES})</span>
+        <button type="button" onClick={() => setEditing((v) => !v)} className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-zinc-500 transition-colors hover:text-zinc-800">
+          {editing ? <><Check className="size-3.5" /> Terminé</> : <><Pencil className="size-3.5" /> Modifier</>}
+        </button>
+      </div>
+
+      {/* Aperçu replié : seulement les fourrages choisis */}
+      {!editing && (
+        <div className="flex flex-wrap gap-1.5">
+          {chosen.length === 0 ? (
+            <span className="text-sm text-zinc-400">Aucun fourrage — clique sur « Modifier »</span>
+          ) : (
+            chosen.map((f) => (
+              <span key={f} className="rounded-full border border-(--color-brand) bg-(--color-brand-soft) px-3 py-1 text-[12px] font-medium text-(--color-brand)">{f}</span>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Liste complète — toujours montée (masquée si replié) pour l'auto-save */}
+      <div className={cn("flex flex-wrap gap-1.5", !editing && "hidden")}>
         {all.map((f) => {
           const on = chosen.includes(f);
           const disabled = !on && chosen.length >= MAX_FOURRAGES;
