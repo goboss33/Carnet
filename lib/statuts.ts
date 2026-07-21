@@ -31,6 +31,7 @@ export const SOURCES = [
   { id: "INSTAGRAM", label: "Instagram" },
   { id: "FACEBOOK", label: "Facebook" },
   { id: "EMAIL", label: "E-mail" },
+  { id: "SMS", label: "SMS" },
   { id: "TELEPHONE", label: "Téléphone" },
   { id: "BOUCHE_A_OREILLE", label: "Bouche-à-oreille" },
   { id: "AUTRE", label: "Autre" },

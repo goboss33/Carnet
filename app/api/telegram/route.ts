@@ -381,7 +381,7 @@ function convStatus(conv: ConversationData): "LEAD" | "DEVIS_ENVOYE" | "ACOMPTE_
 }
 
 const STATUS_LABEL: Record<string, string> = { LEAD: "Lead", DEVIS_ENVOYE: "Devis envoyé", ACOMPTE_RECU: "Confirmé" };
-const CHANNEL_LABEL: Record<string, string> = { whatsapp: "WhatsApp", instagram: "Instagram", facebook: "Facebook", sms: "SMS", autre: "autre canal" };
+const CHANNEL_LABEL: Record<string, string> = { whatsapp: "WhatsApp", instagram: "Instagram", facebook: "Facebook", sms: "SMS", email: "E-mail", autre: "autre canal" };
 
 /** Manques bloquants au stade proposé — calculés avant création. */
 function convMissing(conv: ConversationData): string[] {
@@ -432,7 +432,7 @@ async function createFromConversation(chatId: number, tenantId: string, conv: Co
     ? await prisma.contact.findFirst({ where: { tenantId, phone: phoneN }, include: { _count: { select: { orders: true } } } })
     : null;
   let knownNote = "";
-  const source = (conv.referredBy ? "BOUCHE_A_OREILLE" : conv.channel === "whatsapp" ? "WHATSAPP" : conv.channel === "instagram" ? "INSTAGRAM" : conv.channel === "facebook" ? "FACEBOOK" : "AUTRE") as Source;
+  const source = (conv.referredBy ? "BOUCHE_A_OREILLE" : conv.channel === "whatsapp" ? "WHATSAPP" : conv.channel === "instagram" ? "INSTAGRAM" : conv.channel === "facebook" ? "FACEBOOK" : conv.channel === "email" ? "EMAIL" : conv.channel === "sms" ? "SMS" : "AUTRE") as Source;
 
   if (contact) {
     knownNote = `👋 Ce numéro existait déjà : rattachée à <b>${contact.firstName} ${contact.lastName}</b>`.trim() + ` (${contact._count.orders} commande${contact._count.orders > 1 ? "s" : ""}).`;

@@ -2,7 +2,7 @@
    (Instagram, WhatsApp, Facebook, Google pour le configurateur/SEO) + lucide
    pour téléphone / bouche-à-oreille / autre. Composant présentationnel pur. */
 
-import { Phone, Mail, Users, MessageCircle } from "lucide-react";
+import { Phone, Mail, Users, MessageSquare, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/ui";
 
 function InstagramGlyph({ className }: { className?: string }) {
@@ -52,6 +52,8 @@ export function ChannelIcon({ source, className = "size-4" }: { source: string; 
       return <GoogleGlyph className={className} />;
     case "EMAIL":
       return <Mail className={cn(className, "text-zinc-500")} />;
+    case "SMS":
+      return <MessageSquare className={cn(className, "text-zinc-500")} />;
     case "TELEPHONE":
       return <Phone className={cn(className, "text-zinc-500")} />;
     case "BOUCHE_A_OREILLE":

@@ -210,7 +210,7 @@ export async function geminiGenerate(opts: {
 
 export type ConversationData = {
   isRequest: boolean;
-  channel: "whatsapp" | "instagram" | "facebook" | "sms" | "autre";
+  channel: "whatsapp" | "instagram" | "facebook" | "sms" | "email" | "autre";
   contactName: string | null;
   contactPhone: string | null;
   instagram: string | null;
@@ -238,7 +238,7 @@ export async function classifyInbound(image: Buffer, mime: string): Promise<"rec
     contents: [{
       role: "user",
       parts: [
-        { text: "Classifie cette image. Réponds par UN SEUL mot :\nRECU — ticket de caisse, facture, justificatif d'achat (papier ou en ligne)\nCONV — capture d'écran d'une conversation de messagerie (WhatsApp, Instagram, Messenger, SMS) ou export de discussion\nAUTRE — tout le reste" },
+        { text: "Classifie cette image. Réponds par UN SEUL mot :\nRECU — ticket de caisse, facture, justificatif d'achat (papier ou en ligne)\nCONV — capture d'écran d'une conversation (WhatsApp, Instagram, Messenger, SMS, e-mail / Gmail / Outlook) ou export de discussion\nAUTRE — tout le reste" },
         { inline_data: { mime_type: mime, data: image.toString("base64") } },
       ],
     }],
@@ -258,7 +258,7 @@ Les messages de la pâtissière sont ceux alignés à droite (WhatsApp : bulles 
 Extrais la demande de gâteau. Nous sommes le ${today}. Réponds UNIQUEMENT avec cet objet JSON :
 {
   "is_request": true si la conversation contient une demande/commande de gâteau ou cupcakes, sinon false,
-  "channel": "whatsapp" | "instagram" | "facebook" | "sms" | "autre" (déduis de l'interface visible),
+  "channel": "whatsapp" | "instagram" | "facebook" | "sms" | "email" | "autre" (déduis de l'interface visible ; « email » si c'est une boîte mail / Gmail / Outlook),
   "contact_name": "nom de la cliente (souvent dans l'en-tête ou sa signature)" | null,
   "contact_phone": "numéro au format international visible dans l'en-tête ou le texte" | null,
   "instagram": "pseudo instagram si visible" | null,
@@ -295,7 +295,7 @@ export async function analyzeConversation(parts: GeminiPart[]): Promise<Conversa
   if (!j) { console.error("gemini conv bad json:", out.slice(0, 300)); return null; }
   const str = (v: unknown, max = 120) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
   const num = (v: unknown) => (typeof v === "number" && isFinite(v) && v > 0 ? Math.round(v) : null);
-  const channels = ["whatsapp", "instagram", "facebook", "sms"];
+  const channels = ["whatsapp", "instagram", "facebook", "sms", "email"];
   return {
     isRequest: j.is_request === true,
     channel: (channels.includes(String(j.channel)) ? String(j.channel) : "autre") as ConversationData["channel"],
