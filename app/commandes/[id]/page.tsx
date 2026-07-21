@@ -3,38 +3,28 @@ import InspirationManager from "./InspirationManager";
 import StudioPanel from "./StudioPanel";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { STATUTS, SOURCES, fmtCHF, fmtDate } from "@/lib/statuts";
+import { SOURCES, fmtCHF, fmtDate } from "@/lib/statuts";
 import { chf } from "@/lib/money";
 import { paymentState } from "@/lib/payments";
 import { waLink } from "@/lib/wa";
 import { getSettings } from "@/lib/settings";
-import { updateOrder, setStatus, addNote, setOrderPartner, recordPayment, markPaidInFull, refundDeposit, assistantSend, setRevenueCategory } from "@/app/actions";
+import { updateOrder, addNote, setOrderPartner, recordPayment, markPaidInFull, refundDeposit, assistantSend, setRevenueCategory } from "@/app/actions";
 import DeleteOrderButton from "./DeleteOrderButton";
 import MediaViewer from "@/app/components/MediaViewer";
 import CopyButton from "./CopyButton";
 import { PageHeader } from "@/components/ui/page-header";
 import { AutoSaveForm, AutoSelect } from "./AutoSave";
 import { SaveStatusProvider, SaveToast } from "./SaveStatus";
-import { StatusScroller } from "./StatusScroller";
+import { StatusPicker } from "./StatusPicker";
 import { OccasionSelect, TiersParts, FourrageChips, DeliveryFields } from "./OrderFields";
 import { BISCUITS } from "@/lib/order-options";
 import { cn } from "@/lib/ui";
 import { Phone, MessageCircle, Calendar, Cake, Truck, StickyNote, Images } from "lucide-react";
-import type { OrderStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
 const input = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
 const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
-
-const STATUS_TONE: Record<string, string> = {
-  LEAD: "bg-zinc-100 text-zinc-600",
-  DEVIS_ENVOYE: "bg-blue-50 text-blue-700",
-  ACOMPTE_RECU: "bg-amber-50 text-amber-700",
-  EN_PRODUCTION: "bg-violet-50 text-violet-700",
-  LIVRE: "bg-emerald-50 text-emerald-700",
-  ANNULE: "bg-red-50 text-red-700",
-};
 
 export default async function Commande({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -55,7 +45,6 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
   const lastAssistant = order.aiMessages.filter((m) => m.role === "assistant").at(-1);
   const d = (x?: Date | null) => (x ? x.toISOString().slice(0, 10) : "");
 
-  const statusLabel = order.status === "ANNULE" ? "Annulé / sans suite" : STATUTS.find((s) => s.id === order.status)?.label ?? order.status;
   const days = order.eventDate ? Math.ceil((order.eventDate.getTime() - Date.now()) / 86400000) : null;
   const jx = days === null ? null : days < 0 ? "passé" : days === 0 ? "aujourd'hui" : days === 1 ? "demain" : `J-${days}`;
   const jxTone = days === null ? "" : days < 0 ? "bg-zinc-100 text-zinc-400" : days <= 1 ? "bg-red-50 text-red-600" : days <= 7 ? "bg-amber-50 text-amber-700" : "bg-zinc-100 text-zinc-500";
@@ -85,7 +74,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
       <div className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-(--color-line) bg-white p-4 sm:grid-cols-4">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Statut</p>
-          <p className="mt-1"><span className={cn("inline-block rounded-full px-2.5 py-0.5 text-[12px] font-semibold", STATUS_TONE[order.status] ?? "bg-zinc-100 text-zinc-600")}>{statusLabel}</span></p>
+          <div className="mt-1"><StatusPicker orderId={order.id} current={order.status} /></div>
         </div>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Occasion</p>
@@ -100,25 +89,10 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
         </div>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Paiement</p>
-          <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-zinc-900"><span>{fmtCHF(order.priceQuoted)}</span>{payBadge}</p>
+          <p className="mt-1 text-sm font-medium text-zinc-900">{fmtCHF(order.priceQuoted)}</p>
+          {payBadge && <p className="mt-1">{payBadge}</p>}
         </div>
       </div>
-
-      {/* changer le statut */}
-      <StatusScroller>
-        {STATUTS.map((s) => (
-          <form key={s.id} className="shrink-0" action={setStatus.bind(null, order.id, s.id as OrderStatus)}>
-            <button data-active={order.status === s.id} className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${order.status === s.id ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 text-zinc-500 hover:border-zinc-500"}`}>
-              {s.label}
-            </button>
-          </form>
-        ))}
-        <form className="shrink-0" action={setStatus.bind(null, order.id, "ANNULE" as OrderStatus)}>
-          <button data-active={order.status === "ANNULE"} className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${order.status === "ANNULE" ? "border-red-700 bg-red-700 text-white" : "border-red-200 text-red-400 hover:border-red-400 hover:text-red-600"}`}>
-            Annulé / sans suite
-          </button>
-        </form>
-      </StatusScroller>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         {/* -------- commande (auto-save) -------- */}
