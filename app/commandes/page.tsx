@@ -30,7 +30,15 @@ export default async function Historique({
   const year = /^\d{4}$/.test(yearParam) ? Number(yearParam) : now.getFullYear();
 
   const where: Prisma.OrderWhereInput = { tenantId: tenant.id };
-  if (!allYears) where.eventDate = { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) };
+  if (!allYears) {
+    const startY = new Date(Date.UTC(year, 0, 1));
+    const nextY = new Date(Date.UTC(year + 1, 0, 1));
+    // Par année d'événement ; les fiches SANS date d'événement sont rangées par leur année de création.
+    where.OR = [
+      { eventDate: { gte: startY, lt: nextY } },
+      { eventDate: null, createdAt: { gte: startY, lt: nextY } },
+    ];
+  }
   if (statut) where.status = statut;
 
   const orders = await prisma.order.findMany({
