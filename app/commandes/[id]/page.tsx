@@ -63,6 +63,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
             phone={c.phone}
             email={c.email}
             instagram={c.instagram}
+            facebook={c.facebook}
             notes={c.notes}
             consentNewsletter={c.consentNewsletter}
             waHref={c.phone ? `https://wa.me/${c.phone.replace(/[^0-9]/g, "")}` : null}
