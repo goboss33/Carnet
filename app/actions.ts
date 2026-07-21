@@ -199,6 +199,7 @@ export async function updateOrder(orderId: string, formData: FormData) {
       deliveryMode: d.deliveryMode,
       deliveryAddress: d.deliveryAddress,
       priceQuoted: d.priceQuoted ?? null,
+      fourrages: formData.getAll("fourrages").map(String).filter(Boolean).slice(0, 2),
       notes: d.notes,
     },
   });
