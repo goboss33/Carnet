@@ -7,7 +7,7 @@
    • Code couleur : rien encaissé = rouge, acompte reçu = orange, soldé = vert.
    Rendu via portail pour échapper au transform de <main>. */
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { Pencil, X, Check } from "lucide-react";
 import { cn } from "@/lib/ui";
@@ -83,19 +83,29 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, status
   const textCls = { zinc: "text-zinc-400", red: "text-red-600", amber: "text-amber-700", emerald: "text-emerald-600" }[tone];
   const saving = depPending || pricePending || balPending;
 
-  // auto-save du total (debounce)
+  // auto-save du total (debounce court)
   useEffect(() => {
     if (round2(total) === round2(savedTotal)) return;
-    const t = setTimeout(() => startPrice(() => setPrice(orderId, String(total))), 800);
+    const t = setTimeout(() => startPrice(() => setPrice(orderId, String(total))), 400);
     return () => clearTimeout(t);
   }, [total, savedTotal, orderId, startPrice]);
 
-  // auto-save de l'acompte (debounce)
+  // auto-save de l'acompte (debounce court)
   useEffect(() => {
     if (Math.abs(deposit - savedDep) < 0.005) return;
-    const t = setTimeout(() => startDep(() => setDeposit(orderId, deposit)), 800);
+    const t = setTimeout(() => startDep(() => setDeposit(orderId, deposit)), 400);
     return () => clearTimeout(t);
   }, [deposit, savedDep, orderId, startDep]);
+
+  // Filet de sécurité : à la fermeture (démontage), on force l'enregistrement
+  // de tout ce qui n'a pas encore été persisté — aucune perte si on ferme vite.
+  const latest = useRef({ total, deposit, savedTotal, savedDep });
+  latest.current = { total, deposit, savedTotal, savedDep };
+  useEffect(() => () => {
+    const l = latest.current;
+    if (round2(l.total) !== round2(l.savedTotal)) void setPrice(orderId, String(l.total));
+    if (Math.abs(l.deposit - l.savedDep) > 0.005) void setDeposit(orderId, l.deposit);
+  }, [orderId]);
 
   const markSolde = () => { setBalAmt(rest); startBal(() => setBalance(orderId, rest)); };
 
@@ -168,21 +178,19 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, status
             </div>
           </div>
 
-          {/* Solde : action unique */}
-          <div className="mt-5">
-            {isPaid ? (
-              <div className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-50 py-2.5 text-sm font-semibold text-emerald-700">
-                <Check className="size-4" /> Soldé
-              </div>
-            ) : (
-              <button
-                type="button" onClick={markSolde} disabled={!hasTotal || balPending}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-40"
-              >
-                <Check className="size-4" /> Marquer soldé{hasTotal ? ` · ${fmt(due)} CHF` : ""}
-              </button>
-            )}
-          </div>
+          {/* Solde : action secondaire discrète (la sortie se fait par la croix) */}
+          {isPaid ? (
+            <div className="mt-5 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-50 py-2 text-[13px] font-semibold text-emerald-700">
+              <Check className="size-4" /> Soldé
+            </div>
+          ) : hasTotal && due > 0 ? (
+            <button
+              type="button" onClick={markSolde} disabled={balPending}
+              className="mt-5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 py-2 text-[13px] font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-100 disabled:opacity-40"
+            >
+              <Check className="size-4" /> Encaisser le solde · {fmt(due)} CHF
+            </button>
+          ) : null}
         </>
       )}
 
