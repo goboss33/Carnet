@@ -29,7 +29,6 @@ function SectionHeader({ icon: Icon, title, hint }: { icon: LucideIcon; title: s
 export default function Nouveau() {
   const [state, action, pending] = useActionState(createLead, undefined);
   const [source, setSource] = useState("AUTRE"); // « Non précisé » par défaut → choix conscient
-  const [occCustom, setOccCustom] = useState(false);
 
   return (
     <>
@@ -81,18 +80,10 @@ export default function Nouveau() {
           <div className="grid gap-4 sm:grid-cols-2">
             <label>
               <span className={label}>Occasion</span>
-              {occCustom ? (
-                <div className="flex items-center gap-2">
-                  <input name="occasion" placeholder="Précise l'occasion…" autoFocus className={input} />
-                  <button type="button" onClick={() => setOccCustom(false)} className="shrink-0 text-[12px] font-medium text-zinc-500 hover:text-zinc-800">Liste</button>
-                </div>
-              ) : (
-                <select name="occasion" defaultValue="" onChange={(e) => { if (e.currentTarget.value === "__autre__") setOccCustom(true); }} className={input}>
-                  <option value="">—</option>
-                  {OCCASIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                  <option value="__autre__">Autre (préciser)…</option>
-                </select>
-              )}
+              <select name="occasion" defaultValue="" className={input}>
+                <option value="">—</option>
+                {OCCASIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
             </label>
             <label><span className={label}>Date de l'événement</span><input name="eventDate" type="date" className={input} /></label>
             <label><span className={label}>Parts (estimation)</span><input name="parts" type="number" min="1" className={input} /></label>
