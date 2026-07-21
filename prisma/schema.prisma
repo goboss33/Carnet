@@ -134,6 +134,7 @@ model Contact {
   phone             String   @default("")
   email             String   @default("")
   instagram         String   @default("")
+  facebook          String   @default("")
   source            Source   @default(AUTRE)
   consentNewsletter Boolean  @default(false)
   notes             String   @default("")

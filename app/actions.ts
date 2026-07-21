@@ -31,20 +31,30 @@ export async function logout() {
 
 /* ------------------------------------------------------- commandes */
 
-const leadSchema = z.object({
-  firstName: z.string().min(1, "Prénom requis"),
-  lastName: z.string().default(""),
-  phone: z.string().default(""),
-  email: z.string().default(""),
-  instagram: z.string().default(""),
-  source: z.enum(["CONFIGURATEUR", "WHATSAPP", "INSTAGRAM", "TELEPHONE", "AUTRE"]).default("AUTRE"),
-  occasion: z.string().default(""),
-  eventDate: z.string().default(""),
-  parts: z.coerce.number().int().positive().optional(),
-  priceQuoted: z.coerce.number().int().positive().optional(),
-  deliveryAddress: z.string().default(""),
-  notes: z.string().default(""),
-});
+const ALL_SOURCES = ["CONFIGURATEUR", "WHATSAPP", "INSTAGRAM", "FACEBOOK", "EMAIL", "SMS", "TELEPHONE", "BOUCHE_A_OREILLE", "AUTRE"] as const;
+
+const leadSchema = z
+  .object({
+    firstName: z.string().min(1, "Prénom requis"),
+    lastName: z.string().default(""),
+    phone: z.string().default(""),
+    email: z.string().default(""),
+    instagram: z.string().default(""),
+    facebook: z.string().default(""),
+    source: z.enum(ALL_SOURCES).default("AUTRE"),
+    occasion: z.string().default(""),
+    eventDate: z.string().default(""),
+    tiers: z.coerce.number().int().optional(),
+    parts: z.coerce.number().int().positive().optional(),
+    priceQuoted: z.coerce.number().int().positive("Prix estimé requis"),
+    deliveryMode: z.string().default("retrait"),
+    deliveryAddress: z.string().default(""),
+    notes: z.string().default(""),
+  })
+  .refine((d) => [d.phone, d.email, d.instagram, d.facebook].some((v) => v.trim()), {
+    message: "Renseigne au moins un moyen de contact.",
+    path: ["phone"],
+  });
 
 export async function createLead(_prev: { error?: string } | undefined, formData: FormData) {
   const parsed = leadSchema.safeParse(Object.fromEntries(formData));
@@ -52,6 +62,7 @@ export async function createLead(_prev: { error?: string } | undefined, formData
   const d = parsed.data;
   d.phone = normPhone(d.phone);
   d.email = normEmail(d.email);
+  const livraison = d.deliveryMode === "livraison";
   const tenant = await currentTenant();
 
   // Réutilise le contact si tél ou e-mail déjà connus (valeurs normalisées)
@@ -67,6 +78,7 @@ export async function createLead(_prev: { error?: string } | undefined, formData
         phone: d.phone,
         email: d.email,
         instagram: d.instagram,
+        facebook: d.facebook,
         source: d.source as Source,
       },
     });
@@ -79,10 +91,11 @@ export async function createLead(_prev: { error?: string } | undefined, formData
       source: d.source as Source,
       occasion: d.occasion,
       eventDate: d.eventDate ? new Date(d.eventDate) : null,
+      tiers: d.tiers ?? null,
       parts: d.parts,
       priceQuoted: d.priceQuoted,
-      deliveryMode: d.deliveryAddress ? "livraison" : "retrait",
-      deliveryAddress: d.deliveryAddress,
+      deliveryMode: livraison ? "livraison" : "retrait",
+      deliveryAddress: livraison ? d.deliveryAddress : "",
       notes: d.notes,
       activities: { create: { type: "SYSTEM", body: "Fiche créée depuis le back-office." } },
     },
@@ -694,7 +707,8 @@ const contactPatch = z.object({
   phone: z.string().default(""),
   email: z.string().default(""),
   instagram: z.string().default(""),
-  source: z.enum(["CONFIGURATEUR", "WHATSAPP", "INSTAGRAM", "TELEPHONE", "AUTRE"]).default("AUTRE"),
+  facebook: z.string().optional(),
+  source: z.enum(ALL_SOURCES).default("AUTRE"),
   notes: z.string().default(""),
 });
 
