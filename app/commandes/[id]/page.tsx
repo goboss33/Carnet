@@ -21,7 +21,8 @@ import { EventDatePicker } from "./EventDatePicker";
 import { TiersParts, FourrageChips, DeliveryFields } from "./OrderFields";
 import { BISCUITS } from "@/lib/order-options";
 import { cn } from "@/lib/ui";
-import { Phone, MessageCircle, Calendar, Cake, Truck, StickyNote, Images } from "lucide-react";
+import { ContactInfo } from "./ContactInfo";
+import { Calendar, Cake, Truck, StickyNote, Images } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -60,16 +61,25 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
     <SaveStatusProvider>
       <SaveToast />
       <PageHeader
-        title={`${c.firstName} ${c.lastName}`}
-        subtitle={`${SOURCES.find((s) => s.id === order.source)?.label ?? ""} · créé le ${fmtDate(order.createdAt)}`}
-        actions={
-          c.phone ? (
-            <>
-              <a href={`tel:${c.phone}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-300 px-3 text-[13px] font-medium text-zinc-700 transition-colors hover:border-zinc-400"><Phone className="size-4" /> Appeler</a>
-              <a href={`https://wa.me/${c.phone.replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-600/30 bg-emerald-50 px-3 text-[13px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"><MessageCircle className="size-4" /> WhatsApp</a>
-            </>
-          ) : undefined
+        title={
+          <span className="inline-flex items-center gap-2">
+            <span className="min-w-0">{c.firstName} {c.lastName}</span>
+            <ContactInfo
+              contactId={c.id}
+              name={`${c.firstName} ${c.lastName}`.trim()}
+              sourceLabel={SOURCES.find((s) => s.id === c.source)?.label ?? ""}
+              meta={`${c._count.orders > 1 ? `${c._count.orders} commandes` : "1re commande"} · client depuis ${c.createdAt.getFullYear()}`}
+              phone={c.phone}
+              email={c.email}
+              instagram={c.instagram}
+              notes={c.notes}
+              consentNewsletter={c.consentNewsletter}
+              waHref={c.phone ? `https://wa.me/${c.phone.replace(/[^0-9]/g, "")}` : null}
+              className="lg:hidden"
+            />
+          </span>
         }
+        subtitle={`${SOURCES.find((s) => s.id === order.source)?.label ?? ""} · créé le ${fmtDate(order.createdAt)}`}
       />
 
       {/* bandeau résumé — l'essentiel d'un coup d'œil */}
@@ -148,7 +158,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
 
         {/* -------- contact + journal -------- */}
         <div className="space-y-5">
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm">
+          <div className="hidden rounded-2xl border border-zinc-200 bg-white p-5 text-sm lg:block">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Contact</p>
               <Link href={`/contacts/${c.id}`} className="text-xs font-semibold text-zinc-500 hover:text-zinc-800">Fiche complète →</Link>
