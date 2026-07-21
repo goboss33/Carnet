@@ -23,7 +23,7 @@ export function EventDatePicker({ orderId, value, display, badge, badgeTone }: {
   if (editing) {
     return (
       <div className="min-w-0">
-        <div className="flex items-center justify-between gap-1">
+        <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Événement</span>
           <Pencil className="size-3.5 shrink-0 text-zinc-500" />
         </div>
@@ -44,7 +44,7 @@ export function EventDatePicker({ orderId, value, display, badge, badgeTone }: {
 
   return (
     <button type="button" onClick={() => setEditing(true)} disabled={pending} className="group block w-full min-w-0 text-left">
-      <span className="flex items-center justify-between gap-1">
+      <span className="flex items-center gap-1.5">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Événement</span>
         <Pencil className="size-3.5 shrink-0 text-zinc-300 transition-colors group-hover:text-zinc-500" />
       </span>

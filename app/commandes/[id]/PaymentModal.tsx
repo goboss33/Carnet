@@ -50,7 +50,7 @@ export function PaymentModal(props: Props) {
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} className="group block w-full min-w-0 text-left">
-        <span className="flex items-center justify-between gap-1">
+        <span className="flex items-center gap-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Paiement</span>
           <Pencil className="size-3.5 shrink-0 text-zinc-300 transition-colors group-hover:text-zinc-500" />
         </span>
