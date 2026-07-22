@@ -27,14 +27,32 @@ function cumConv(dem: number[], con: number[], lastDay: number): number[] {
   for (let d = 1; d <= lastDay; d++) { dd += dem[d] || 0; cc += con[d] || 0; out.push(dd > 0 ? Math.round((cc / dd) * 100) : 0); }
   return out;
 }
-/* Deux courbes (mois en cours + mois précédent) sur le même axe de jours, viewBox 110×26. */
+/* Chemin lissé (Catmull-Rom → Bézier) pour des courbes arrondies. */
+function smoothPath(pts: [number, number][]): string {
+  if (!pts.length) return "";
+  if (pts.length === 1) return `M ${pts[0][0]} ${pts[0][1]}`;
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2[0]} ${p2[1]}`;
+  }
+  return d;
+}
+/* Deux courbes lissées (mois en cours + mois précédent), viewBox 110×26. */
 function twoSpark(cur: number[], prev: number[], maxDays: number) {
   const all = [...cur, ...prev, 0];
   const max = Math.max(...all, 1), min = Math.min(...all, 0), range = max - min || 1;
   const X = (i: number) => (maxDays > 1 ? i / (maxDays - 1) : 0) * 110;
   const Y = (v: number) => 4 + 18 * (1 - (v - min) / range);
-  const pts = (line: number[]) => line.map((v, i) => `${Math.round(X(i))},${Math.round(Y(v))}`).join(" ");
-  return { cur: pts(cur), prev: pts(prev) };
+  const toPts = (line: number[]): [number, number][] => line.map((v, i) => [Math.round(X(i)), Math.round(Y(v))]);
+  return { cur: smoothPath(toPts(cur)), prev: smoothPath(toPts(prev)) };
 }
 
 export default async function Pipeline() {
@@ -88,14 +106,16 @@ export default async function Pipeline() {
 
   const trend = (delta: number): "up" | "down" | "flat" => (delta > 0 ? "up" : delta < 0 ? "down" : "flat");
   const dtxt = (delta: number, suffix = "") => `${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)}${suffix}`;
-  const convOk = demT > 0 && demP > 0;
-  const panOk = panT > 0 && panP > 0;
+  // Couleur de courbe = tendance du mois (colorée dès qu'il y a de l'activité) ;
+  // pastille de delta seulement quand le mois précédent offre une vraie comparaison.
+  const convDir = demT > 0 ? trend(convT - convP) : "flat";
+  const panDir = panT > 0 ? trend(panT - panP) : "flat";
 
   const kpis = [
-    { label: "Demandes reçues", value: String(demT), deltaText: dtxt(demT - demP), dir: trend(demT - demP), cur: demCur, prev: demPrev, sub: "ce mois vs mois dernier" },
-    { label: "Commandes confirmées", value: String(conT), deltaText: dtxt(conT - conP), dir: trend(conT - conP), cur: conCur, prev: conPrev, sub: "ce mois vs mois dernier" },
-    { label: "Taux de conversion", value: demT > 0 ? `${convT}%` : "—", deltaText: convOk ? dtxt(convT - convP, " pts") : "", dir: convOk ? trend(convT - convP) : "flat", cur: convCur, prev: convPrev, sub: "demandes → confirmées" },
-    { label: "Panier moyen", value: panT > 0 ? `CHF ${panT}` : "—", deltaText: panOk ? dtxt(panT - panP) : "", dir: panOk ? trend(panT - panP) : "flat", cur: panCur, prev: panPrev, sub: "par commande confirmée" },
+    { label: "Demandes reçues", sub: "ce mois vs mois dernier", value: String(demT), deltaText: dtxt(demT - demP), dir: trend(demT - demP), cur: demCur, prev: demPrev },
+    { label: "Commandes confirmées", sub: "ce mois vs mois dernier", value: String(conT), deltaText: dtxt(conT - conP), dir: trend(conT - conP), cur: conCur, prev: conPrev },
+    { label: "Taux de conversion", sub: "demandes → confirmées", value: demT > 0 ? `${convT}%` : "—", deltaText: demT > 0 && demP > 0 ? dtxt(convT - convP, " pts") : "", dir: convDir, cur: convCur, prev: convPrev },
+    { label: "Panier moyen", sub: "par commande confirmée", value: panT > 0 ? `CHF ${panT}` : "—", deltaText: panT > 0 && panP > 0 ? dtxt(panT - panP) : "", dir: panDir, cur: panCur, prev: panPrev },
   ];
 
   /* ------------------------------------------------ cartes + colonnes */
@@ -153,8 +173,9 @@ export default async function Pipeline() {
           return (
             <div key={k.label} className="flex h-full flex-col rounded-xl border border-(--color-line) bg-white px-4 py-3.5">
               <p className="min-h-[2.6em] text-[11px] font-semibold uppercase leading-tight tracking-wider text-zinc-400">{k.label}</p>
-              <div className="mt-0.5 flex items-baseline gap-2">
-                <p className="text-xl font-semibold tracking-tight text-zinc-900">{k.value}</p>
+              <p className="mt-1 min-h-[1.1em] text-[11px] text-zinc-400">{k.sub}</p>
+              <div className="mt-1.5 flex items-baseline gap-2">
+                <p className="text-base font-semibold tracking-tight text-zinc-900">{k.value}</p>
                 {k.deltaText && (
                   <span
                     className={cn(
@@ -167,13 +188,10 @@ export default async function Pipeline() {
                   </span>
                 )}
               </div>
-              <div className="mt-auto pt-3">
-                <svg viewBox="0 0 110 26" preserveAspectRatio="none" aria-hidden className="block h-6 w-full">
-                  <polyline points={sp.prev} fill="none" stroke="currentColor" strokeWidth={1.5} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" className="text-zinc-300" />
-                  <polyline points={sp.cur} fill="none" stroke="currentColor" strokeWidth={1.5} vectorEffect="non-scaling-stroke" className={k.dir === "up" ? "text-emerald-500" : k.dir === "down" ? "text-red-500" : "text-zinc-400"} />
-                </svg>
-                <p className="mt-1.5 text-[11px] text-zinc-400">{k.sub}</p>
-              </div>
+              <svg viewBox="0 0 110 26" preserveAspectRatio="none" aria-hidden className="mt-auto block h-6 w-full pt-3">
+                <path d={sp.prev} fill="none" stroke="currentColor" strokeWidth={1.5} strokeDasharray="3 3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" className="text-zinc-300" />
+                <path d={sp.cur} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" className={k.dir === "up" ? "text-emerald-500" : k.dir === "down" ? "text-red-500" : "text-zinc-400"} />
+              </svg>
             </div>
           );
         })}
