@@ -69,6 +69,7 @@ export default async function Pipeline() {
         occasion: o.occasion,
         eventDateISO: o.eventDate ? o.eventDate.toISOString() : null,
         price: o.priceQuoted ?? null,
+        paidCents: pay.paidCents,
         sourceLabel: o.source,
         missing: missingFor(o).length,
         dueCents: o.status === "LIVRE" && !pay.isPaid && pay.dueCents > 0 ? pay.dueCents : 0,

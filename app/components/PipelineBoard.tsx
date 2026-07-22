@@ -27,7 +27,8 @@ export type CardData = {
   name: string;
   occasion: string;
   eventDateISO: string | null;
-  price: number | null;
+  price: number | null; // total (priceQuoted, CHF)
+  paidCents: number; // encaissé (acompte + solde)
   sourceLabel: string;
   missing: number; // dette de fiche
   dueCents: number; // reste à encaisser (LIVRE)
@@ -42,10 +43,23 @@ const TONE: Record<string, string> = {
   past: "bg-zinc-100 text-zinc-400",
 };
 
+const PAY_BAR: Record<string, string> = { zinc: "bg-zinc-300", red: "bg-red-500", amber: "bg-amber-500", emerald: "bg-emerald-500" };
+
 function Card({ card, dragging, handleProps }: { card: CardData; dragging?: boolean; handleProps?: React.HTMLAttributes<HTMLSpanElement> }) {
   const router = useRouter();
   const av = avatar(card.name);
   const rel = fmtRel(card.eventDateISO ? new Date(card.eventDateISO) : null);
+
+  // Montant encaissé / total + mini-barre (même code que l'historique). Rien
+  // d'encaissé est neutre avant la production (normal), rouge une fois en
+  // production / livré (l'argent devrait être là).
+  const totalC = (card.price ?? 0) * 100;
+  const pct = totalC > 0 ? Math.min(100, Math.round((card.paidCents / totalC) * 100)) : 0;
+  const payExpected = card.status === "EN_PRODUCTION" || card.status === "LIVRE";
+  const payTone =
+    totalC === 0 ? "zinc" : card.paidCents >= totalC ? "emerald" : card.paidCents > 0 ? "amber" : payExpected ? "red" : "zinc";
+  const paidChf = card.paidCents / 100;
+
   return (
     <div className={cn("rounded-xl border border-zinc-200/80 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-shadow", dragging && "rotate-1 shadow-lg ring-2 ring-(--color-brand)/30")}>
       <div className="flex items-start gap-0.5 px-1 pt-1">
@@ -68,12 +82,19 @@ function Card({ card, dragging, handleProps }: { card: CardData; dragging?: bool
               <p className="truncate text-xs text-zinc-400">{card.occasion || "occasion à préciser"}</p>
             </div>
           </div>
-          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1">
-            <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TONE[rel.tone]}`}>{rel.text}</span>
-            <span className="flex items-center gap-1.5">
-              {card.dueCents > 0 && <Badge variant="warning">reste CHF {(card.dueCents / 100).toLocaleString("fr-CH")}</Badge>}
-              <span className="text-[13px] font-semibold tabular-nums text-zinc-700">{card.price ? `CHF ${card.price}` : "—"}</span>
-            </span>
+          <div className="mt-2.5 flex items-end justify-between gap-2">
+            <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TONE[rel.tone]}`}>{rel.text}</span>
+            <div className="min-w-0 text-right">
+              {card.dueCents > 0 && (
+                <div className="mb-1"><Badge variant="warning">reste CHF {(card.dueCents / 100).toLocaleString("fr-CH")}</Badge></div>
+              )}
+              <div className="whitespace-nowrap text-[12px] font-semibold tabular-nums text-zinc-800">
+                CHF {paidChf % 1 ? paidChf.toFixed(2) : paidChf} / {card.price || "—"}
+              </div>
+              <div className="ml-auto mt-1 h-1 w-20 overflow-hidden rounded-full bg-zinc-100">
+                <div className={cn("h-full rounded-full", PAY_BAR[payTone])} style={{ width: `${Math.max(pct, card.paidCents > 0 ? 6 : 0)}%` }} />
+              </div>
+            </div>
           </div>
         </Link>
         <span onClick={(e) => e.stopPropagation()}>
