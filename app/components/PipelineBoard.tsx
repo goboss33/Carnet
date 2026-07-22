@@ -19,7 +19,6 @@ import { toast } from "sonner";
 import { moveOrderStatus, advanceStatus } from "@/app/actions";
 import { avatar, fmtRel, cn } from "@/lib/ui";
 import { RowMenu } from "@/components/ui/table-kit";
-import { Badge } from "@/components/ui/badge";
 
 export type CardData = {
   id: string;
@@ -31,7 +30,6 @@ export type CardData = {
   paidCents: number; // encaissé (acompte + solde)
   sourceLabel: string;
   missing: number; // dette de fiche
-  dueCents: number; // reste à encaisser (LIVRE)
 };
 
 export type ColumnData = { id: string; label: string; hint: string; dot: string; total: number; count: number; hiddenCount: number };
@@ -85,9 +83,6 @@ function Card({ card, dragging, handleProps }: { card: CardData; dragging?: bool
           <div className="mt-2.5 flex items-end justify-between gap-2">
             <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TONE[rel.tone]}`}>{rel.text}</span>
             <div className="min-w-0 text-right">
-              {card.dueCents > 0 && (
-                <div className="mb-1"><Badge variant="warning">reste CHF {(card.dueCents / 100).toLocaleString("fr-CH")}</Badge></div>
-              )}
               <div className="whitespace-nowrap text-[12px] font-semibold tabular-nums text-zinc-800">
                 CHF {paidChf % 1 ? paidChf.toFixed(2) : paidChf} / {card.price || "—"}
               </div>
