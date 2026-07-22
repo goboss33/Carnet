@@ -182,7 +182,7 @@ export default async function Pipeline() {
                 {k.label}
               </p>
               <p className="mt-1 text-[11px] leading-tight text-zinc-400">{k.sub}</p>
-              <div className="mt-auto flex items-baseline gap-2 pt-4">
+              <div className="mt-auto flex items-baseline gap-2 pt-2">
                 <p className="text-base font-semibold tracking-tight text-zinc-900">{k.value}</p>
                 {k.deltaText && (
                   <span
