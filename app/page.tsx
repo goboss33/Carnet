@@ -4,7 +4,8 @@ import { STATUTS } from "@/lib/statuts";
 import { paymentState } from "@/lib/payments";
 import { missingFor } from "@/lib/completeness";
 import PipelineBoard, { type CardData, type ColumnData } from "@/app/components/PipelineBoard";
-import { Plus, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Plus, ArrowUpRight, ArrowDownRight, Percent, ShoppingBasket } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/ui";
 import { PageHeader } from "@/components/ui/page-header";
@@ -110,12 +111,15 @@ export default async function Pipeline() {
   // pastille de delta seulement quand le mois précédent offre une vraie comparaison.
   const convDir = demT > 0 ? trend(convT - convP) : "flat";
   const panDir = panT > 0 ? trend(panT - panP) : "flat";
+  // Pastilles de statut reprises du pipeline (mêmes couleurs que la liste déroulante).
+  const leadDot = STATUTS.find((s) => s.id === "LEAD")?.dot ?? "bg-sky-500";
+  const confDot = STATUTS.find((s) => s.id === "ACOMPTE_RECU")?.dot ?? "bg-violet-500";
 
   const kpis = [
-    { label: "Demandes reçues", sub: "ce mois vs mois dernier", value: String(demT), deltaText: dtxt(demT - demP), dir: trend(demT - demP), cur: demCur, prev: demPrev },
-    { label: "Commandes confirmées", sub: "ce mois vs mois dernier", value: String(conT), deltaText: dtxt(conT - conP), dir: trend(conT - conP), cur: conCur, prev: conPrev },
-    { label: "Taux de conversion", sub: "demandes → confirmées", value: demT > 0 ? `${convT}%` : "—", deltaText: demT > 0 && demP > 0 ? dtxt(convT - convP, " pts") : "", dir: convDir, cur: convCur, prev: convPrev },
-    { label: "Panier moyen", sub: "par commande confirmée", value: panT > 0 ? `CHF ${panT}` : "—", deltaText: panT > 0 && panP > 0 ? dtxt(panT - panP) : "", dir: panDir, cur: panCur, prev: panPrev },
+    { label: "Leads", dot: leadDot, Icon: undefined as LucideIcon | undefined, sub: "ce mois vs mois dernier", value: String(demT), deltaText: dtxt(demT - demP), dir: trend(demT - demP), cur: demCur, prev: demPrev },
+    { label: "Confirmé", dot: confDot, Icon: undefined as LucideIcon | undefined, sub: "ce mois vs mois dernier", value: String(conT), deltaText: dtxt(conT - conP), dir: trend(conT - conP), cur: conCur, prev: conPrev },
+    { label: "Conversion", dot: "", Icon: Percent as LucideIcon, sub: "demandes → confirmées", value: demT > 0 ? `${convT}%` : "—", deltaText: demT > 0 && demP > 0 ? dtxt(convT - convP, " pts") : "", dir: convDir, cur: convCur, prev: convPrev },
+    { label: "Panier moyen", dot: "", Icon: ShoppingBasket as LucideIcon, sub: "par commande confirmée", value: panT > 0 ? `CHF ${panT}` : "—", deltaText: panT > 0 && panP > 0 ? dtxt(panT - panP) : "", dir: panDir, cur: panCur, prev: panPrev },
   ];
 
   /* ------------------------------------------------ cartes + colonnes */
@@ -169,9 +173,14 @@ export default async function Pipeline() {
       <div className="mb-7 grid grid-cols-2 items-stretch gap-3 lg:grid-cols-4">
         {kpis.map((k) => {
           const sp = twoSpark(k.cur, k.prev, maxDays);
+          const Icon = k.Icon;
           return (
             <div key={k.label} className="flex h-full flex-col rounded-xl border border-(--color-line) bg-white px-4 py-3.5">
-              <p className="text-[11px] font-semibold uppercase leading-tight tracking-wider text-zinc-400">{k.label}</p>
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase leading-tight tracking-wider text-zinc-400">
+                {k.dot && <span className={cn("size-2 shrink-0 rounded-full", k.dot)} />}
+                {Icon && <Icon className="size-3.5 shrink-0 text-zinc-400" />}
+                {k.label}
+              </p>
               <p className="mt-1 text-[11px] leading-tight text-zinc-400">{k.sub}</p>
               <div className="mt-auto flex items-baseline gap-2 pt-4">
                 <p className="text-base font-semibold tracking-tight text-zinc-900">{k.value}</p>
