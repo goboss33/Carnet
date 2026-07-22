@@ -11,18 +11,30 @@ import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
-/* Mini-courbe (sparkline) : mappe une série de 6 valeurs dans un viewBox 110×26. */
-function sparkPoints(series: number[]): string {
-  const max = Math.max(...series, 1);
-  const min = Math.min(...series, 0);
-  const range = max - min || 1;
-  return series
-    .map((v, i) => {
-      const x = (i / (series.length - 1)) * 110;
-      const y = 4 + 18 * (1 - (v - min) / range);
-      return `${Math.round(x)},${Math.round(y)}`;
-    })
-    .join(" ");
+/* Cumuls journaliers (index 1..jour) : comptage, moyenne, taux. */
+function cumCount(inc: number[], lastDay: number): number[] {
+  const out: number[] = []; let s = 0;
+  for (let d = 1; d <= lastDay; d++) { s += inc[d] || 0; out.push(s); }
+  return out;
+}
+function cumAvg(sum: number[], n: number[], lastDay: number): number[] {
+  const out: number[] = []; let ss = 0, nn = 0;
+  for (let d = 1; d <= lastDay; d++) { ss += sum[d] || 0; nn += n[d] || 0; out.push(nn > 0 ? Math.round(ss / nn) : 0); }
+  return out;
+}
+function cumConv(dem: number[], con: number[], lastDay: number): number[] {
+  const out: number[] = []; let dd = 0, cc = 0;
+  for (let d = 1; d <= lastDay; d++) { dd += dem[d] || 0; cc += con[d] || 0; out.push(dd > 0 ? Math.round((cc / dd) * 100) : 0); }
+  return out;
+}
+/* Deux courbes (mois en cours + mois précédent) sur le même axe de jours, viewBox 110×26. */
+function twoSpark(cur: number[], prev: number[], maxDays: number) {
+  const all = [...cur, ...prev, 0];
+  const max = Math.max(...all, 1), min = Math.min(...all, 0), range = max - min || 1;
+  const X = (i: number) => (maxDays > 1 ? i / (maxDays - 1) : 0) * 110;
+  const Y = (v: number) => 4 + 18 * (1 - (v - min) / range);
+  const pts = (line: number[]) => line.map((v, i) => `${Math.round(X(i))},${Math.round(Y(v))}`).join(" ");
+  return { cur: pts(cur), prev: pts(prev) };
 }
 
 export default async function Pipeline() {
@@ -33,13 +45,6 @@ export default async function Pipeline() {
   const bounds: Date[] = [];
   for (let i = 5; i >= 0; i--) bounds.push(new Date(now.getFullYear(), now.getMonth() - i, 1));
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const idxOf = (d: Date | null): number => {
-    if (!d) return -1;
-    const t = d.getTime();
-    if (t < bounds[0].getTime() || t >= end.getTime()) return -1;
-    for (let k = 5; k >= 0; k--) if (t >= bounds[k].getTime()) return k;
-    return -1;
-  };
 
   const [orders, kpiOrders] = await Promise.all([
     prisma.order.findMany({
@@ -54,35 +59,43 @@ export default async function Pipeline() {
     }),
   ]);
 
-  // Séries mensuelles : demandes (createdAt), confirmations (depositPaidAt), panier moyen.
-  const demandes = [0, 0, 0, 0, 0, 0];
-  const confirmed = [0, 0, 0, 0, 0, 0];
-  const panierSum = [0, 0, 0, 0, 0, 0];
-  const panierCnt = [0, 0, 0, 0, 0, 0];
+  // Cumuls journaliers — mois en cours (jusqu'à aujourd'hui) vs mois précédent (complet).
+  const daysPrev = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+  const todayDay = now.getDate();
+  const maxDays = Math.max(daysPrev, todayDay);
+  const inCur = (d: Date) => d >= bounds[5] && d < end;
+  const inPrev = (d: Date) => d >= bounds[4] && d < bounds[5];
+  const mk = () => ({ dem: Array(32).fill(0), con: Array(32).fill(0), pSum: Array(32).fill(0), pN: Array(32).fill(0) });
+  const cur = mk(), prev = mk();
   for (const o of kpiOrders) {
-    const ci = idxOf(o.createdAt);
-    if (ci >= 0) demandes[ci]++;
-    const pi = idxOf(o.depositPaidAt);
-    if (pi >= 0) {
-      confirmed[pi]++;
-      if (o.priceQuoted) { panierSum[pi] += o.priceQuoted; panierCnt[pi]++; }
+    const c = o.createdAt;
+    if (inCur(c)) cur.dem[c.getDate()]++; else if (inPrev(c)) prev.dem[c.getDate()]++;
+    const p = o.depositPaidAt;
+    if (p) {
+      const b = inCur(p) ? cur : inPrev(p) ? prev : null;
+      if (b) { b.con[p.getDate()]++; if (o.priceQuoted) { b.pSum[p.getDate()] += o.priceQuoted; b.pN[p.getDate()]++; } }
     }
   }
-  const conversion = demandes.map((d, k) => (d > 0 ? Math.round((confirmed[k] / d) * 100) : 0));
-  const panier = panierCnt.map((c, k) => (c > 0 ? Math.round(panierSum[k] / c) : 0));
+  const demCur = cumCount(cur.dem, todayDay), demPrev = cumCount(prev.dem, daysPrev);
+  const conCur = cumCount(cur.con, todayDay), conPrev = cumCount(prev.con, daysPrev);
+  const convCur = cumConv(cur.dem, cur.con, todayDay), convPrev = cumConv(prev.dem, prev.con, daysPrev);
+  const panCur = cumAvg(cur.pSum, cur.pN, todayDay), panPrev = cumAvg(prev.pSum, prev.pN, daysPrev);
+  const last = (a: number[]) => (a.length ? a[a.length - 1] : 0);
+  const demT = last(demCur), demP = last(demPrev);
+  const conT = last(conCur), conP = last(conPrev);
+  const convT = last(convCur), convP = last(convPrev);
+  const panT = last(panCur), panP = last(panPrev);
 
   const trend = (delta: number): "up" | "down" | "flat" => (delta > 0 ? "up" : delta < 0 ? "down" : "flat");
   const dtxt = (delta: number, suffix = "") => `${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)}${suffix}`;
-  const dDem = demandes[5] - demandes[4];
-  const dCon = confirmed[5] - confirmed[4];
-  const convOk = demandes[5] > 0 && demandes[4] > 0;
-  const panOk = panier[5] > 0 && panier[4] > 0;
+  const convOk = demT > 0 && demP > 0;
+  const panOk = panT > 0 && panP > 0;
 
   const kpis = [
-    { label: "Demandes reçues", value: String(demandes[5]), deltaText: dtxt(dDem), dir: trend(dDem), spark: demandes, sub: `vs ${demandes[4]} le mois dernier` },
-    { label: "Commandes confirmées", value: String(confirmed[5]), deltaText: dtxt(dCon), dir: trend(dCon), spark: confirmed, sub: `vs ${confirmed[4]} le mois dernier` },
-    { label: "Taux de conversion", value: demandes[5] > 0 ? `${conversion[5]}%` : "—", deltaText: convOk ? dtxt(conversion[5] - conversion[4], " pts") : "", dir: convOk ? trend(conversion[5] - conversion[4]) : "flat", spark: conversion, sub: "demandes → confirmées" },
-    { label: "Panier moyen", value: panier[5] > 0 ? `CHF ${panier[5]}` : "—", deltaText: panOk ? dtxt(panier[5] - panier[4]) : "", dir: panOk ? trend(panier[5] - panier[4]) : "flat", spark: panier, sub: "par commande confirmée" },
+    { label: "Demandes reçues", value: String(demT), deltaText: dtxt(demT - demP), dir: trend(demT - demP), cur: demCur, prev: demPrev, sub: "ce mois vs mois dernier" },
+    { label: "Commandes confirmées", value: String(conT), deltaText: dtxt(conT - conP), dir: trend(conT - conP), cur: conCur, prev: conPrev, sub: "ce mois vs mois dernier" },
+    { label: "Taux de conversion", value: demT > 0 ? `${convT}%` : "—", deltaText: convOk ? dtxt(convT - convP, " pts") : "", dir: convOk ? trend(convT - convP) : "flat", cur: convCur, prev: convPrev, sub: "demandes → confirmées" },
+    { label: "Panier moyen", value: panT > 0 ? `CHF ${panT}` : "—", deltaText: panOk ? dtxt(panT - panP) : "", dir: panOk ? trend(panT - panP) : "flat", cur: panCur, prev: panPrev, sub: "par commande confirmée" },
   ];
 
   /* ------------------------------------------------ cartes + colonnes */
@@ -133,38 +146,37 @@ export default async function Pipeline() {
         }
       />
 
-      {/* Pouls de performance — mois en cours vs mois précédent (6 mois glissants) */}
-      <div className="mb-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {kpis.map((k) => (
-          <div key={k.label} className="rounded-xl border border-(--color-line) bg-white px-4 py-3.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{k.label}</p>
-            <div className="mt-0.5 flex items-baseline gap-2">
-              <p className="text-xl font-semibold tracking-tight text-zinc-900">{k.value}</p>
-              {k.deltaText && (
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium",
-                    k.dir === "up" ? "bg-emerald-50 text-emerald-700" : k.dir === "down" ? "bg-red-50 text-red-700" : "bg-zinc-100 text-zinc-500",
-                  )}
-                >
-                  {k.dir === "up" ? <ArrowUpRight className="size-3" /> : k.dir === "down" ? <ArrowDownRight className="size-3" /> : null}
-                  {k.deltaText}
-                </span>
-              )}
+      {/* Pouls de performance — mois en cours (plein) vs mois précédent (pointillé) */}
+      <div className="mb-7 grid grid-cols-2 items-stretch gap-3 lg:grid-cols-4">
+        {kpis.map((k) => {
+          const sp = twoSpark(k.cur, k.prev, maxDays);
+          return (
+            <div key={k.label} className="flex h-full flex-col rounded-xl border border-(--color-line) bg-white px-4 py-3.5">
+              <p className="min-h-[2.6em] text-[11px] font-semibold uppercase leading-tight tracking-wider text-zinc-400">{k.label}</p>
+              <div className="mt-0.5 flex items-baseline gap-2">
+                <p className="text-xl font-semibold tracking-tight text-zinc-900">{k.value}</p>
+                {k.deltaText && (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium",
+                      k.dir === "up" ? "bg-emerald-50 text-emerald-700" : k.dir === "down" ? "bg-red-50 text-red-700" : "bg-zinc-100 text-zinc-500",
+                    )}
+                  >
+                    {k.dir === "up" ? <ArrowUpRight className="size-3" /> : k.dir === "down" ? <ArrowDownRight className="size-3" /> : null}
+                    {k.deltaText}
+                  </span>
+                )}
+              </div>
+              <div className="mt-auto pt-3">
+                <svg viewBox="0 0 110 26" preserveAspectRatio="none" aria-hidden className="block h-6 w-full">
+                  <polyline points={sp.prev} fill="none" stroke="currentColor" strokeWidth={1.5} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" className="text-zinc-300" />
+                  <polyline points={sp.cur} fill="none" stroke="currentColor" strokeWidth={1.5} vectorEffect="non-scaling-stroke" className={k.dir === "up" ? "text-emerald-500" : k.dir === "down" ? "text-red-500" : "text-zinc-400"} />
+                </svg>
+                <p className="mt-1.5 text-[11px] text-zinc-400">{k.sub}</p>
+              </div>
             </div>
-            <svg viewBox="0 0 110 26" preserveAspectRatio="none" aria-hidden className="mt-2 block h-6 w-full">
-              <polyline
-                points={sparkPoints(k.spark)}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.5}
-                vectorEffect="non-scaling-stroke"
-                className={k.dir === "up" ? "text-emerald-500" : k.dir === "down" ? "text-red-500" : "text-zinc-300"}
-              />
-            </svg>
-            <p className="mt-1.5 text-[11px] text-zinc-400">{k.sub}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <PipelineBoard columns={columns} cards={cards} />
