@@ -172,9 +172,9 @@ export default async function Pipeline() {
           const sp = twoSpark(k.cur, k.prev, maxDays);
           return (
             <div key={k.label} className="flex h-full flex-col rounded-xl border border-(--color-line) bg-white px-4 py-3.5">
-              <p className="min-h-[2.6em] text-[11px] font-semibold uppercase leading-tight tracking-wider text-zinc-400">{k.label}</p>
-              <p className="mt-1 min-h-[1.1em] text-[11px] text-zinc-400">{k.sub}</p>
-              <div className="mt-1.5 flex items-baseline gap-2">
+              <p className="text-[11px] font-semibold uppercase leading-tight tracking-wider text-zinc-400">{k.label}</p>
+              <p className="mt-1 text-[11px] leading-tight text-zinc-400">{k.sub}</p>
+              <div className="mt-auto flex items-baseline gap-2 pt-4">
                 <p className="text-base font-semibold tracking-tight text-zinc-900">{k.value}</p>
                 {k.deltaText && (
                   <span
@@ -188,7 +188,7 @@ export default async function Pipeline() {
                   </span>
                 )}
               </div>
-              <svg viewBox="0 0 110 26" preserveAspectRatio="none" aria-hidden className="mt-auto block h-6 w-full pt-3">
+              <svg viewBox="0 0 110 26" preserveAspectRatio="none" aria-hidden className="mt-2 block h-6 w-full">
                 <path d={sp.prev} fill="none" stroke="currentColor" strokeWidth={1.5} strokeDasharray="3 3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" className="text-zinc-300" />
                 <path d={sp.cur} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" className={k.dir === "up" ? "text-emerald-500" : k.dir === "down" ? "text-red-500" : "text-zinc-400"} />
               </svg>
