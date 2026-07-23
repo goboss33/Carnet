@@ -26,5 +26,8 @@ export async function middleware(req: NextRequest) {
 export const config = {
   // api/studio/upload est HORS middleware : le middleware Next plafonne le body
   // à 10 Mo (uploads vidéo impossibles). La route fait sa propre auth (session).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|manifest.webmanifest|api/studio/upload|api/public).*)"],
+  // icons/ + icon-pwa/ : les icônes PWA doivent être servies SANS session,
+  // sinon l'installateur du navigateur reçoit une redirection /login et
+  // considère le manifest invalide (pas d'installation possible).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|icons/|icon-pwa/|manifest.webmanifest|api/studio/upload|api/public).*)"],
 };

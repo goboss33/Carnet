@@ -11,8 +11,15 @@ export async function generateMetadata(): Promise<Metadata> {
     title: `${brand.name} — back-office`,
     description: "Commandes, contacts et relances des artisans.",
     robots: { index: false, follow: false },
+    // PWA : icône iOS + mode plein écran quand l'app est ajoutée à l'écran d'accueil.
+    icons: { apple: "/icon-pwa/180" },
+    appleWebApp: { capable: true, title: brand.name, statusBarStyle: "default" },
   };
 }
+
+export const viewport = {
+  themeColor: "#ffffff",
+};
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const brand = await getBrand();
