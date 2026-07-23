@@ -101,14 +101,21 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Cake className="size-4 text-(--color-brand)" /> Le gâteau</div>
               <div className="space-y-4">
                 <TiersParts tiers={order.tiers} parts={order.parts} />
-                <label className="block">
-                  <span className={label}>Biscuit</span>
-                  <select name="biscuit" defaultValue={order.biscuit} className={input}>
-                    <option value="">—</option>
-                    {BISCUITS.map((b) => <option key={b} value={b}>{b}</option>)}
-                    {order.biscuit && !(BISCUITS as readonly string[]).includes(order.biscuit) && <option value={order.biscuit}>{order.biscuit}</option>}
-                  </select>
-                </label>
+                <div className="flex items-end gap-4">
+                  <label className="block min-w-0 flex-1">
+                    <span className={label}>Biscuit</span>
+                    <select name="biscuit" defaultValue={order.biscuit} className={input}>
+                      <option value="">—</option>
+                      {BISCUITS.map((b) => <option key={b} value={b}>{b}</option>)}
+                      {order.biscuit && !(BISCUITS as readonly string[]).includes(order.biscuit) && <option value={order.biscuit}>{order.biscuit}</option>}
+                    </select>
+                  </label>
+                  <label className="flex shrink-0 cursor-pointer items-center gap-2 pb-2" title="Gâteau sans lactose">
+                    <input type="checkbox" name="sansLactose" defaultChecked={order.sansLactose} className="peer sr-only" />
+                    <span className="relative h-5 w-9 rounded-full bg-zinc-200 transition-colors peer-checked:bg-(--color-brand) after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4" />
+                    <span className="whitespace-nowrap text-[13px] font-medium text-zinc-600">Sans lactose</span>
+                  </label>
+                </div>
                 <FourrageChips selected={order.fourrages} />
                 <label className="block"><span className={label}>Thème & style</span><input name="themeNote" defaultValue={order.themeNote} className={input} placeholder="Ex. licorne pastel arc-en-ciel, semi-naked fleurs fraîches…" /></label>
               </div>

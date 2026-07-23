@@ -176,6 +176,7 @@ model Order {
   tiers           Int?
   biscuit         String      @default("")
   fourrages       String[]    @default([])
+  sansLactose     Boolean     @default(false)
   themeNote       String      @default("")
   extras          Json?
   inspirationPhotos String[]  @default([])

@@ -207,6 +207,7 @@ export async function updateOrder(orderId: string, formData: FormData) {
       deliveryMode: d.deliveryMode,
       deliveryAddress: d.deliveryAddress,
       fourrages: formData.getAll("fourrages").map(String).filter(Boolean).slice(0, 2),
+      sansLactose: formData.get("sansLactose") === "on",
       notes: d.notes,
     },
   });
@@ -859,6 +860,7 @@ export async function duplicateOrder(orderId: string): Promise<{ error?: string;
       tiers: src.tiers,
       biscuit: src.biscuit,
       fourrages: src.fourrages,
+      sansLactose: src.sansLactose,
       themeNote: src.themeNote,
       deliveryMode: src.deliveryMode,
       deliveryAddress: src.deliveryAddress,
