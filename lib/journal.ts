@@ -73,6 +73,7 @@ async function orderBrief(tenantId: string, orderId: string): Promise<string | n
     o.tiers ? `Étages : ${o.tiers}` : null,
     o.biscuit ? `Biscuit : ${o.biscuit}` : null,
     o.fourrages.length ? `Fourrages : ${o.fourrages.join(", ")}` : null,
+    o.sansLactose ? `Sans lactose : oui` : null,
     o.themeNote ? `Thème : ${o.themeNote}` : null,
     o.deliveryMode === "livraison" && city ? `Commune de livraison : ${city}` : null,
     o.eventDate ? `Mois : ${o.eventDate.toLocaleDateString("fr-CH", { month: "long", year: "numeric" })}` : null,
