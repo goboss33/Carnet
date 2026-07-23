@@ -67,6 +67,13 @@ body {
 }
 .animate-pop { animation: pop-in 0.2s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 
+/* Fondu (changement de période des KPI) */
+@keyframes kpi-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-kpi-fade { animation: kpi-fade 0.22s ease-out both; }
+
 /* Squelette de chargement : fond neutre + balayage lumineux */
 @keyframes skeleton-sweep {
   100% { transform: translateX(100%); }
@@ -96,7 +103,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-page, .animate-pop { animation: none; }
+  .animate-page, .animate-pop, .animate-kpi-fade { animation: none; }
   .skeleton::after { animation: none; }
   .lift:hover { transform: none; }
 }

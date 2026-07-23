@@ -1,11 +1,12 @@
 "use client";
 
 /* Pouls de performance : 4 KPI (Leads, Confirmé, Conversion, Panier moyen) sur
-   une période réglable (1 / 3 / 12 mois). Les 4 périodes sont calculées côté
-   serveur ; ici on bascule instantanément — pastilles cliquables ET swipe au
-   doigt (carrousel scroll-snap, les pastilles font aussi office d'indicateurs).
-   Chaque carte superpose la courbe de la période (pleine) et de la précédente
-   (pointillée), façon Shopify. */
+   une période réglable (1 / 3 / 12 mois). Les 3 périodes sont calculées côté
+   serveur ; ici on bascule instantanément. Une seule période est visible à la
+   fois : on change via les pastilles OU par un swipe tactile (glissement
+   horizontal du doigt), et la nouvelle vue apparaît en fondu — pas de scroll,
+   pas d'ascenseur. Chaque carte superpose la courbe de la période (pleine) et
+   de la précédente (pointillée), façon Shopify. */
 
 import { useRef, useState } from "react";
 import { ArrowUpRight, ArrowDownRight, Percent, ShoppingBasket } from "lucide-react";
@@ -59,84 +60,81 @@ function twoSpark(cur: number[], prev: number[]) {
 
 export default function KpiPulse({ periods }: { periods: KpiPeriod[] }) {
   const [active, setActive] = useState(0);
-  const scroller = useRef<HTMLDivElement>(null);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const clamp = (i: number) => Math.max(0, Math.min(periods.length - 1, i));
 
-  const go = (i: number) => {
-    setActive(i);
-    const el = scroller.current;
-    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    start.current = { x: t.clientX, y: t.clientY };
   };
-  const onScroll = () => {
-    const el = scroller.current;
-    if (!el) return;
-    const i = Math.round(el.scrollLeft / el.clientWidth);
-    if (i !== active) setActive(i);
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const s = start.current;
+    start.current = null;
+    if (!s) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - s.x, dy = t.clientY - s.y;
+    // Swipe horizontal net (et pas un scroll vertical) → période suivante/précédente.
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.5) setActive((i) => clamp(i + (dx < 0 ? 1 : -1)));
   };
+
+  const p = periods[active];
 
   return (
     <div className="mb-7">
       <div className="mb-3 flex gap-1.5">
-        {periods.map((p, i) => (
+        {periods.map((per, i) => (
           <button
-            key={p.key}
+            key={per.key}
             type="button"
-            onClick={() => go(i)}
+            onClick={() => setActive(i)}
             aria-pressed={i === active}
             className={cn(
               "rounded-full px-3 py-1 text-[12px] font-medium transition-colors",
               i === active ? "bg-(--color-brand) text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200",
             )}
           >
-            {p.label}
+            {per.label}
           </button>
         ))}
       </div>
 
-      <div
-        ref={scroller}
-        onScroll={onScroll}
-        className="flex snap-x snap-mandatory overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {periods.map((p) => (
-          <div key={p.key} className="w-full shrink-0 snap-center">
-            <div className="grid grid-cols-2 items-stretch gap-3 lg:grid-cols-4">
-              {p.metrics.map((m, i) => {
-                const slot = SLOTS[i];
-                const Icon = slot.Icon;
-                const sub = i < 2 ? p.comparison : slot.sub;
-                const sp = twoSpark(m.cur, m.prev);
-                return (
-                  <div key={i} className="flex h-full flex-col rounded-xl border border-(--color-line) bg-white px-4 py-3.5">
-                    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase leading-tight tracking-wider text-zinc-400">
-                      {slot.dot && <span className={cn("size-2 shrink-0 rounded-full", slot.dot)} />}
-                      {Icon && <Icon className="size-3.5 shrink-0 text-zinc-400" />}
-                      {slot.label}
-                    </p>
-                    <p className="mt-1 text-[11px] leading-tight text-zinc-400">{sub}</p>
-                    <div className="mt-auto flex items-baseline gap-2 pt-2">
-                      <p className="text-base font-semibold tracking-tight text-zinc-900">{m.value}</p>
-                      {m.deltaText && (
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium",
-                            m.dir === "up" ? "bg-emerald-50 text-emerald-700" : m.dir === "down" ? "bg-red-50 text-red-700" : "bg-zinc-100 text-zinc-500",
-                          )}
-                        >
-                          {m.dir === "up" ? <ArrowUpRight className="size-3" /> : m.dir === "down" ? <ArrowDownRight className="size-3" /> : null}
-                          {m.deltaText}
-                        </span>
+      <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} className="touch-pan-y select-none">
+        <div key={active} className="animate-kpi-fade grid grid-cols-2 items-stretch gap-3 lg:grid-cols-4">
+          {p.metrics.map((m, i) => {
+            const slot = SLOTS[i];
+            const Icon = slot.Icon;
+            const sub = i < 2 ? p.comparison : slot.sub;
+            const sp = twoSpark(m.cur, m.prev);
+            return (
+              <div key={i} className="flex h-full flex-col rounded-xl border border-(--color-line) bg-white px-4 py-3.5">
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase leading-tight tracking-wider text-zinc-400">
+                  {slot.dot && <span className={cn("size-2 shrink-0 rounded-full", slot.dot)} />}
+                  {Icon && <Icon className="size-3.5 shrink-0 text-zinc-400" />}
+                  {slot.label}
+                </p>
+                <p className="mt-1 text-[11px] leading-tight text-zinc-400">{sub}</p>
+                <div className="mt-auto flex items-baseline gap-2 pt-2">
+                  <p className="text-base font-semibold tracking-tight text-zinc-900">{m.value}</p>
+                  {m.deltaText && (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium",
+                        m.dir === "up" ? "bg-emerald-50 text-emerald-700" : m.dir === "down" ? "bg-red-50 text-red-700" : "bg-zinc-100 text-zinc-500",
                       )}
-                    </div>
-                    <svg viewBox="0 0 110 26" preserveAspectRatio="none" aria-hidden className="mt-2 block h-6 w-full">
-                      <path d={sp.prev} fill="none" stroke="currentColor" strokeWidth={1.5} strokeDasharray="3 3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" className="text-zinc-300" />
-                      <path d={sp.cur} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" className={m.dir === "up" ? "text-emerald-500" : m.dir === "down" ? "text-red-500" : "text-zinc-400"} />
-                    </svg>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+                    >
+                      {m.dir === "up" ? <ArrowUpRight className="size-3" /> : m.dir === "down" ? <ArrowDownRight className="size-3" /> : null}
+                      {m.deltaText}
+                    </span>
+                  )}
+                </div>
+                <svg viewBox="0 0 110 26" preserveAspectRatio="none" aria-hidden className="mt-2 block h-6 w-full">
+                  <path d={sp.prev} fill="none" stroke="currentColor" strokeWidth={1.5} strokeDasharray="3 3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" className="text-zinc-300" />
+                  <path d={sp.cur} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" className={m.dir === "up" ? "text-emerald-500" : m.dir === "down" ? "text-red-500" : "text-zinc-400"} />
+                </svg>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
