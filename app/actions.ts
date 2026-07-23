@@ -479,6 +479,13 @@ export async function deleteExpense(id: string) {
   revalidatePath("/compta");
 }
 
+export async function deleteManyExpenses(ids: string[]): Promise<{ error?: string }> {
+  const tenant = await currentTenant();
+  await prisma.expense.deleteMany({ where: { id: { in: ids.slice(0, 200) }, tenantId: tenant.id } });
+  revalidatePath("/compta");
+  return {};
+}
+
 /* -------------------------------------------------------- partenaires */
 
 const partnerSchema = z.object({
