@@ -29,6 +29,7 @@ const payload = z.object({
     tiers: z.number().int().nullish(),
     biscuit: z.string().default(""),
     fourrages: z.array(z.string()).default([]),
+    lactoseFree: z.boolean().default(false),
     style: z.string().default(""), // rétrocompat ancien site — fallback si thème vide
     themeNote: z.string().default(""),
     deliveryMode: z.string().default("retrait"),
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
       tiers: o.tiers ?? null,
       biscuit: o.biscuit,
       fourrages: o.fourrages,
+      sansLactose: o.lactoseFree,
       themeNote: o.themeNote || o.style,
       deliveryMode: o.deliveryMode,
       deliveryAddress: o.deliveryAddress,
@@ -134,7 +136,7 @@ export async function POST(req: NextRequest) {
     `${esc(c.firstName)} ${esc(c.lastName)} — ${o.occasion || "occasion ?"}`,
     o.eventDate ? `📅 ${new Date(o.eventDate).toLocaleDateString("fr-CH")}` : "",
     `🔢 ${o.parts ?? "?"} parts${o.tiers ? ` · ${o.tiers} étage${o.tiers > 1 ? "s" : ""}` : ""}${o.priceQuoted ? ` · dès CHF ${o.priceQuoted}` : ""}`,
-    gouts.length ? `🍰 ${esc(gouts.join(" · "))}` : "",
+    gouts.length ? `🍰 ${esc(gouts.join(" · "))}${o.lactoseFree ? " · sans lactose" : ""}` : (o.lactoseFree ? "🍰 sans lactose" : ""),
     o.themeNote || o.style ? `🎨 ${esc(o.themeNote || o.style)}` : "",
     o.deliveryMode === "livraison"
       ? `📍 Livraison — ${esc(o.deliveryAddress || "adresse ?")}${o.deliveryKm ? ` (${o.deliveryKm} km)` : ""}`
