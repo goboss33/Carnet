@@ -53,13 +53,16 @@ export default function Heatmap({ days, todayISO }: { days: Record<string, HeatD
     document.getElementById(`day-${dISO}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
-  const cellCls = "flex size-4 items-center justify-center rounded-[3px] text-[9px] font-semibold tabular-nums sm:size-5 sm:rounded-[4px] sm:text-[10px]";
+  // Cases FLUIDES : les colonnes (1fr, min 0) se partagent la largeur de la
+  // carte (plafonnée à 380px) — la grille rétrécit d'elle-même sur les petits
+  // écrans, jusqu'à des points s'il le faut : aucun scroll horizontal possible.
+  const cellCls = "flex aspect-square w-full min-w-0 items-center justify-center overflow-hidden rounded-[3px] text-[9px] font-semibold tabular-nums sm:rounded-[4px] sm:text-[10px]";
 
   return (
-    <div className="mx-auto mb-7 w-fit max-w-full overflow-x-auto rounded-2xl border border-zinc-200 bg-white p-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:p-4">
+    <div className="mx-auto mb-7 w-full max-w-[380px] rounded-2xl border border-zinc-200 bg-white p-3 sm:p-4">
       <div
-        className="grid w-max gap-[2px] sm:gap-[3px]"
-        style={{ gridTemplateColumns: `auto repeat(${weeks.length}, min-content)` }}
+        className="grid w-full gap-[2px] sm:gap-[3px]"
+        style={{ gridTemplateColumns: `auto repeat(${weeks.length}, minmax(0, 1fr))` }}
       >
         {/* Rangée des étiquettes de mois — en absolu pour ne pas élargir les colonnes */}
         <div className="h-4" />
