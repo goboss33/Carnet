@@ -4,14 +4,61 @@
    témoin flottant). Canaux complets avec icônes, champ Facebook, newsletter en
    interrupteur, suppression en action discrète. */
 
+import { useRef, useState } from "react";
+import { ChevronDown, Check } from "lucide-react";
 import { updateContact, deleteContact } from "@/app/actions";
 import { AutoSaveForm } from "@/app/commandes/[id]/AutoSave";
 import { SOURCES } from "@/lib/statuts";
 import { ChannelIcon } from "@/components/ui/channel-icon";
+import { cn } from "@/lib/ui";
 
 const input = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
 const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
 const labelRow = "mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
+
+/* Canal avec icônes : un <select> natif ne peut pas en afficher → menu custom.
+   Input caché + événement natif « change » pour que l'auto-save le capte. */
+function ChannelSelect({ initial }: { initial: string }) {
+  const [value, setValue] = useState(initial);
+  const [open, setOpen] = useState(false);
+  const hidden = useRef<HTMLInputElement>(null);
+  const cur = SOURCES.find((s) => s.id === value) ?? SOURCES[SOURCES.length - 1];
+  const choose = (id: string) => {
+    setValue(id);
+    setOpen(false);
+    const el = hidden.current;
+    if (el) { el.value = id; el.dispatchEvent(new Event("change", { bubbles: true })); }
+  };
+  return (
+    <div className="relative">
+      <input ref={hidden} type="hidden" name="source" defaultValue={initial} />
+      <button type="button" onClick={() => setOpen((v) => !v)} className={cn(input, "flex items-center gap-2 text-left")}>
+        <span className="flex size-4 shrink-0 items-center justify-center"><ChannelIcon source={cur.id} className="size-4" /></span>
+        <span className="flex-1">{cur.label}</span>
+        <ChevronDown className={cn("size-4 shrink-0 text-zinc-400 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-lg">
+            {SOURCES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => choose(s.id)}
+                className={cn("flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] hover:bg-zinc-50", s.id === value ? "font-semibold text-zinc-900" : "text-zinc-600")}
+              >
+                <span className="flex size-4 shrink-0 items-center justify-center"><ChannelIcon source={s.id} className="size-4" /></span>
+                <span className="flex-1">{s.label}</span>
+                {s.id === value && <Check className="size-4 text-(--color-brand)" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 type C = {
   id: string; firstName: string; lastName: string; phone: string; email: string;
@@ -54,12 +101,10 @@ export default function ContactForm({ contact, ordersCount }: { contact: C; orde
         </label>
       </div>
 
-      <label className="block">
+      <div>
         <span className={label}>Canal d'origine</span>
-        <select name="source" defaultValue={contact.source} className={input}>
-          {SOURCES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-        </select>
-      </label>
+        <ChannelSelect initial={contact.source} />
+      </div>
 
       <label className="block"><span className={label}>Notes</span><textarea name="notes" rows={3} defaultValue={contact.notes} className={input} placeholder="Allergies, préférences, contexte…" /></label>
 

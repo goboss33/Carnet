@@ -42,12 +42,9 @@ export default async function ContactFiche({ params }: { params: Promise<{ id: s
           <span className="flex items-center gap-3">
             <span className={`flex size-10 shrink-0 items-center justify-center rounded-full text-[13px] font-bold ${av.color}`}>{av.initials}</span>
             <span className="min-w-0 truncate">{name}</span>
-          </span>
-        }
-        subtitle={
-          <span className="inline-flex items-center gap-1.5">
-            <ChannelIcon source={contact.source} className="size-4" />
-            {SOURCES.find((s) => s.id === contact.source)?.label ?? ""} · cliente depuis {contact.createdAt.getFullYear()}
+            <span title={SOURCES.find((s) => s.id === contact.source)?.label ?? ""} className="shrink-0">
+              <ChannelIcon source={contact.source} className="size-5" />
+            </span>
           </span>
         }
         actions={
@@ -67,19 +64,23 @@ export default async function ContactFiche({ params }: { params: Promise<{ id: s
         }
       />
 
-      {/* Résumé — mêmes codes que le bandeau de la fiche commande */}
-      <div className="mb-6 grid grid-cols-3 gap-x-4 gap-y-1 rounded-2xl border border-zinc-200 bg-white px-5 py-4">
+      {/* Résumé — mêmes codes que le bandeau de la fiche commande (2×2 sur mobile) */}
+      <div className="mb-6 grid grid-cols-2 gap-x-4 gap-y-3 rounded-2xl border border-zinc-200 bg-white px-5 py-4 sm:grid-cols-4">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Commandes</p>
-          <p className="mt-1 text-[15px] font-semibold text-zinc-900">{contact.orders.length}</p>
+          <p className="mt-0.5 text-[15px] font-semibold text-zinc-900">{contact.orders.length}</p>
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Total encaissé</p>
-          <p className="mt-1 text-[15px] font-semibold text-zinc-900">{totalCents > 0 ? fmtChf(totalCents) : "—"}</p>
+          <p className="mt-0.5 text-[15px] font-semibold text-zinc-900">{totalCents > 0 ? fmtChf(totalCents) : "—"}</p>
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Dernière commande</p>
-          <p className="mt-1 text-[15px] font-semibold text-zinc-900">{last?.eventDate ? fmtDate(last.eventDate) : "—"}</p>
+          <p className="mt-0.5 whitespace-nowrap text-[15px] font-semibold text-zinc-900">{last?.eventDate ? fmtDate(last.eventDate) : "—"}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Cliente depuis</p>
+          <p className="mt-0.5 text-[15px] font-semibold text-zinc-900">{contact.createdAt.getFullYear()}</p>
         </div>
       </div>
 
