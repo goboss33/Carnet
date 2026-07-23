@@ -10,7 +10,7 @@ import { updateContact, deleteContact } from "@/app/actions";
 import { AutoSaveForm } from "@/app/commandes/[id]/AutoSave";
 import { SOURCES } from "@/lib/statuts";
 import { ChannelIcon } from "@/components/ui/channel-icon";
-import { cn } from "@/lib/ui";
+import { cn, setNativeInputValue } from "@/lib/ui";
 
 const input = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
 const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
@@ -26,8 +26,7 @@ function ChannelSelect({ initial }: { initial: string }) {
   const choose = (id: string) => {
     setValue(id);
     setOpen(false);
-    const el = hidden.current;
-    if (el) { el.value = id; el.dispatchEvent(new Event("change", { bubbles: true })); }
+    if (hidden.current) setNativeInputValue(hidden.current, id); // setter natif → l'auto-save capte bien l'événement
   };
   return (
     <div className="relative">

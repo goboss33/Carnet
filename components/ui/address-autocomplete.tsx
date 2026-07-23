@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MapPin, Loader2 } from "lucide-react";
-import { cn } from "@/lib/ui";
+import { cn, setNativeInputValue } from "@/lib/ui";
 
 export function AddressAutocomplete({
   name,
@@ -54,12 +54,7 @@ export function AddressAutocomplete({
   }, [q]);
 
   const pick = (v: string) => {
-    const el = ref.current;
-    if (el) {
-      el.value = v;
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-      el.dispatchEvent(new Event("change", { bubbles: true }));
-    }
+    if (ref.current) setNativeInputValue(ref.current, v); // setter natif → l'auto-save capte bien l'événement
     setOpen(false);
     setItems([]);
     setQ("");

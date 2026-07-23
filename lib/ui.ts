@@ -42,3 +42,16 @@ import { twMerge } from "tailwind-merge";
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+/** Écrit une valeur dans un input rendu par React ET déclenche ses événements.
+    `el.value = x` direct passe par le tracker interne de React, qui considère
+    ensuite l'événement dispatché comme « sans changement » et l'avale → il faut
+    passer par le setter NATIF du prototype pour que input/change remontent
+    (auto-save, formulaires). Client uniquement. */
+export function setNativeInputValue(el: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+  if (setter) setter.call(el, value);
+  else el.value = value;
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+}
