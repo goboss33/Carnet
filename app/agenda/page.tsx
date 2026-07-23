@@ -1,12 +1,116 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
-import { fmtCHF, fmtDate } from "@/lib/statuts";
+import { STATUS_TONE } from "@/lib/statuts";
+import { paymentState } from "@/lib/payments";
+import { missingFor } from "@/lib/completeness";
+import { occasionIcon, occasionShort } from "@/lib/occasions";
+import { cn } from "@/lib/ui";
 import { PageHeader } from "@/components/ui/page-header";
+import { Truck, Store, Clock, MilkOff } from "lucide-react";
+import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
+const STATUS_LABEL: Record<string, string> = {
+  ACOMPTE_RECU: "Confirmé",
+  EN_PRODUCTION: "En production",
+  DEVIS_ENVOYE: "Devis envoyé",
+};
+
+type OrderWithContact = Prisma.OrderGetPayload<{ include: { contact: true } }>;
+
+/* Lundi 00:00 de la semaine de d. */
+function startOfWeek(d: Date): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function Card({ o, now }: { o: OrderWithContact; now: Date }) {
+  const d = o.eventDate!;
+  const days = Math.ceil((d.getTime() - now.getTime()) / 86400000);
+  const jx = days <= 0 ? "aujourd'hui" : days === 1 ? "demain" : `J-${days}`;
+  const jxTone = days <= 1 ? "bg-red-50 text-red-600" : days <= 7 ? "bg-amber-50 text-amber-700" : "bg-zinc-100 text-zinc-500";
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const OccIcon = occasionIcon(o.occasion);
+  const Remise = o.deliveryMode === "livraison" ? Truck : Store;
+  const pay = paymentState(o);
+  const missing = missingFor(o).length;
+  const isDevis = o.status === "DEVIS_ENVOYE";
+  const heure = o.handoverAt ? o.handoverAt.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" }) : null;
+
+  return (
+    <li>
+      <Link
+        href={`/commandes/${o.id}`}
+        className={cn(
+          "flex items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-3.5 transition-shadow hover:shadow-sm",
+          isDevis && "opacity-55 hover:opacity-90"
+        )}
+      >
+        {/* Date : jour de semaine + date (année seulement si différente) + J-x */}
+        <div className="w-16 shrink-0 text-center">
+          <p className="text-[11px] font-semibold uppercase leading-none text-zinc-400">
+            {d.toLocaleDateString("fr-CH", { weekday: "short" })}
+          </p>
+          <p className="mt-0.5 whitespace-nowrap text-[15px] font-bold leading-tight text-zinc-900">
+            {d.toLocaleDateString("fr-CH", { day: "2-digit", month: "short" })}
+          </p>
+          {!sameYear && <p className="text-[11px] font-semibold text-zinc-400">{d.getFullYear()}</p>}
+          <span className={cn("mt-1 inline-block rounded-md px-1.5 py-0.5 text-[11px] font-medium", jxTone)}>{jx}</span>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5">
+            <span className="truncate font-semibold text-zinc-900">{o.contact.firstName} {o.contact.lastName}</span>
+            {missing > 0 && <span className="size-2 shrink-0 rounded-full bg-amber-500" title={`${missing} donnée(s) manquante(s)`} />}
+          </p>
+          <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-zinc-500">
+            <span className="inline-flex items-center gap-1.5 text-zinc-700">
+              <OccIcon className="size-3.5 shrink-0 text-(--color-brand)" />
+              {o.occasion ? occasionShort(o.occasion) : "à préciser"}
+            </span>
+            <span className="inline-flex items-center gap-1" title={o.deliveryMode === "livraison" ? "Livraison" : "Retrait à l'atelier"}>
+              <Remise className="size-3.5 text-zinc-400" />
+            </span>
+            {o.parts ? <span className="whitespace-nowrap">{o.parts} parts</span> : null}
+            {heure && (
+              <span className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-zinc-700">
+                <Clock className="size-3.5 text-zinc-400" /> {heure}
+              </span>
+            )}
+            {o.sansLactose && (
+              <span title="Sans lactose"><MilkOff className="size-3.5 text-red-500" /></span>
+            )}
+          </p>
+        </div>
+
+        {/* Statut + argent */}
+        <div className="shrink-0 text-right">
+          <span className={cn("inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold", STATUS_TONE[o.status] ?? "bg-zinc-100 text-zinc-600")}>
+            {STATUS_LABEL[o.status] ?? o.status}
+          </span>
+          {pay.hasTotal && (
+            <p className="mt-1.5 text-[11px] font-medium">
+              {isDevis ? (
+                <span className="text-zinc-400">CHF {o.priceQuoted}</span>
+              ) : pay.isPaid ? (
+                <span className="text-emerald-600">soldé ✓</span>
+              ) : (
+                <span className={pay.paidCents > 0 ? "text-amber-600" : "text-zinc-500"}>reste CHF {pay.dueCents / 100}</span>
+              )}
+            </p>
+          )}
+        </div>
+      </Link>
+    </li>
+  );
+}
+
 export default async function Agenda() {
   const tenant = await currentTenant();
+  const now = new Date();
   const orders = await prisma.order.findMany({
     where: {
       tenantId: tenant.id,
@@ -17,44 +121,66 @@ export default async function Agenda() {
     orderBy: { eventDate: "asc" },
   });
 
+  // Groupes : cette semaine, semaine prochaine (toujours affichés), puis par mois.
+  const w1 = new Date(startOfWeek(now).getTime() + 7 * 86400000);
+  const w2 = new Date(w1.getTime() + 7 * 86400000);
+  const groups: { key: string; label: string; items: OrderWithContact[]; always?: boolean }[] = [
+    { key: "this", label: "Cette semaine", items: [], always: true },
+    { key: "next", label: "Semaine prochaine", items: [], always: true },
+  ];
+  for (const o of orders) {
+    const d = o.eventDate!;
+    if (d < w1) groups[0].items.push(o);
+    else if (d < w2) groups[1].items.push(o);
+    else {
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      let g = groups.find((x) => x.key === key);
+      if (!g) {
+        const label = d.toLocaleDateString("fr-CH", { month: "long", ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) });
+        g = { key, label: label.charAt(0).toUpperCase() + label.slice(1), items: [] };
+        groups.push(g);
+      }
+      g.items.push(o);
+    }
+  }
+
   return (
     <>
       <PageHeader
         title="Agenda de production"
         subtitle="Les événements à venir, par date — ce qui doit sortir de l'atelier."
       />
-      <ul className="space-y-3">
-        {orders.map((o) => {
-          const days = o.eventDate ? Math.ceil((o.eventDate.getTime() - Date.now()) / 86400000) : null;
+      <div className="space-y-7">
+        {groups.filter((g) => g.always || g.items.length > 0).map((g) => {
+          // Charge : seuls les gâteaux à produire comptent (les devis non confirmés sont exclus).
+          const firm = g.items.filter((o) => o.status !== "DEVIS_ENVOYE");
+          const parts = firm.reduce((a, o) => a + (o.parts ?? 0), 0);
           return (
-            <li key={o.id}>
-              <Link
-                href={`/commandes/${o.id}`}
-                className="flex flex-wrap items-center gap-4 rounded-xl border border-zinc-200 bg-white px-5 py-4 transition-shadow hover:shadow-sm"
-              >
-                <div className="w-24 text-center">
-                  <p className="text-lg font-bold leading-none">{fmtDate(o.eventDate)}</p>
-                  {days != null && (
-                    <p className={`mt-1 text-[11px] font-semibold ${days <= 7 ? "text-amber-600" : "text-zinc-400"}`}>
-                      {days <= 0 ? "aujourd'hui" : `J-${days}`}
-                    </p>
-                  )}
+            <section key={g.key}>
+              <div className="mb-2.5 flex items-baseline gap-2 px-1">
+                <h2 className="text-[13px] font-bold uppercase tracking-wide text-zinc-600">{g.label}</h2>
+                {firm.length > 0 && (
+                  <span className="text-[12px] tabular-nums text-zinc-400">
+                    {firm.length} gâteau{firm.length > 1 ? "x" : ""}{parts > 0 ? ` · ${parts} parts` : ""}
+                  </span>
+                )}
+              </div>
+              {g.items.length > 0 ? (
+                <ul className="space-y-2">
+                  {g.items.map((o) => <Card key={o.id} o={o} now={now} />)}
+                </ul>
+              ) : (
+                <div className="rounded-xl border border-dashed border-zinc-200 px-5 py-6 text-center text-sm text-zinc-400">
+                  Rien à produire — semaine au calme.
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{o.contact.firstName} {o.contact.lastName} — {o.occasion || "à préciser"}</p>
-                  <p className="text-sm text-zinc-500">
-                    {o.parts ? `${o.parts} parts` : "parts ?"} · {o.deliveryMode === "livraison" ? "livraison" : "retrait"} · {fmtCHF(o.priceQuoted)}
-                  </p>
-                </div>
-                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">
-                  {o.status === "EN_PRODUCTION" ? "en production" : o.status === "ACOMPTE_RECU" ? "confirmé" : "devis envoyé"}
-                </span>
-              </Link>
-            </li>
+              )}
+            </section>
           );
         })}
-        {orders.length === 0 && <li className="rounded-xl border border-dashed border-zinc-300 px-5 py-10 text-center text-zinc-400">Rien de prévu — encore.</li>}
-      </ul>
+        {orders.length === 0 && (
+          <p className="px-1 text-sm text-zinc-400">Les commandes confirmées apparaîtront ici, classées par date d'événement.</p>
+        )}
+      </div>
     </>
   );
 }
