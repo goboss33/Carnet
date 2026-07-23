@@ -106,7 +106,7 @@ export function DeliveryFields({ mode, address }: { mode: string; address: strin
         <span className={labelCls}>Mode</span>
         <div className="inline-flex rounded-lg border border-zinc-300 p-0.5 text-[13px]">
           {(["retrait", "livraison"] as const).map((v) => (
-            <label key={v} className={cn("cursor-pointer rounded-md px-3 py-1.5 font-medium transition-colors", m === v ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}>
+            <label key={v} className={cn("cursor-pointer whitespace-nowrap rounded-md px-3 py-1.5 font-medium transition-colors", m === v ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}>
               <input type="radio" name="deliveryMode" value={v} checked={m === v} onChange={() => setM(v)} className="sr-only" />
               {v === "retrait" ? "Retrait atelier" : "Livraison"}
             </label>
