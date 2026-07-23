@@ -264,7 +264,7 @@ Extrais la demande de gâteau. Nous sommes le ${today}. Réponds UNIQUEMENT avec
   "instagram": "pseudo instagram si visible" | null,
   "celebrant": "prénom de la personne fêtée" | null,
   "celebrant_age": âge fêté (nombre) | null,
-  "occasion": "anniversaire" | "mariage" | "baptême" | autre texte court | null,
+  "occasion": "Anniversaire d'enfant" | "Anniversaire d'adulte" | "Mariage" | "Baby shower" | "Événement d'entreprise" | "Autre occasion" | null — classe TOUJOURS dans cette liste exacte (jamais de texte libre) ; l'âge va dans celebrant_age, pas ici ; anniversaire : enfant si ≤ 15 ans, adulte sinon ; baptême, communion, etc. → "Autre occasion",
   "event_date": "YYYY-MM-DD (résous les dates relatives par rapport à aujourd'hui ; année suivante si la date est passée)" | null,
   "event_time": "HH:MM ou plage (ex. 15-18h)" | null,
   "handover_time": "HH:MM — heure de RETRAIT ou de LIVRAISON convenue avec la pâtissière (différente de l'heure de la fête)" | null,

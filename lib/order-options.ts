@@ -13,6 +13,28 @@ export const OCCASIONS = [
   "Autre occasion",
 ] as const;
 
+/** Rabat un texte libre (« anniversaire 30 ans », « bday de Léa »…) sur la liste
+    standard OCCASIONS. L'âge (celebrantAge ou détecté dans le texte) départage
+    enfant/adulte (enfant ≤ 15 ans). Inconnu → « Autre occasion » ; vide → "". */
+export function normalizeOccasion(raw: string, age?: number | null): string {
+  const s = (raw ?? "").trim().toLowerCase();
+  if (!s) return "";
+  const exact = OCCASIONS.find((o) => o.toLowerCase() === s);
+  if (exact) return exact;
+  if (/mariage|wedding/.test(s)) return "Mariage";
+  if (/baby\s*shower|naissance/.test(s)) return "Baby shower";
+  if (/entreprise|corporate|b2b|société|societe|bureau|team/.test(s)) return "Événement d'entreprise";
+  if (/anniv|birthday|bday|\bans\b/.test(s)) {
+    const m = s.match(/(\d{1,3})\s*(ans|e\b|ème|eme)?/);
+    const a = age ?? (m ? parseInt(m[1], 10) : null);
+    if (a != null && a <= 15) return "Anniversaire d'enfant";
+    if (a != null) return "Anniversaire d'adulte";
+    if (/enfant|fille|garçon|garcon|kid/.test(s)) return "Anniversaire d'enfant";
+    return "Anniversaire d'adulte";
+  }
+  return "Autre occasion";
+}
+
 export const BISCUITS = ["Vanille", "Chocolat", "Citron", "Cannelle", "Orange", "Nature"] as const;
 
 export const FOURRAGES = [

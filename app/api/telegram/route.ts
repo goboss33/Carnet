@@ -34,6 +34,7 @@ async function sendHelp(chatId: number) {
 import { getSettings } from "@/lib/settings";
 import { normPhone } from "@/lib/normalize";
 import { nextOrderNo } from "@/lib/order-number";
+import { normalizeOccasion } from "@/lib/order-options";
 import type { Source, ExpenseCategory } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -176,16 +177,20 @@ async function finishNc(chatId: number, tenantId: string, draft: Draft) {
     }
   }
 
+  // Occasion rabattue sur la liste standard ; le texte tapé part en note s'il précisait plus.
+  const rawOcc = (draft.occasion ?? "").trim();
+  const occ = normalizeOccasion(rawOcc);
   const order = await prisma.order.create({
     data: {
       tenantId,
       orderNo: await nextOrderNo(tenantId),
       contactId,
       source: (draft.source ?? "AUTRE") as Source,
-      occasion: draft.occasion ?? "",
+      occasion: occ,
       eventDate: draft.eventDate ? new Date(draft.eventDate) : null,
       parts: draft.parts,
       priceQuoted: draft.priceQuoted,
+      notes: rawOcc && occ.toLowerCase() !== rawOcc.toLowerCase() ? `Occasion indiquée : ${rawOcc}` : "",
       activities: { create: { type: "SYSTEM", body: "Commande créée via le bot Telegram." } },
     },
   });
@@ -456,8 +461,12 @@ async function createFromConversation(chatId: number, tenantId: string, conv: Co
     );
   }
 
+  // Occasion rabattue sur la liste standard ; la formulation d'origine part en note.
+  const rawConvOcc = (conv.occasion ?? "").trim();
+  const convOcc = normalizeOccasion(rawConvOcc, conv.celebrantAge);
   const notes = [
     conv.summary,
+    rawConvOcc && convOcc.toLowerCase() !== rawConvOcc.toLowerCase() ? `Occasion indiquée : ${rawConvOcc}` : "",
     conv.eventPlace ? `Fête : ${conv.eventPlace}${conv.eventTime ? ` (${conv.eventTime})` : ""}` : conv.eventTime ? `Heure : ${conv.eventTime}` : "",
     conv.flavors ? `Saveurs évoquées : ${conv.flavors}` : "",
   ].filter(Boolean).join("\n");
@@ -470,7 +479,7 @@ async function createFromConversation(chatId: number, tenantId: string, conv: Co
       status: convStatus(conv),
       source,
       sourceDetail: conv.referredBy ? `recommandée par ${conv.referredBy}` : "",
-      occasion: conv.occasion ?? "",
+      occasion: convOcc,
       eventDate: conv.eventDate ? new Date(conv.eventDate + "T12:00:00Z") : null,
       handoverAt: (() => {
         if (!conv.eventDate || !conv.handoverTime) return null;
