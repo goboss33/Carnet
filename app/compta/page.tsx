@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
-import { chf, CATEGORIES, mileageCents } from "@/lib/money";
+import { chf, CATEGORIES, mileageCents, PAYKIND_LABEL, PAYKIND_TONE } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
 import { paymentState } from "@/lib/payments";
-import { occasionIcon, occasionShort } from "@/lib/occasions";
+import { occasionIcon } from "@/lib/occasions";
 import { updateExpense, deleteExpense, purgeEmptyDrafts } from "@/app/actions";
-import { FileText, Camera, Download, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { FileText, Camera, Download, ArrowUpRight, ArrowDownRight, HandCoins } from "lucide-react";
 import MediaViewer from "@/app/components/MediaViewer";
 import { PageHeader } from "@/components/ui/page-header";
 import MonthNav from "./MonthNav";
@@ -46,29 +46,38 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
 
   const tenant = await currentTenant();
   const pRange = { gte: prevD, lt: start };
-  const [expenses, drafts, delivered, cancelledKept, expPrev, delivPrev, keptPrev] = await Promise.all([
+  const [expenses, drafts, payments, payPrevAgg, delivered, delivPrev, unpaidDelivered] = await Promise.all([
     prisma.expense.findMany({ where: { tenantId: tenant.id, status: "CONFIRMED", date: { gte: start, lt: end } }, orderBy: { date: "desc" } }),
     prisma.expense.findMany({ where: { tenantId: tenant.id, status: "DRAFT" }, orderBy: { createdAt: "desc" } }),
-    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: start, lt: end } }, include: { contact: true }, orderBy: { deliveredAt: "desc" } }),
-    prisma.order.findMany({ where: { tenantId: tenant.id, status: "ANNULE", cancelledAt: { gte: start, lt: end }, OR: [{ depositCents: { gt: 0 } }, { balanceCents: { gt: 0 } }] }, include: { contact: true }, orderBy: { cancelledAt: "desc" } }),
-    prisma.expense.aggregate({ where: { tenantId: tenant.id, status: "CONFIRMED", date: pRange }, _sum: { totalCents: true } }),
-    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: pRange }, select: { priceQuoted: true, tipCents: true, deliveryMode: true, deliveryKm: true } }),
-    prisma.order.findMany({ where: { tenantId: tenant.id, status: "ANNULE", cancelledAt: pRange, OR: [{ depositCents: { gt: 0 } }, { balanceCents: { gt: 0 } }] }, select: { depositCents: true, balanceCents: true, priceQuoted: true } }),
+    // Journal des encaissements du mois — LA source des recettes (comptabilité de trésorerie).
+    prisma.payment.findMany({
+      where: { tenantId: tenant.id, paidAt: { gte: start, lt: end } },
+      include: { order: { include: { contact: true } } },
+      orderBy: { paidAt: "desc" },
+    }),
+    prisma.payment.aggregate({ where: { tenantId: tenant.id, paidAt: pRange }, _sum: { cents: true } }),
+    // Livraisons du mois : uniquement pour les km déductibles (pas du cash).
+    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: start, lt: end } }, select: { deliveryMode: true, deliveryKm: true } }),
+    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: pRange }, select: { deliveryMode: true, deliveryKm: true } }),
+    // Créances : livrées dont il reste de l'argent à encaisser (toutes dates).
+    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", priceQuoted: { not: null } }, include: { contact: true }, orderBy: { deliveredAt: "desc" }, take: 100 }),
   ]);
 
   const s = await getSettings(tenant.id);
   const mileage = delivered.reduce((a, o) => a + (o.deliveryMode === "livraison" ? mileageCents(o.deliveryKm, s.kmRate) : 0), 0);
   const kmTotal = delivered.reduce((a, o) => a + (o.deliveryMode === "livraison" && o.deliveryKm ? o.deliveryKm * 2 : 0), 0);
-  const totalExp = expenses.reduce((a, e) => a + e.totalCents, 0);
-  const keptRev = cancelledKept.reduce((a, o) => a + paymentState(o).paidCents, 0);
-  const totalRev = delivered.reduce((a, o) => a + (o.priceQuoted ?? 0) * 100 + (o.tipCents ?? 0), 0) + keptRev;
-
-  // Mois précédent (deltas)
-  const prevExp = expPrev._sum.totalCents ?? 0;
-  const prevRev =
-    delivPrev.reduce((a, o) => a + (o.priceQuoted ?? 0) * 100 + (o.tipCents ?? 0), 0) +
-    keptPrev.reduce((a, o) => a + paymentState(o).paidCents, 0);
   const prevMileage = delivPrev.reduce((a, o) => a + (o.deliveryMode === "livraison" ? mileageCents(o.deliveryKm, s.kmRate) : 0), 0);
+
+  const totalExp = expenses.reduce((a, e) => a + e.totalCents, 0);
+  const totalRev = payments.reduce((a, p) => a + p.cents, 0);
+  const prevRev = payPrevAgg._sum.cents ?? 0;
+  const prevExp = (await prisma.expense.aggregate({ where: { tenantId: tenant.id, status: "CONFIRMED", date: pRange }, _sum: { totalCents: true } }))._sum.totalCents ?? 0;
+
+  // Créances (à encaisser) — hors CA tant que l'argent n'est pas là.
+  const receivables = unpaidDelivered
+    .map((o) => ({ o, pay: paymentState(o) }))
+    .filter((x) => !x.pay.isPaid && x.pay.dueCents > 0);
+  const receivablesTotal = receivables.reduce((a, x) => a + x.pay.dueCents, 0);
 
   const label = start.toLocaleDateString("fr-CH", { month: "long", year: "numeric", timeZone: "UTC" });
 
@@ -84,17 +93,17 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
   }));
 
   const kpis = [
-    { label: "Recettes", value: chf(totalRev), tone: "text-emerald-700", sub: `${delivered.length + cancelledKept.length} recette${delivered.length + cancelledKept.length > 1 ? "s" : ""}`, delta: totalRev - prevRev, good: "up" as const },
+    { label: "Encaissé", value: chf(totalRev), tone: "text-emerald-700", sub: `${payments.length} encaissement${payments.length > 1 ? "s" : ""}`, delta: totalRev - prevRev, good: "up" as const },
     { label: "Dépenses", value: chf(totalExp), tone: "text-red-700", sub: `${expenses.length} ticket${expenses.length > 1 ? "s" : ""}`, delta: totalExp - prevExp, good: "down" as const },
-    { label: "Résultat", value: chf(totalRev - totalExp), tone: totalRev - totalExp >= 0 ? "text-zinc-900" : "text-red-700", sub: "recettes − dépenses", delta: totalRev - totalExp - (prevRev - prevExp), good: "up" as const },
-    { label: "Déplacements déductibles", value: chf(mileage), tone: "text-zinc-900", sub: `${kmTotal} km A/R · pour la fiduciaire`, delta: mileage - prevMileage, good: null },
+    { label: "Résultat", value: chf(totalRev - totalExp), tone: totalRev - totalExp >= 0 ? "text-zinc-900" : "text-red-700", sub: "encaissé − dépenses", delta: totalRev - totalExp - (prevRev - prevExp), good: "up" as const },
+    { label: "Déplacements", value: chf(mileage), tone: "text-zinc-900", sub: `${kmTotal} km A/R déductibles`, delta: mileage - prevMileage, good: null },
   ];
 
   return (
     <>
       <PageHeader
         title="Compta"
-        subtitle="Recettes, dépenses et déductions du mois."
+        subtitle="Encaissements, dépenses et déductions du mois."
         actions={
           <>
             <MonthNav month={month} prev={fmtM(prevD)} next={fmtM(nextD)} label={label} />
@@ -122,67 +131,61 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
         ))}
       </div>
 
-      {/* Recettes du mois — langage de l'Historique */}
+      {/* Encaissements du mois — journal (une ligne par mouvement d'argent) */}
       <div className="mb-8">
         <div className="mb-2 flex items-center justify-between px-1">
-          <p className="text-sm font-bold text-zinc-700">Recettes du mois</p>
-          <span className="text-xs tabular-nums text-zinc-400">{delivered.length + cancelledKept.length} · {chf(totalRev)}</span>
+          <p className="text-sm font-bold text-zinc-700">Encaissements du mois</p>
+          <span className="text-xs tabular-nums text-zinc-400">{payments.length} · {chf(totalRev)}</span>
         </div>
         <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-          {delivered.map((o) => {
-            const pay = paymentState(o);
-            const OccIcon = occasionIcon(o.occasion);
+          {payments.map((p) => {
+            const OccIcon = occasionIcon(p.order.occasion);
             return (
               <Link
-                key={o.id}
-                href={`/commandes/${o.id}`}
-                className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-zinc-100 px-3.5 py-2.5 text-sm transition-colors last:border-b-0 even:bg-zinc-50/50 hover:bg-zinc-50"
+                key={p.id}
+                href={`/commandes/${p.orderId}`}
+                className="flex items-center gap-2.5 border-b border-zinc-100 px-3.5 py-2.5 text-sm transition-colors last:border-b-0 even:bg-zinc-50/50 hover:bg-zinc-50"
               >
-                <span className="w-10 shrink-0 whitespace-nowrap text-[12px] tabular-nums text-zinc-400">{o.deliveredAt?.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</span>
-                <span className="inline-flex min-w-0 items-center gap-1.5">
+                <span className="w-10 shrink-0 whitespace-nowrap text-[12px] tabular-nums text-zinc-400">{p.paidAt.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</span>
+                <span className="inline-flex min-w-0 flex-1 items-center gap-1.5">
                   <OccIcon className="size-3.5 shrink-0 text-(--color-brand)" />
-                  <span className="truncate font-medium text-zinc-900">{o.contact.firstName} {o.contact.lastName}</span>
+                  <span className="truncate font-medium text-zinc-900">{p.order.contact.firstName} {p.order.contact.lastName}</span>
+                  {p.order.orderNo ? <span className="hidden shrink-0 text-[11px] tabular-nums text-zinc-300 sm:inline">#{String(p.order.orderNo).padStart(4, "0")}</span> : null}
                 </span>
-                {o.orderNo ? <span className="hidden text-[11px] tabular-nums text-zinc-300 sm:inline">#{String(o.orderNo).padStart(4, "0")}</span> : null}
-                {o.deliveryMode === "livraison" && o.deliveryKm ? (
-                  <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-500" title={`Déduction ${chf(mileageCents(o.deliveryKm, s.kmRate))}`}>
-                    {o.deliveryKm * 2} km · {chf(mileageCents(o.deliveryKm, s.kmRate))}
-                  </span>
-                ) : null}
-                <span className="ml-auto shrink-0 text-right" title={`Encaissé ${chf(pay.paidCents)} / ${chf(pay.totalCents)}`}>
-                  <span className="whitespace-nowrap font-semibold tabular-nums text-zinc-900">
-                    {chf((o.priceQuoted ?? 0) * 100)}
-                    {o.tipCents ? <span className="ml-1 text-[11px] font-normal text-emerald-600">+{chf(o.tipCents)}</span> : null}
-                  </span>
-                  <span className="mt-1 block h-1 w-20 overflow-hidden rounded-full bg-zinc-100">
-                    <span
-                      className={cn("block h-full rounded-full", pay.isPaid ? "bg-emerald-500" : pay.paidCents > 0 ? "bg-amber-500" : "bg-red-500")}
-                      style={{ width: `${Math.max(pay.totalCents > 0 ? Math.min(100, Math.round((pay.paidCents / pay.totalCents) * 100)) : 0, pay.paidCents > 0 ? 6 : 0)}%` }}
-                    />
-                  </span>
-                  {!pay.isPaid && pay.dueCents > 0 && (
-                    <span className="mt-0.5 block text-[11px] font-medium text-amber-600">reste {chf(pay.dueCents)}</span>
-                  )}
+                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold", PAYKIND_TONE[p.kind] ?? "bg-zinc-100 text-zinc-600")}>
+                  {PAYKIND_LABEL[p.kind] ?? p.kind}
+                </span>
+                <span className={cn("w-24 shrink-0 whitespace-nowrap text-right font-semibold tabular-nums", p.cents < 0 ? "text-red-700" : "text-zinc-900")}>
+                  {chf(p.cents)}
                 </span>
               </Link>
             );
           })}
-          {cancelledKept.map((o) => (
-            <Link
-              key={o.id}
-              href={`/commandes/${o.id}`}
-              className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-zinc-100 px-3.5 py-2.5 text-sm transition-colors last:border-b-0 even:bg-zinc-50/50 hover:bg-zinc-50"
-            >
-              <span className="w-10 shrink-0 whitespace-nowrap text-[12px] tabular-nums text-zinc-400">{o.cancelledAt?.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</span>
-              <span className="truncate font-medium text-zinc-900">{o.contact.firstName} {o.contact.lastName}</span>
-              <span className="text-[12px] italic text-zinc-400">acompte conservé — annulation</span>
-              <span className="ml-auto whitespace-nowrap font-semibold tabular-nums text-zinc-900">{chf(paymentState(o).paidCents)}</span>
-            </Link>
-          ))}
-          {delivered.length === 0 && cancelledKept.length === 0 && (
-            <p className="px-4 py-10 text-center text-sm text-zinc-400">Aucune recette ce mois-ci — les livraisons du mois apparaîtront ici.</p>
+          {payments.length === 0 && (
+            <p className="px-4 py-10 text-center text-sm text-zinc-400">Aucun encaissement ce mois-ci — les paiements reçus apparaîtront ici, à leur date.</p>
           )}
         </div>
+
+        {/* Créances — livré mais pas encore payé (hors CA tant que l'argent n'est pas là) */}
+        {receivables.length > 0 && (
+          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+            <p className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-amber-800">
+              <HandCoins className="size-4" /> À encaisser — {chf(receivablesTotal)}
+            </p>
+            <ul className="space-y-1">
+              {receivables.slice(0, 6).map(({ o, pay }) => (
+                <li key={o.id}>
+                  <Link href={`/commandes/${o.id}`} className="flex items-center gap-2 rounded-lg px-2 py-1 text-[13px] hover:bg-white/70">
+                    <span className="truncate font-medium text-zinc-800">{o.contact.firstName} {o.contact.lastName}</span>
+                    <span className="text-[11px] text-zinc-400">livrée {o.deliveredAt?.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</span>
+                    <span className="ml-auto whitespace-nowrap font-semibold tabular-nums text-amber-700">{chf(pay.dueCents)}</span>
+                  </Link>
+                </li>
+              ))}
+              {receivables.length > 6 && <li className="px-2 text-[12px] text-amber-700/70">+ {receivables.length - 6} autre{receivables.length - 6 > 1 ? "s" : ""}…</li>}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Tickets à compléter (bot) */}
@@ -224,6 +227,10 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
       )}
 
       <ExpensesSection rows={expenseRows} />
+
+      <p className="mt-4 text-xs text-zinc-400">
+        Comptabilité d'encaissement : chaque paiement compte à sa date de réception (un acompte de décembre et un solde de mars tombent chacun dans leur année). À confirmer avec ta fiduciaire.
+      </p>
     </>
   );
 }

@@ -35,6 +35,7 @@ import { getSettings } from "@/lib/settings";
 import { normPhone } from "@/lib/normalize";
 import { nextOrderNo } from "@/lib/order-number";
 import { normalizeOccasion } from "@/lib/order-options";
+import { syncPaymentJournal } from "@/lib/payment-journal";
 import type { Source, ExpenseCategory } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -921,6 +922,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
             activities: { create: { type: "STATUS", body: `Acompte reçu${cents ? ` (CHF ${cents / 100})` : ""} — via le bot.` } },
           },
         });
+        await syncPaymentJournal(orderId);
         await answerCallback(cb.id, "Acompte ✓");
         await editMessage(chatId, mid, `💰 Acompte de <b>${name}</b> enregistré${cents ? ` (CHF ${cents / 100})` : ""} — date bloquée ✓`);
       } else if (action === "depother") {
@@ -945,6 +947,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
               activities: { create: { type: "STATUS", body: `Payé en entier (CHF ${order.priceQuoted}) — via le bot.` } },
             },
           });
+          await syncPaymentJournal(orderId);
           await answerCallback(cb.id, "Payé ✓");
           await editMessage(chatId, mid, `💯 <b>${name}</b> a tout réglé (CHF ${order.priceQuoted}) — plus rien à encaisser, date bloquée ✓`);
         } else {
@@ -987,6 +990,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
             activities: { create: { type: "STATUS", body: `Solde encaissé${pay.dueCents ? ` (${chf(pay.dueCents)})` : ""} — via le bot.` } },
           },
         });
+        await syncPaymentJournal(orderId);
         await answerCallback(cb.id, "Soldé ✓");
         await editMessage(chatId, mid, `✅ Solde de <b>${name}</b> encaissé — tout est réglé. 💛`);
       } else if (action === "balother") {
@@ -1029,6 +1033,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
           where: { id: orderId },
           data: { depositCents: null, balanceCents: null, activities: { create: { type: "STATUS", body: "Acompte remboursé (annulation)." } } },
         });
+        await syncPaymentJournal(orderId);
         await answerCallback(cb.id, "Remboursé ✓");
         await editMessage(chatId, mid, `↩️ Acompte de <b>${name}</b> marqué remboursé — retiré des recettes.`);
       } else if (action === "cxpartial") {
@@ -1542,6 +1547,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
         activities: { create: { type: "STATUS", body: `Annulation : CHF ${n} remboursés, ${chf(kept)} conservés — via le bot.` } },
       },
     });
+    await syncPaymentJournal(orderId);
     await say(chatId, `◐ Remboursement de CHF ${n} noté pour <b>${order.contact.firstName}</b> — ${chf(kept)} restent comptés en recette.`);
     return ok();
   }
@@ -1569,6 +1575,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       await say(chatId, "Fiche introuvable.");
       return ok();
     }
+    await syncPaymentJournal(orderId);
     await say(chatId, `💰 Acompte de CHF ${n} enregistré pour <b>${order.contact.firstName}</b> — date bloquée ✓`);
     return ok();
   }
@@ -1599,6 +1606,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       await say(chatId, "Fiche introuvable.");
       return ok();
     }
+    await syncPaymentJournal(orderId);
     await say(chatId, `💯 CHF ${n} encaissés pour <b>${order.contact.firstName}</b> — tout est réglé, date bloquée ✓`);
     return ok();
   }
@@ -1626,6 +1634,7 @@ async function handleUpdate(update: TgUpdate, ok: () => NextResponse) {
       await say(chatId, "Fiche introuvable.");
       return ok();
     }
+    await syncPaymentJournal(orderId);
     await say(chatId, `💰 Solde de CHF ${n} enregistré pour <b>${order.contact.firstName}</b>.`);
     return ok();
   }

@@ -20,5 +20,8 @@ printf '%s' 'UPDATE "JournalEntry" SET "template" = CASE WHEN "type" = '"'"'CREA
 # Transitoire (numéro de commande, 2026-07) : numérote les commandes existantes
 # (orderNo séquentiel par tenant, ordre de création). Idempotent.
 /prisma-cli/node_modules/.bin/prisma db execute --file prisma/backfill-orderno.sql --schema prisma/schema.prisma || true
+# Transitoire (compta encaissements, 2026-07) : journal des paiements retro-rempli
+# depuis les champs des commandes (acompte/solde/pourboire/conserve). Idempotent.
+/prisma-cli/node_modules/.bin/prisma db execute --file prisma/backfill-payments.sql --schema prisma/schema.prisma || true
 echo "Carnet : démarrage."
 exec node server.js

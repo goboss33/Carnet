@@ -30,21 +30,20 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
   const pStart = new Date(Date.UTC(year - 1, 0, 1));
 
   const tenant = await currentTenant();
-  const [expenses, delivered, cancelledKept, expPrevAgg, delivPrev, keptPrev] = await Promise.all([
+  const [expenses, payments, payPrevAgg, expPrevAgg, delivered, delivPrev] = await Promise.all([
     prisma.expense.findMany({ where: { tenantId: tenant.id, status: "CONFIRMED", date: { gte: start, lt: end } } }),
-    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: start, lt: end } } }),
-    prisma.order.findMany({ where: { tenantId: tenant.id, status: "ANNULE", cancelledAt: { gte: start, lt: end }, OR: [{ depositCents: { gt: 0 } }, { balanceCents: { gt: 0 } }] } }),
+    // Journal des encaissements — LA source des recettes (trésorerie).
+    prisma.payment.findMany({ where: { tenantId: tenant.id, paidAt: { gte: start, lt: end } }, select: { cents: true, paidAt: true } }),
+    prisma.payment.aggregate({ where: { tenantId: tenant.id, paidAt: { gte: pStart, lt: start } }, _sum: { cents: true } }),
     prisma.expense.aggregate({ where: { tenantId: tenant.id, status: "CONFIRMED", date: { gte: pStart, lt: start } }, _sum: { totalCents: true } }),
-    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: pStart, lt: start } }, select: { priceQuoted: true, tipCents: true, deliveryMode: true, deliveryKm: true } }),
-    prisma.order.findMany({ where: { tenantId: tenant.id, status: "ANNULE", cancelledAt: { gte: pStart, lt: start }, OR: [{ depositCents: { gt: 0 } }, { balanceCents: { gt: 0 } }] }, select: { depositCents: true, balanceCents: true } }),
+    // Livraisons : uniquement pour les km déductibles.
+    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: start, lt: end } }, select: { deliveryMode: true, deliveryKm: true } }),
+    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: pStart, lt: start } }, select: { deliveryMode: true, deliveryKm: true } }),
   ]);
   const s = await getSettings(tenant.id);
 
-  // Pourboires inclus (cohérent avec la vue mensuelle et l'export).
   const months = Array.from({ length: 12 }, (_, i) => {
-    const rev =
-      delivered.filter((o) => o.deliveredAt!.getUTCMonth() === i).reduce((a, o) => a + (o.priceQuoted ?? 0) * 100 + (o.tipCents ?? 0), 0) +
-      cancelledKept.filter((o) => o.cancelledAt!.getUTCMonth() === i).reduce((a, o) => a + (o.depositCents ?? 0) + (o.balanceCents ?? 0), 0);
+    const rev = payments.filter((p) => p.paidAt.getUTCMonth() === i).reduce((a, p) => a + p.cents, 0);
     const exp = expenses.filter((e) => e.date.getUTCMonth() === i).reduce((a, e) => a + e.totalCents, 0);
     return { i, rev, exp };
   });
@@ -58,9 +57,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
 
   // Année précédente (deltas)
   const prevExp = expPrevAgg._sum.totalCents ?? 0;
-  const prevRev =
-    delivPrev.reduce((a, o) => a + (o.priceQuoted ?? 0) * 100 + (o.tipCents ?? 0), 0) +
-    keptPrev.reduce((a, o) => a + (o.depositCents ?? 0) + (o.balanceCents ?? 0), 0);
+  const prevRev = payPrevAgg._sum.cents ?? 0;
   const prevMileage = delivPrev.reduce((a, o) => a + (o.deliveryMode === "livraison" ? mileageCents(o.deliveryKm, s.kmRate) : 0), 0);
 
   const name = (i: number) => new Date(Date.UTC(2000, i, 1)).toLocaleDateString("fr-CH", { month: "long", timeZone: "UTC" });
@@ -68,7 +65,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
   const maxRev = Math.max(1, ...months.map((m) => m.rev));
 
   const kpis = [
-    { label: `Recettes ${year}`, value: chf(totRev), tone: "text-emerald-700", sub: `${delivered.length + cancelledKept.length} recettes`, delta: totRev - prevRev, good: "up" as const },
+    { label: `Encaissé ${year}`, value: chf(totRev), tone: "text-emerald-700", sub: `${payments.length} encaissement${payments.length > 1 ? "s" : ""}`, delta: totRev - prevRev, good: "up" as const },
     { label: `Dépenses ${year}`, value: chf(totExp), tone: "text-red-700", sub: vatYear > 0 ? `dont TVA ${chf(vatYear)}` : `${expenses.length} tickets`, delta: totExp - prevExp, good: "down" as const },
     { label: "Frais de déplacement", value: chf(mileageYear), tone: "text-zinc-900", sub: `forfait ${s.kmRate} CHF/km, A/R`, delta: mileageYear - prevMileage, good: null },
     { label: "Résultat imposable estimé", value: chf(totRev - totExp - mileageYear), tone: totRev - totExp - mileageYear >= 0 ? "text-zinc-900" : "text-red-700", sub: "recettes − dépenses − déplacements", delta: totRev - totExp - mileageYear - (prevRev - prevExp - prevMileage), good: "up" as const },

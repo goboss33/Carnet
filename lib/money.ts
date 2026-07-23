@@ -12,6 +12,22 @@ export const CATEGORIES: { id: string; label: string; emoji: string }[] = [
 
 export const catLabel = (id: string) => CATEGORIES.find((c) => c.id === id)?.label ?? id;
 
+/** Types d'écriture du journal des encaissements. */
+export const PAYKIND_LABEL: Record<string, string> = {
+  ACOMPTE: "acompte",
+  SOLDE: "solde",
+  POURBOIRE: "pourboire",
+  CORRECTION: "remboursement",
+  ACOMPTE_CONSERVE: "acompte conservé",
+};
+export const PAYKIND_TONE: Record<string, string> = {
+  ACOMPTE: "bg-violet-50 text-violet-700",
+  SOLDE: "bg-emerald-50 text-emerald-700",
+  POURBOIRE: "bg-amber-50 text-amber-700",
+  CORRECTION: "bg-red-50 text-red-700",
+  ACOMPTE_CONSERVE: "bg-zinc-100 text-zinc-600",
+};
+
 /** Teinte de pastille par catégorie (même langage que les statuts). */
 export const CAT_TONE: Record<string, string> = {
   MATIERES_PREMIERES: "bg-amber-50 text-amber-700",

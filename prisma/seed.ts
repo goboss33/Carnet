@@ -261,6 +261,22 @@ async function main() {
     },
   });
 
+  // 5quater. Journal des encaissements — miroir du backfill de prod : une
+  // écriture datée par mouvement (acompte / solde / pourboire / conservé).
+  const allOrders = await prisma.order.findMany({ where: { tenantId } });
+  const journal: Prisma.PaymentUncheckedCreateInput[] = [];
+  for (const o of allOrders) {
+    const dep = o.depositCents ?? 0, bal = o.balanceCents ?? 0, tip = o.tipCents ?? 0;
+    if (o.status === "ANNULE") {
+      if (dep + bal > 0) journal.push({ tenantId, orderId: o.id, kind: "ACOMPTE_CONSERVE", cents: dep + bal, paidAt: o.cancelledAt ?? o.depositPaidAt ?? new Date() });
+    } else {
+      if (dep > 0 && o.depositPaidAt) journal.push({ tenantId, orderId: o.id, kind: "ACOMPTE", cents: dep, paidAt: o.depositPaidAt });
+      if (bal > 0) journal.push({ tenantId, orderId: o.id, kind: "SOLDE", cents: bal, paidAt: o.balancePaidAt ?? o.deliveredAt ?? o.depositPaidAt ?? new Date() });
+    }
+    if (tip > 0) journal.push({ tenantId, orderId: o.id, kind: "POURBOIRE", cents: tip, paidAt: o.deliveredAt ?? new Date() });
+  }
+  if (journal.length) await prisma.payment.createMany({ data: journal });
+
   const counts = {
     contacts: await prisma.contact.count({ where: { tenantId } }),
     orders: await prisma.order.count({ where: { tenantId } }),

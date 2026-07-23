@@ -11,6 +11,7 @@ import { NEXT_STATUS } from "@/lib/statuts";
 import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
 import { getSettings } from "@/lib/settings";
 import { nextOrderNo } from "@/lib/order-number";
+import { syncPaymentJournal } from "@/lib/payment-journal";
 import type { OrderStatus, Source } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 
@@ -128,6 +129,7 @@ export async function advanceStatus(orderId: string) {
       activities: { create: { type: "STATUS", body: `Statut : ${order.status} → ${next}` } },
     },
   });
+  await syncPaymentJournal(orderId);
   revalidatePath("/");
   revalidatePath(`/commandes/${orderId}`);
   void syncOrderEvent(orderId).catch(() => null);
@@ -156,6 +158,7 @@ export async function moveOrderStatus(orderId: string, status: OrderStatus): Pro
       activities: { create: { type: "STATUS", body: `Statut : ${order.status} → ${status}` } },
     },
   });
+  await syncPaymentJournal(orderId);
   revalidatePath("/");
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/compta");
@@ -274,6 +277,7 @@ export async function recordPayment(orderId: string, formData: FormData) {
       activities: { create: { type: "STATUS", body: promote ? "Acompte encaissé — commande confirmée (Acompte reçu)." : "Paiement mis à jour depuis la fiche." } },
     },
   });
+  await syncPaymentJournal(orderId);
   if (promote) void syncOrderEvent(orderId).catch(() => null);
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
@@ -313,6 +317,7 @@ export async function savePayment(orderId: string, collectedChf: number, tipChf:
       activities: { create: { type: "STATUS", body: promote ? "Paiement encaissé — commande confirmée." : "Paiement mis à jour." } },
     },
   });
+  await syncPaymentJournal(orderId);
   if (promote) void syncOrderEvent(orderId).catch(() => null);
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
@@ -335,6 +340,7 @@ export async function markPaidInFull(orderId: string) {
       activities: { create: { type: "STATUS", body: `Payé en entier (CHF ${order.priceQuoted}) — depuis la fiche.` } },
     },
   });
+  await syncPaymentJournal(orderId);
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
 }
@@ -360,6 +366,7 @@ export async function markManyPaidInFull(formData: FormData) {
       })
     )
   );
+  for (const o of orders) await syncPaymentJournal(o.id);
   revalidatePath("/commandes");
   revalidatePath("/compta");
   revalidatePath("/");
@@ -375,6 +382,7 @@ export async function refundDeposit(orderId: string) {
       activities: { create: { type: "STATUS", body: "Acompte remboursé (annulation)." } },
     },
   });
+  await syncPaymentJournal(orderId);
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/compta");
   revalidatePath("/");
@@ -399,6 +407,7 @@ export async function cancelOrder(orderId: string, keptCents: number) {
       activities: { create: { type: "STATUS", body: kept > 0 ? `Annulée — conservé CHF ${Math.round(kept / 100)} (compté en recette).` : "Annulée — intégralement remboursée." } },
     },
   });
+  await syncPaymentJournal(orderId);
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
   revalidatePath("/compta");
@@ -425,6 +434,7 @@ export async function deliverOrder(orderId: string, collectedChf: number, tipChf
       activities: { create: { type: "STATUS", body: `Livrée — soldée${tip ? ` (+ pourboire CHF ${Math.round(tip / 100)})` : ""}.` } },
     },
   });
+  await syncPaymentJournal(orderId);
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
   revalidatePath("/compta");
@@ -697,7 +707,7 @@ export async function importCsv(
           ...paid,
           activities: { create: { type: "SYSTEM", body: "Importée depuis l'historique (CSV)." } },
         },
-      });
+      }).then((o) => syncPaymentJournal(o.id, deliveredAtVal ?? new Date()).then(() => o));
       created++;
     } catch (e) {
       errors.push(`ligne ${i + 1} : ${e instanceof Error ? e.message.slice(0, 80) : "erreur"}`);

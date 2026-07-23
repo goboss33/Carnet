@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, currentTenant } from "@/lib/db";
-import { catLabel, mileageCents } from "@/lib/money";
+import { catLabel, mileageCents, PAYKIND_LABEL } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +23,16 @@ export async function GET(req: NextRequest) {
   }
 
   const tenant = await currentTenant();
-  const [expenses, delivered, cancelledKept] = await Promise.all([
+  const [expenses, payments, delivered] = await Promise.all([
     prisma.expense.findMany({ where: { tenantId: tenant.id, status: "CONFIRMED", date: { gte: start, lt: end } }, orderBy: { date: "asc" } }),
-    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: start, lt: end } }, include: { contact: true }, orderBy: { deliveredAt: "asc" } }),
-    prisma.order.findMany({ where: { tenantId: tenant.id, status: "ANNULE", cancelledAt: { gte: start, lt: end }, OR: [{ depositCents: { gt: 0 } }, { balanceCents: { gt: 0 } }] }, include: { contact: true }, orderBy: { cancelledAt: "asc" } }),
+    // Journal des encaissements — comptabilité de trésorerie : une ligne par
+    // paiement reçu (ou remboursé, montant négatif), à sa date.
+    prisma.payment.findMany({
+      where: { tenantId: tenant.id, paidAt: { gte: start, lt: end } },
+      include: { order: { include: { contact: true } } },
+      orderBy: { paidAt: "asc" },
+    }),
+    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: start, lt: end } }, select: { deliveryMode: true, deliveryKm: true } }),
   ]);
 
   const s = await getSettings(tenant.id);
@@ -38,11 +44,16 @@ export async function GET(req: NextRequest) {
       : "";
   const rows = [
     ["type", "date", "libelle", "categorie", "montant_chf", "tva", "note"].join(";"),
-    ...delivered.map((o) =>
-      ["recette", o.deliveredAt!.toISOString().slice(0, 10), esc(`Commande ${o.contact.firstName} ${o.contact.lastName} — ${o.occasion}`), "vente", ((o.priceQuoted ?? 0) + (o.tipCents ?? 0) / 100).toFixed(2), "", o.tipCents ? esc(`dont pourboire ${(o.tipCents / 100).toFixed(2)}`) : ""].join(";")
-    ),
-    ...cancelledKept.map((o) =>
-      ["recette", o.cancelledAt!.toISOString().slice(0, 10), esc(`Acompte conservé — annulation ${o.contact.firstName} ${o.contact.lastName}`), "acompte conservé", (((o.depositCents ?? 0) + (o.balanceCents ?? 0)) / 100).toFixed(2), "", ""].join(";")
+    ...payments.map((p) =>
+      [
+        "recette",
+        p.paidAt.toISOString().slice(0, 10),
+        esc(`${p.order.contact.firstName} ${p.order.contact.lastName}${p.order.occasion ? ` — ${p.order.occasion}` : ""}${p.order.orderNo ? ` (#${String(p.order.orderNo).padStart(4, "0")})` : ""}`),
+        esc(PAYKIND_LABEL[p.kind] ?? p.kind),
+        (p.cents / 100).toFixed(2),
+        "",
+        "",
+      ].join(";")
     ),
     ...expenses.map((e) =>
       ["depense", e.date.toISOString().slice(0, 10), esc(e.merchant || "—"), esc(catLabel(e.category)), (e.totalCents / 100).toFixed(2), esc(vatTxt(e.vat)), esc(e.notes)].join(";")

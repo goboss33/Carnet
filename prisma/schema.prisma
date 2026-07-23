@@ -21,6 +21,7 @@ model Tenant {
   metrics   MetricSnapshot[]
   expenses  Expense[]
   partners  Partner[]
+  payments  Payment[]
   settings  Settings?
 }
 
@@ -147,6 +148,34 @@ model Contact {
   @@index([tenantId, phone])
 }
 
+/* Journal des encaissements (comptabilité de trésorerie) : chaque mouvement
+   d'argent réellement reçu (ou remboursé — montant négatif) est une écriture
+   datée. Une commande peut avoir plusieurs écritures (acompte déc. → solde
+   mars). La fiche reste pilotée par depositCents/balanceCents/tipCents ;
+   le journal est la source de vérité de la COMPTA. */
+enum PaymentKind {
+  ACOMPTE
+  SOLDE
+  POURBOIRE
+  CORRECTION // remboursement / ajustement (cents négatifs)
+  ACOMPTE_CONSERVE // legacy backfill : annulations historiques
+}
+
+model Payment {
+  id        String      @id @default(cuid())
+  tenantId  String
+  tenant    Tenant      @relation(fields: [tenantId], references: [id])
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  kind      PaymentKind
+  cents     Int // négatif = remboursement
+  paidAt    DateTime
+  createdAt DateTime    @default(now())
+
+  @@index([tenantId, paidAt])
+  @@index([orderId])
+}
+
 enum OrderStatus {
   LEAD
   DEVIS_ENVOYE
@@ -209,6 +238,7 @@ model Order {
   updatedAt       DateTime    @updatedAt
   activities      Activity[]
   aiMessages      AiMessage[]
+  payments        Payment[]
 
   @@index([tenantId, status])
   @@index([tenantId, eventDate])
