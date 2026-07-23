@@ -10,6 +10,7 @@ import { createSession, destroySession } from "@/lib/auth";
 import { NEXT_STATUS } from "@/lib/statuts";
 import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
 import { getSettings } from "@/lib/settings";
+import { nextOrderNo } from "@/lib/order-number";
 import type { OrderStatus, Source } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 
@@ -87,6 +88,7 @@ export async function createLead(_prev: { error?: string } | undefined, formData
   const order = await prisma.order.create({
     data: {
       tenantId: tenant.id,
+      orderNo: await nextOrderNo(tenant.id),
       contactId: contact.id,
       source: d.source as Source,
       occasion: d.occasion,
@@ -671,6 +673,7 @@ export async function importCsv(
       await prisma.order.create({
         data: {
           tenantId: tenant.id,
+          orderNo: await nextOrderNo(tenant.id),
           contactId: contact.id,
           status: statut,
           source: "AUTRE",
@@ -849,6 +852,7 @@ export async function duplicateOrder(orderId: string): Promise<{ error?: string;
   const copy = await prisma.order.create({
     data: {
       tenantId: tenant.id,
+      orderNo: await nextOrderNo(tenant.id),
       contactId: src.contactId,
       status: "LEAD",
       source: src.source,
@@ -902,6 +906,7 @@ export async function createOrderForContact(contactId: string, _prev: { error?: 
   const order = await prisma.order.create({
     data: {
       tenantId: contact.tenantId,
+      orderNo: await nextOrderNo(contact.tenantId),
       contactId,
       source: contact.source,
       occasion: d.occasion,

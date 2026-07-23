@@ -54,6 +54,11 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
     <SaveStatusProvider>
       <SaveToast />
       <PageHeader
+        eyebrow={
+          order.orderNo
+            ? <>Commande <span className="text-(--color-brand)">#{String(order.orderNo).padStart(4, "0")}</span></>
+            : undefined
+        }
         title={
           <ContactInfo
             contactId={c.id}

@@ -33,6 +33,7 @@ async function sendHelp(chatId: number) {
 
 import { getSettings } from "@/lib/settings";
 import { normPhone } from "@/lib/normalize";
+import { nextOrderNo } from "@/lib/order-number";
 import type { Source, ExpenseCategory } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -178,6 +179,7 @@ async function finishNc(chatId: number, tenantId: string, draft: Draft) {
   const order = await prisma.order.create({
     data: {
       tenantId,
+      orderNo: await nextOrderNo(tenantId),
       contactId,
       source: (draft.source ?? "AUTRE") as Source,
       occasion: draft.occasion ?? "",
@@ -463,6 +465,7 @@ async function createFromConversation(chatId: number, tenantId: string, conv: Co
   const order = await prisma.order.create({
     data: {
       tenantId,
+      orderNo: await nextOrderNo(tenantId),
       contactId: contact.id,
       status: convStatus(conv),
       source,

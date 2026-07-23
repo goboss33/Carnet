@@ -10,6 +10,7 @@ import { z } from "zod";
 import { prisma, currentTenant } from "@/lib/db";
 import { notifyAllInline, sendPhotosAll, sendAlbumAll } from "@/lib/telegram";
 import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
+import { nextOrderNo } from "@/lib/order-number";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
   const order = await prisma.order.create({
     data: {
       tenantId: tenant.id,
+      orderNo: await nextOrderNo(tenant.id),
       contactId: contact.id,
       status: "LEAD", // à traiter tant qu'Annie n'a pas répondu (l'e-mail auto n'est qu'une estimation)
       source: "CONFIGURATEUR",

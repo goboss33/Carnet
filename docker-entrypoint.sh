@@ -17,5 +17,8 @@ printf '%s' 'UPDATE "JournalEntry" SET "template" = CASE WHEN "type" = '"'"'CREA
 # importées sur la date d'événement (seul axe temporel réel) pour que les
 # statistiques de période fonctionnent. Idempotent.
 /prisma-cli/node_modules/.bin/prisma db execute --file prisma/backfill-kpi.sql --schema prisma/schema.prisma || true
+# Transitoire (numéro de commande, 2026-07) : numérote les commandes existantes
+# (orderNo séquentiel par tenant, ordre de création). Idempotent.
+/prisma-cli/node_modules/.bin/prisma db execute --file prisma/backfill-orderno.sql --schema prisma/schema.prisma || true
 echo "Carnet : démarrage."
 exec node server.js
