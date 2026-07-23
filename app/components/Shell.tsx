@@ -149,7 +149,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <main key={pathname} className="animate-page mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 md:py-8">{children}</main>
+      {/* overflow-x-clip : aucun contenu de page ne peut élargir l'app (clip ≠ hidden : ne crée pas de scroll container, préserve sticky et scroll vertical). */}
+      <main key={pathname} className="animate-page mx-auto w-full max-w-6xl overflow-x-clip px-4 py-6 sm:px-6 md:py-8">{children}</main>
     </div>
   );
 }
