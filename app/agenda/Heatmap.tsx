@@ -100,7 +100,7 @@ export default function Heatmap({ days, todayISO }: { days: Record<string, HeatD
                     cellCls,
                     "transition-transform",
                     filled ? cn(LEVEL_CLS[level(data!)], "cursor-pointer hover:scale-110") : past ? "cursor-default bg-zinc-50" : "cursor-default bg-zinc-100/80",
-                    isToday && "ring-2 ring-(--color-brand) ring-offset-1",
+                    isToday && "ring-[1.5px] ring-inset ring-(--color-brand)",
                   )}
                 >
                   {filled ? data!.count : ""}
