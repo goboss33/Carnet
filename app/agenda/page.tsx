@@ -70,27 +70,31 @@ function Card({ o, now, anchorId }: { o: OrderWithContact; now: Date; anchorId?:
             <span className="truncate font-semibold text-zinc-900">{o.contact.firstName} {o.contact.lastName}</span>
             {missing > 0 && <span className="size-2 shrink-0 rounded-full bg-amber-500" title={`${missing} donnée(s) manquante(s)`} />}
           </p>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-zinc-500">
-            <span className="inline-flex items-center gap-1.5 text-zinc-700">
+          {/* L2 — occasion (+ sans lactose) */}
+          <p className="mt-1 flex items-center gap-2 text-[13px]">
+            <span className="inline-flex min-w-0 items-center gap-1.5 text-zinc-700">
               <OccIcon className="size-3.5 shrink-0 text-(--color-brand)" />
-              {o.occasion ? occasionShort(o.occasion) : "à préciser"}
+              <span className="truncate">{o.occasion ? occasionShort(o.occasion) : "à préciser"}</span>
             </span>
-            {o.parts ? <span className="whitespace-nowrap">{o.parts} parts</span> : null}
+            {o.sansLactose && (
+              <span className="shrink-0" title="Sans lactose"><MilkOff className="size-3.5 text-red-500" /></span>
+            )}
+          </p>
+          {/* L3 — étages + parts */}
+          <p className="mt-1 text-[13px] text-zinc-500">
+            {[o.tiers ? `${o.tiers} étage${o.tiers > 1 ? "s" : ""}` : null, o.parts ? `${o.parts} parts` : null].filter(Boolean).join(" · ") || "—"}
+          </p>
+          {/* L4 — heure de remise + adresse (itinéraire) ou retrait atelier */}
+          <p className="mt-1 flex min-w-0 items-center gap-4 text-[12px]">
             {heure ? (
-              <span className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-zinc-700">
+              <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap font-medium text-zinc-700">
                 <Clock className="size-3.5 text-zinc-400" /> {heure}
               </span>
             ) : !isDevis ? (
-              <span className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-amber-600" title="Heure de remise à fixer">
+              <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap font-medium text-amber-600" title="Heure de remise à fixer">
                 <Clock className="size-3.5" /> --:--
               </span>
             ) : null}
-            {o.sansLactose && (
-              <span title="Sans lactose"><MilkOff className="size-3.5 text-red-500" /></span>
-            )}
-          </p>
-          {/* Remise : ligne dédiée — adresse cliquable (itinéraire) ou retrait atelier */}
-          <p className="mt-1 flex min-w-0 items-center text-[12px]">
             {o.deliveryMode === "livraison" ? (
               o.deliveryAddress ? (
                 <MapsLink address={o.deliveryAddress} className="relative z-[2] min-w-0 gap-1.5">
