@@ -66,26 +66,50 @@ function Card({ o, now, anchorId }: { o: OrderWithContact; now: Date; anchorId?:
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5">
-            <span className="truncate font-semibold text-zinc-900">{o.contact.firstName} {o.contact.lastName}</span>
-            {missing > 0 && <span className="size-2 shrink-0 rounded-full bg-amber-500" title={`${missing} donnée(s) manquante(s)`} />}
-          </p>
-          {/* L2 — occasion (+ sans lactose) */}
-          <p className="mt-1 flex items-center gap-2 text-[13px]">
-            <span className="inline-flex min-w-0 items-center gap-1.5 text-zinc-700">
-              <OccIcon className="size-3.5 shrink-0 text-(--color-brand)" />
-              <span className="truncate">{o.occasion ? occasionShort(o.occasion) : "à préciser"}</span>
-            </span>
-            {o.sansLactose && (
-              <span className="shrink-0" title="Sans lactose"><MilkOff className="size-3.5 text-red-500" /></span>
-            )}
-          </p>
-          {/* L3 — étages + parts */}
-          <p className="mt-1 text-[13px] text-zinc-500">
-            {[o.tiers ? `${o.tiers} étage${o.tiers > 1 ? "s" : ""}` : null, o.parts ? `${o.parts} parts` : null].filter(Boolean).join(" · ") || "—"}
-          </p>
-          {/* L4 — heure de remise + adresse (itinéraire) ou retrait atelier */}
-          <p className="mt-1 flex min-w-0 items-center gap-4 text-[12px]">
+          {/* Haut : infos (L1-L3) à gauche, statut + argent à droite */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-1.5">
+                <span className="truncate font-semibold text-zinc-900">{o.contact.firstName} {o.contact.lastName}</span>
+                {missing > 0 && <span className="size-2 shrink-0 rounded-full bg-amber-500" title={`${missing} donnée(s) manquante(s)`} />}
+              </p>
+              {/* L2 — occasion (+ sans lactose) */}
+              <p className="mt-1 flex items-center gap-2 text-[13px]">
+                <span className="inline-flex min-w-0 items-center gap-1.5 text-zinc-700">
+                  <OccIcon className="size-3.5 shrink-0 text-(--color-brand)" />
+                  <span className="truncate">{o.occasion ? occasionShort(o.occasion) : "à préciser"}</span>
+                </span>
+                {o.sansLactose && (
+                  <span className="shrink-0" title="Sans lactose"><MilkOff className="size-3.5 text-red-500" /></span>
+                )}
+              </p>
+              {/* L3 — étages + parts */}
+              <p className="mt-1 text-[13px] text-zinc-500">
+                {[o.tiers ? `${o.tiers} étage${o.tiers > 1 ? "s" : ""}` : null, o.parts ? `${o.parts} parts` : null].filter(Boolean).join(" · ") || "—"}
+              </p>
+            </div>
+
+            {/* Statut + argent */}
+            <div className="shrink-0 text-right">
+              <span className={cn("inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold", STATUS_TONE[o.status] ?? "bg-zinc-100 text-zinc-600")}>
+                {STATUS_LABEL[o.status] ?? o.status}
+              </span>
+              {pay.hasTotal && (
+                <p className="mt-1.5 text-[11px] font-medium">
+                  {isDevis ? (
+                    <span className="text-zinc-400">CHF {o.priceQuoted}</span>
+                  ) : pay.isPaid ? (
+                    <span className="text-emerald-600">soldé ✓</span>
+                  ) : (
+                    <span className={pay.paidCents > 0 ? "text-amber-600" : "text-zinc-500"}>reste CHF {pay.dueCents / 100}</span>
+                  )}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* L4 — pleine largeur (sous le badge) : heure de remise + adresse ou retrait */}
+          <p className="mt-1.5 flex min-w-0 items-center gap-4 text-[12px]">
             {heure ? (
               <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap font-medium text-zinc-700">
                 <Clock className="size-3.5 text-zinc-400" /> {heure}
@@ -102,30 +126,12 @@ function Card({ o, now, anchorId }: { o: OrderWithContact; now: Date; anchorId?:
                   <span className="truncate">{shortAddress(o.deliveryAddress)}</span>
                 </MapsLink>
               ) : (
-                <span className="inline-flex items-center gap-1.5 font-medium text-amber-600"><Truck className="size-3.5 shrink-0" /> Livraison — adresse ?</span>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium text-amber-600"><Truck className="size-3.5 shrink-0" /> Livraison — adresse ?</span>
               )
             ) : (
-              <span className="inline-flex items-center gap-1.5 text-zinc-400"><Store className="size-3.5 shrink-0" /> Retrait atelier</span>
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-zinc-400"><Store className="size-3.5 shrink-0" /> Retrait atelier</span>
             )}
           </p>
-        </div>
-
-        {/* Statut + argent */}
-        <div className="shrink-0 text-right">
-          <span className={cn("inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold", STATUS_TONE[o.status] ?? "bg-zinc-100 text-zinc-600")}>
-            {STATUS_LABEL[o.status] ?? o.status}
-          </span>
-          {pay.hasTotal && (
-            <p className="mt-1.5 text-[11px] font-medium">
-              {isDevis ? (
-                <span className="text-zinc-400">CHF {o.priceQuoted}</span>
-              ) : pay.isPaid ? (
-                <span className="text-emerald-600">soldé ✓</span>
-              ) : (
-                <span className={pay.paidCents > 0 ? "text-amber-600" : "text-zinc-500"}>reste CHF {pay.dueCents / 100}</span>
-              )}
-            </p>
-          )}
         </div>
     </li>
   );
