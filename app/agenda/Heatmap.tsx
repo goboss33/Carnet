@@ -53,12 +53,12 @@ export default function Heatmap({ days, todayISO }: { days: Record<string, HeatD
     document.getElementById(`day-${dISO}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
-  const cellCls = "flex size-5 items-center justify-center rounded-[4px] text-[10px] font-semibold tabular-nums";
+  const cellCls = "flex size-4 items-center justify-center rounded-[3px] text-[9px] font-semibold tabular-nums sm:size-5 sm:rounded-[4px] sm:text-[10px]";
 
   return (
-    <div className="mx-auto mb-7 w-fit max-w-full overflow-x-auto rounded-2xl border border-zinc-200 bg-white p-4">
+    <div className="mx-auto mb-7 w-fit max-w-full overflow-x-auto rounded-2xl border border-zinc-200 bg-white p-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:p-4">
       <div
-        className="grid w-max gap-[3px]"
+        className="grid w-max gap-[2px] sm:gap-[3px]"
         style={{ gridTemplateColumns: `auto repeat(${weeks.length}, min-content)` }}
       >
         {/* Rangée des étiquettes de mois — en absolu pour ne pas élargir les colonnes */}
