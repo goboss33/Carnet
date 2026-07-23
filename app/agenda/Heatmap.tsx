@@ -53,13 +53,13 @@ export default function Heatmap({ days, todayISO }: { days: Record<string, HeatD
     document.getElementById(`day-${dISO}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
-  const cellCls = "mx-auto flex aspect-square w-full min-w-3.5 max-w-[26px] items-center justify-center rounded-[4px] text-[10px] font-semibold tabular-nums";
+  const cellCls = "flex size-5 items-center justify-center rounded-[4px] text-[10px] font-semibold tabular-nums";
 
   return (
-    <div className="mb-7 min-w-0 max-w-full rounded-2xl border border-zinc-200 bg-white p-4">
+    <div className="mb-7 min-w-0 max-w-full overflow-x-auto rounded-2xl border border-zinc-200 bg-white p-4">
       <div
-        className="grid w-full gap-[3px]"
-        style={{ gridTemplateColumns: `auto repeat(${weeks.length}, minmax(0, 1fr))` }}
+        className="grid w-max gap-[3px]"
+        style={{ gridTemplateColumns: `auto repeat(${weeks.length}, min-content)` }}
       >
         {/* Rangée des étiquettes de mois */}
         <div />
