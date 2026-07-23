@@ -5,7 +5,7 @@
    l'input natif est superposé, invisible, pour ouvrir le sélecteur du système. */
 
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 
 export default function MonthNav({ month, prev, next, label }: { month: string; prev: string; next: string; label: string }) {
   const router = useRouter();
@@ -15,8 +15,10 @@ export default function MonthNav({ month, prev, next, label }: { month: string; 
       <button type="button" onClick={() => go(prev)} aria-label="Mois précédent" className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800">
         <ChevronLeft className="size-4" />
       </button>
-      <span className="relative">
-        <span className="block min-w-28 px-1 text-center text-[13px] font-semibold capitalize text-zinc-800">{label}</span>
+      <span className="relative rounded-md transition-colors hover:bg-zinc-100" title="Cliquer pour choisir un mois précis">
+        <span className="flex min-w-28 items-center justify-center gap-1 px-1.5 py-1 text-[13px] font-semibold capitalize text-zinc-800">
+          {label} <ChevronDown className="size-3.5 text-zinc-400" />
+        </span>
         <input
           type="month"
           value={month}

@@ -22,6 +22,13 @@ const day = (offset: number, h = 10, m = 0) => {
   return d;
 };
 
+/** Jour PRÉCIS d'un mois relatif (0 = mois courant, -1 = mois dernier…) —
+    ancré au mois, pour que la compta ait toujours des données des deux mois. */
+const dm = (monthOffset: number, dayOfMonth: number, h = 12) => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + monthOffset, dayOfMonth, h, 0, 0, 0);
+};
+
 async function main() {
   // 1. Tenant (auto-créé aussi par l'app, mais on le garantit ici)
   const tenant = await prisma.tenant.upsert({
@@ -36,6 +43,7 @@ async function main() {
   await prisma.order.deleteMany({ where: { tenantId } }); // cascade Activity/AiMessage
   await prisma.contact.deleteMany({ where: { tenantId } });
   await prisma.studioAsset.deleteMany({ where: { tenantId } });
+  await prisma.expense.deleteMany({ where: { tenantId } });
 
   // 3. Réglages — Studio activé pour voir les onglets Contenu / Journal
   await prisma.settings.upsert({
@@ -135,7 +143,7 @@ async function main() {
     occasion: "Anniversaire 5 ans", celebrant: "Chloé", celebrantAge: 5, parts: 20,
     themeNote: "Licorne pastel et arc-en-ciel", eventDate: day(-8, 15),
     priceQuoted: 250, depositCents: 7500, depositPaidAt: day(-20),
-    balanceCents: 17500, balancePaidAt: day(-8), deliveredAt: day(-8, 14),
+    balanceCents: 17500, balancePaidAt: day(-8), deliveredAt: day(-8, 14), tipCents: 1000,
     revenueCategory: RevenueCategory.SUR_MESURE,
     reviewAskedAt: day(-6), notes: "Livraison parfaite, cliente ravie.",
   });
@@ -143,7 +151,7 @@ async function main() {
     tenantId, contactId: marc.id, status: OrderStatus.LIVRE, source: Source.TELEPHONE,
     occasion: "Gâteau d'entreprise", parts: 40, themeNote: "Logo société, bleu corporate",
     eventDate: day(-15, 12), priceQuoted: 480, balancePaidAt: day(-15), deliveredAt: day(-15, 11),
-    revenueCategory: RevenueCategory.B2B, deliveryMode: "livraison", deliveryAddress: "Rue de Genève 7, Lausanne",
+    revenueCategory: RevenueCategory.B2B, deliveryMode: "livraison", deliveryAddress: "Rue de Genève 7, Lausanne", deliveryKm: 6,
   });
   await mk({
     tenantId, contactId: daniela.id, status: OrderStatus.LIVRE, source: Source.BOUCHE_A_OREILLE,
@@ -159,6 +167,72 @@ async function main() {
     priceQuoted: 90, cancelledAt: day(-42), revenueCategory: RevenueCategory.COLLECTION,
     notes: "Annulée par la cliente — report indéterminé.",
   });
+
+  // 5bis. Compta — livraisons & annulation ANCRÉES sur le mois courant et le
+  // mois précédent (les KPI de la Compta comparent les deux).
+  await mk({
+    tenantId, contactId: nadia.id, status: OrderStatus.LIVRE, source: Source.FACEBOOK,
+    occasion: "Anniversaire d'adulte", parts: 16, themeNote: "Pistache et framboise",
+    eventDate: dm(0, 3, 15), deliveredAt: dm(0, 3, 14),
+    priceQuoted: 180, depositCents: 5400, depositPaidAt: dm(0, 1), // solde pas encore réglé
+    revenueCategory: RevenueCategory.SUR_MESURE,
+  });
+  await mk({
+    tenantId, contactId: vlora.id, status: OrderStatus.LIVRE, source: Source.WHATSAPP,
+    occasion: "Anniversaire d'enfant", celebrant: "Ardit", celebrantAge: 7, parts: 22,
+    themeNote: "Football, gazon et maillot", eventDate: dm(0, 5, 16), deliveredAt: dm(0, 5, 15),
+    priceQuoted: 230, depositCents: 6900, depositPaidAt: dm(-1, 20),
+    balanceCents: 16100, balancePaidAt: dm(0, 5), tipCents: 500,
+    revenueCategory: RevenueCategory.SUR_MESURE,
+    deliveryMode: "livraison", deliveryAddress: "Chemin de la Forêt 3, 1010 Lausanne", deliveryKm: 5,
+  });
+  await mk({
+    tenantId, contactId: julie.id, status: OrderStatus.ANNULE, source: Source.INSTAGRAM,
+    occasion: "Baby shower", parts: 15, themeNote: "Petits nuages",
+    eventDate: dm(0, 20, 15), cancelledAt: dm(0, 2),
+    priceQuoted: 190, depositCents: 5700, depositPaidAt: dm(-1, 25),
+    revenueCategory: RevenueCategory.SUR_MESURE,
+    notes: "Annulation tardive — acompte conservé (convenu avec la cliente).",
+  });
+  // Mois précédent : deux livraisons soldées (pour les deltas)
+  await mk({
+    tenantId, contactId: celine.id, status: OrderStatus.LIVRE, source: Source.CONFIGURATEUR,
+    occasion: "Anniversaire d'enfant", celebrant: "Mia", celebrantAge: 4, parts: 20,
+    themeNote: "Sirène, écailles turquoise", eventDate: dm(-1, 12, 15), deliveredAt: dm(-1, 12, 14),
+    priceQuoted: 260, depositCents: 7800, depositPaidAt: dm(-2, 28),
+    balanceCents: 18200, balancePaidAt: dm(-1, 12),
+    revenueCategory: RevenueCategory.SUR_MESURE,
+  });
+  await mk({
+    tenantId, contactId: marc.id, status: OrderStatus.LIVRE, source: Source.TELEPHONE,
+    occasion: "Événement d'entreprise", parts: 35, themeNote: "Anniversaire de la société",
+    eventDate: dm(-1, 24, 12), deliveredAt: dm(-1, 24, 11),
+    priceQuoted: 420, depositCents: 12600, depositPaidAt: dm(-2, 10),
+    balanceCents: 29400, balancePaidAt: dm(-1, 24),
+    revenueCategory: RevenueCategory.B2B,
+    deliveryMode: "livraison", deliveryAddress: "Avenue d'Ouchy 40, Lausanne", deliveryKm: 7,
+  });
+
+  // 5ter. Dépenses — mois courant + mois précédent + brouillons du bot
+  const exp = (data: Prisma.ExpenseUncheckedCreateInput) => prisma.expense.create({ data });
+  // Mois courant
+  await exp({ tenantId, status: "CONFIRMED", date: dm(0, 2), merchant: "Migros", category: "MATIERES_PREMIERES", totalCents: 8745, notes: "Beurre, œufs, mascarpone" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(0, 4), merchant: "Aligro", category: "MATIERES_PREMIERES", totalCents: 15630, notes: "Chocolat de couverture, farine" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(0, 6), merchant: "Boxes & Co", category: "EMBALLAGE", totalCents: 4520, notes: "Boîtes à gâteaux 30 cm" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(0, 9), merchant: "Landi", category: "MATERIEL", totalCents: 2990, notes: "Spatules + douilles" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(0, 11), merchant: "Shell", category: "DEPLACEMENT", totalCents: 6210, notes: "Plein essence" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(0, 14), merchant: "Meta Ads", category: "MARKETING", totalCents: 5000, notes: "Campagne Instagram juillet" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(0, 15), merchant: "Coop", category: "MATIERES_PREMIERES", totalCents: 3260, notes: "Fruits frais décor" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(0, 16), merchant: "Poste", category: "AUTRE", totalCents: 1250, notes: "" });
+  // Mois précédent (pour les deltas)
+  await exp({ tenantId, status: "CONFIRMED", date: dm(-1, 3), merchant: "Migros", category: "MATIERES_PREMIERES", totalCents: 11420, notes: "" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(-1, 8), merchant: "Aligro", category: "MATIERES_PREMIERES", totalCents: 9880, notes: "" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(-1, 12), merchant: "Boxes & Co", category: "EMBALLAGE", totalCents: 6300, notes: "" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(-1, 18), merchant: "Shell", category: "DEPLACEMENT", totalCents: 5480, notes: "" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(-1, 22), merchant: "Fust", category: "MATERIEL", totalCents: 12900, notes: "Batteur remplacé" });
+  // Brouillons (comme envoyés par le bot, à compléter)
+  await exp({ tenantId, status: "DRAFT", date: dm(0, 17), merchant: "Denner", category: "MATIERES_PREMIERES", totalCents: 0, notes: "" });
+  await exp({ tenantId, status: "DRAFT", date: dm(0, 18), merchant: "", category: "AUTRE", totalCents: 2340, notes: "" });
 
   // 6. Journal — 2 entrées (une publiée liée à la licorne livrée, un brouillon guide)
   await prisma.journalEntry.create({
@@ -191,6 +265,7 @@ async function main() {
     contacts: await prisma.contact.count({ where: { tenantId } }),
     orders: await prisma.order.count({ where: { tenantId } }),
     journal: await prisma.journalEntry.count({ where: { tenantId } }),
+    depenses: await prisma.expense.count({ where: { tenantId } }),
   };
   console.log(`✅ Seed terminé pour « ${NAME} » :`, counts);
 }

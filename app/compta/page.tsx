@@ -149,12 +149,20 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
                     {o.deliveryKm * 2} km · {chf(mileageCents(o.deliveryKm, s.kmRate))}
                   </span>
                 ) : null}
-                {!pay.isPaid && pay.dueCents > 0 && (
-                  <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">reste {chf(pay.dueCents)}</span>
-                )}
-                <span className="ml-auto whitespace-nowrap font-semibold tabular-nums text-zinc-900">
-                  {chf((o.priceQuoted ?? 0) * 100)}
-                  {o.tipCents ? <span className="ml-1 text-[11px] font-normal text-emerald-600">+{chf(o.tipCents)}</span> : null}
+                <span className="ml-auto shrink-0 text-right" title={`Encaissé ${chf(pay.paidCents)} / ${chf(pay.totalCents)}`}>
+                  <span className="whitespace-nowrap font-semibold tabular-nums text-zinc-900">
+                    {chf((o.priceQuoted ?? 0) * 100)}
+                    {o.tipCents ? <span className="ml-1 text-[11px] font-normal text-emerald-600">+{chf(o.tipCents)}</span> : null}
+                  </span>
+                  <span className="mt-1 block h-1 w-20 overflow-hidden rounded-full bg-zinc-100">
+                    <span
+                      className={cn("block h-full rounded-full", pay.isPaid ? "bg-emerald-500" : pay.paidCents > 0 ? "bg-amber-500" : "bg-red-500")}
+                      style={{ width: `${Math.max(pay.totalCents > 0 ? Math.min(100, Math.round((pay.paidCents / pay.totalCents) * 100)) : 0, pay.paidCents > 0 ? 6 : 0)}%` }}
+                    />
+                  </span>
+                  {!pay.isPaid && pay.dueCents > 0 && (
+                    <span className="mt-0.5 block text-[11px] font-medium text-amber-600">reste {chf(pay.dueCents)}</span>
+                  )}
                 </span>
               </Link>
             );
