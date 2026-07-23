@@ -8,6 +8,7 @@ import { cn } from "@/lib/ui";
 import { PageHeader } from "@/components/ui/page-header";
 import { Truck, Store, Clock, MilkOff, MapPin } from "lucide-react";
 import { MapsLink, shortAddress } from "@/components/ui/map-link";
+import Heatmap, { type HeatDay } from "./Heatmap";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,9 @@ function startOfWeek(d: Date): Date {
   return x;
 }
 
-function Card({ o, now }: { o: OrderWithContact; now: Date }) {
+const localISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+function Card({ o, now, anchorId }: { o: OrderWithContact; now: Date; anchorId?: string }) {
   const d = o.eventDate!;
   const days = Math.ceil((d.getTime() - now.getTime()) / 86400000);
   const jx = days <= 0 ? "aujourd'hui" : days === 1 ? "demain" : `J-${days}`;
@@ -42,8 +45,9 @@ function Card({ o, now }: { o: OrderWithContact; now: Date }) {
 
   return (
     <li
+      id={anchorId}
       className={cn(
-        "relative flex items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-3.5 transition-shadow hover:shadow-sm",
+        "relative flex scroll-mt-24 items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-3.5 transition-shadow hover:shadow-sm",
         isDevis && "opacity-55 hover:opacity-90"
       )}
     >
@@ -136,6 +140,24 @@ export default async function Agenda() {
     orderBy: { eventDate: "asc" },
   });
 
+  // Heatmap : charge par jour (commandes confirmées/en production uniquement).
+  const heatDays: Record<string, HeatDay> = {};
+  for (const o of orders) {
+    if (o.status === "DEVIS_ENVOYE") continue;
+    const key = localISO(o.eventDate!);
+    const h = (heatDays[key] ??= { count: 0, parts: 0 });
+    h.count++;
+    h.parts += o.parts ?? 0;
+  }
+  // Ancre du 1er gâteau de chaque jour (cible du clic sur la heatmap).
+  const seenDays = new Set<string>();
+  const anchorFor = (o: OrderWithContact): string | undefined => {
+    const key = localISO(o.eventDate!);
+    if (seenDays.has(key)) return undefined;
+    seenDays.add(key);
+    return `day-${key}`;
+  };
+
   // Groupes : cette semaine, semaine prochaine (toujours affichés), puis par mois.
   const w1 = new Date(startOfWeek(now).getTime() + 7 * 86400000);
   const w2 = new Date(w1.getTime() + 7 * 86400000);
@@ -165,6 +187,7 @@ export default async function Agenda() {
         title="Agenda de production"
         subtitle="Les événements à venir, par date — ce qui doit sortir de l'atelier."
       />
+      <Heatmap days={heatDays} todayISO={localISO(now)} />
       <div className="space-y-7">
         {groups.filter((g) => g.always || g.items.length > 0).map((g) => {
           // Charge : seuls les gâteaux à produire comptent (les devis non confirmés sont exclus).
@@ -182,7 +205,7 @@ export default async function Agenda() {
               </div>
               {g.items.length > 0 ? (
                 <ul className="space-y-2">
-                  {g.items.map((o) => <Card key={o.id} o={o} now={now} />)}
+                  {g.items.map((o) => <Card key={o.id} o={o} now={now} anchorId={anchorFor(o)} />)}
                 </ul>
               ) : (
                 <div className="rounded-xl border border-dashed border-zinc-200 px-5 py-6 text-center text-sm text-zinc-400">
