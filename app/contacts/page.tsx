@@ -18,7 +18,7 @@ export default async function Contacts() {
       // l'ensemble pour l'index de recherche (occasions, thèmes, fêté·e·s, notes).
       orders: {
         orderBy: { eventDate: "desc" },
-        select: { id: true, occasion: true, eventDate: true, priceQuoted: true, themeNote: true, celebrant: true, notes: true },
+        select: { id: true, occasion: true, eventDate: true, priceQuoted: true, themeNote: true, celebrant: true, notes: true, depositCents: true, balanceCents: true, tipCents: true },
       },
       _count: { select: { orders: true } },
     },
@@ -28,6 +28,8 @@ export default async function Contacts() {
   const rows: Row[] = contacts.map((c) => {
     const o = c.orders[0];
     const name = `${c.firstName} ${c.lastName}`.trim();
+    // Encaissé réel cumulé : acomptes + soldes + pourboires, toutes commandes.
+    const totalCents = c.orders.reduce((a, x) => a + (x.depositCents ?? 0) + (x.balanceCents ?? 0) + (x.tipCents ?? 0), 0);
     const search = [
       name,
       c.phone, c.email, c.instagram, c.facebook, c.notes,
@@ -51,7 +53,7 @@ export default async function Contacts() {
       occasion: o?.occasion ?? "",
       dateLabel: o?.eventDate ? fmtDate(o.eventDate) : "—",
       dateISO: o?.eventDate ? o.eventDate.toISOString() : null,
-      price: o?.priceQuoted ?? null,
+      totalCents,
       ordersCount: c._count.orders,
       search,
     };

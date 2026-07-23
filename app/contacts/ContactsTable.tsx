@@ -34,7 +34,7 @@ export type Row = {
   occasion: string; // dernière occasion
   dateLabel: string;
   dateISO: string | null;
-  price: number | null;
+  totalCents: number; // encaissé réel cumulé (acomptes + soldes + pourboires)
   ordersCount: number;
   search: string; // index de recherche (contact + toutes ses commandes)
 };
@@ -42,7 +42,7 @@ export type Row = {
 const ACCESSORS = {
   name: (r: Row) => r.name.toLowerCase(),
   date: (r: Row) => r.dateISO,
-  price: (r: Row) => r.price,
+  total: (r: Row) => r.totalCents,
   orders: (r: Row) => r.ordersCount,
 } as Record<string, (r: Row) => string | number | null>;
 
@@ -174,7 +174,7 @@ export default function ContactsTable({ rows }: { rows: Row[] }) {
             <TH>Dernière occasion</TH>
             <SortableTH label="Date" k="date" sort={sort} onToggle={toggle} />
             <SortableTH label="Commandes" k="orders" sort={sort} onToggle={toggle} className="text-right" align="right" />
-            <SortableTH label="Prix" k="price" sort={sort} onToggle={toggle} className="text-right" align="right" />
+            <SortableTH label="Total" k="total" sort={sort} onToggle={toggle} className="text-right" align="right" />
             <TH className="w-10" />
           </tr>
         </THead>
@@ -221,7 +221,9 @@ export default function ContactsTable({ rows }: { rows: Row[] }) {
                 </TD>
                 <TD className="whitespace-nowrap tabular-nums text-zinc-500">{r.dateLabel}</TD>
                 <TD className="text-right"><Badge variant="outline">{r.ordersCount}</Badge></TD>
-                <TD className="text-right font-medium tabular-nums text-zinc-900">{r.price ? `CHF ${r.price}` : "—"}</TD>
+                <TD className="text-right font-medium tabular-nums text-zinc-900">
+                  {r.totalCents > 0 ? `CHF ${(r.totalCents / 100) % 1 ? (r.totalCents / 100).toFixed(2) : r.totalCents / 100}` : "—"}
+                </TD>
                 <TD className="w-10" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                   <RowMenu
                     actions={[
