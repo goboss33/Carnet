@@ -15,6 +15,7 @@ import {
 import { logout } from "@/app/actions";
 import { cn } from "@/lib/ui";
 import RouteProgress from "./RouteProgress";
+import NotificationsBell from "@/components/notifications-bell";
 
 const NAV = [
   { href: "/", label: "Pipeline", Icon: KanbanSquare },
@@ -82,12 +83,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <RouteProgress />
       {/* -------------------------------------------------- sidebar desktop */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-56 flex-col border-r border-(--color-line) bg-white md:flex">
-        <Link href="/" className="flex h-14 items-center gap-2 border-b border-(--color-line) px-4">
-          <span className="flex size-6 items-center justify-center rounded-md bg-(--color-brand) text-[13px] font-bold text-white">
-            {brand.charAt(0).toUpperCase()}
-          </span>
-          <span className="text-[15px] font-semibold tracking-tight text-zinc-900">{brand}</span>
-        </Link>
+        <div className="flex h-14 items-center gap-2 border-b border-(--color-line) px-4">
+          <Link href="/" className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-(--color-brand) text-[13px] font-bold text-white">
+              {brand.charAt(0).toUpperCase()}
+            </span>
+            <span className="truncate text-[15px] font-semibold tracking-tight text-zinc-900">{brand}</span>
+          </Link>
+          <NotificationsBell />
+        </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
           <NavLinks pathname={pathname} studio={studio} />
         </nav>
@@ -120,13 +124,16 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </span>
             <span className="text-[15px] font-semibold tracking-tight text-zinc-900">{brand}</span>
           </Link>
-          <button
-            onClick={() => setOpen((v) => !v)}
-            aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
-            className="rounded-lg p-2 text-zinc-600 transition-colors hover:bg-zinc-100"
-          >
-            {open ? <X className="size-5" /> : <Menu className="size-5" />}
-          </button>
+          <div className="flex items-center gap-1">
+            <NotificationsBell />
+            <button
+              onClick={() => setOpen((v) => !v)}
+              aria-label={open ? "Fermer le menu" : "Ouvrir le menu"}
+              className="rounded-lg p-2 text-zinc-600 transition-colors hover:bg-zinc-100"
+            >
+              {open ? <X className="size-5" /> : <Menu className="size-5" />}
+            </button>
+          </div>
         </div>
       </header>
 

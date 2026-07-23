@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
-import { chf, CATEGORIES, mileageCents } from "@/lib/money";
+import { chf, mileageCents } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
 import { paymentState } from "@/lib/payments";
-import { updateExpense, deleteExpense, purgeEmptyDrafts } from "@/app/actions";
-import { FileText, Camera, Download, ArrowUpRight, ArrowDownRight, HandCoins } from "lucide-react";
-import MediaViewer from "@/app/components/MediaViewer";
+import { Download, ArrowUpRight, ArrowDownRight, HandCoins } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import MonthNav from "./MonthNav";
 import ExpensesSection, { type ExpenseRow } from "./ExpensesSection";
@@ -13,8 +11,6 @@ import RecettesTable, { type PayRow } from "./RecettesTable";
 import { cn } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
-
-const input = "rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-(--color-brand)";
 
 function monthRange(m: string) {
   const [y, mo] = m.split("-").map(Number);
@@ -50,9 +46,8 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
 
   const tenant = await currentTenant();
   const pRange = { gte: prevD, lt: start };
-  const [expenses, drafts, payments, payPrevAgg, delivered, delivPrev, unpaidDelivered] = await Promise.all([
+  const [expenses, payments, payPrevAgg, delivered, delivPrev, unpaidDelivered] = await Promise.all([
     prisma.expense.findMany({ where: { tenantId: tenant.id, status: "CONFIRMED", date: { gte: start, lt: end } }, orderBy: { date: "desc" } }),
-    prisma.expense.findMany({ where: { tenantId: tenant.id, status: "DRAFT" }, orderBy: { createdAt: "desc" } }),
     // Journal des encaissements du mois — LA source des recettes (comptabilité de trésorerie).
     prisma.payment.findMany({
       where: { tenantId: tenant.id, paidAt: { gte: start, lt: end } },
@@ -183,44 +178,6 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
           </div>
         )}
       </div>
-
-      {/* Tickets à compléter (bot) */}
-      {drafts.length > 0 && (
-        <div className="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:p-5">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-amber-800">{drafts.length} ticket{drafts.length > 1 ? "s" : ""} à compléter</p>
-            <form action={purgeEmptyDrafts}>
-              <button className="text-xs font-semibold text-amber-700 underline-offset-2 hover:underline">Vider les brouillons vides</button>
-            </form>
-          </div>
-          <div className="space-y-3">
-            {drafts.map((e) => (
-              <form key={e.id} action={updateExpense.bind(null, e.id)} className="grid grid-cols-2 items-center gap-2 rounded-xl border border-amber-200/70 bg-white/60 p-2.5 sm:flex sm:flex-wrap">
-                {e.receiptPath && (
-                  <MediaViewer
-                    src={`/api/receipts/${e.receiptPath}`}
-                    kind={e.receiptPath.endsWith(".pdf") ? "pdf" : "image"}
-                    className="col-span-2 inline-flex w-fit items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-[13px] font-medium text-zinc-600 hover:border-zinc-400 sm:col-span-1"
-                    title="Voir le justificatif"
-                  >
-                    {e.receiptPath.endsWith(".pdf") ? <FileText className="size-4" /> : <Camera className="size-4" />} Justificatif
-                  </MediaViewer>
-                )}
-                <input name="date" type="date" defaultValue={e.date.toISOString().slice(0, 10)} className={input} />
-                <input name="totalChf" type="number" step="0.05" min="0" placeholder="CHF *" required defaultValue={e.totalCents ? e.totalCents / 100 : ""} className={cn(input, "font-semibold sm:w-28")} />
-                <input name="merchant" placeholder="Commerçant" defaultValue={e.merchant} className={input} />
-                <select name="category" defaultValue={e.category} className={input}>
-                  {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
-                </select>
-                <div className="col-span-2 flex items-center justify-end gap-3 sm:col-span-1 sm:ml-auto">
-                  <button formAction={deleteExpense.bind(null, e.id)} className="text-[13px] text-zinc-400 hover:text-red-600">Supprimer</button>
-                  <button className="rounded-lg bg-zinc-900 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-zinc-700">Valider</button>
-                </div>
-              </form>
-            ))}
-          </div>
-        </div>
-      )}
 
       <ExpensesSection rows={expenseRows} />
 

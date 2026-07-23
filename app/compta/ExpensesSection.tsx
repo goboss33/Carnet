@@ -7,12 +7,12 @@
    VERTICALES par catégorie (cliquables = filtre) ; recherche live.
    « + Dépense » ouvre la même modale, vide. */
 
-import { useMemo, useRef, useState, useEffect, useTransition } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createPortal } from "react-dom";
-import { Plus, X, Check, Download, Trash2, CheckCheck, FileText, Camera, Receipt } from "lucide-react";
+import { Plus, Check, Download, Trash2, CheckCheck, FileText, Camera, Receipt } from "lucide-react";
 import { toast } from "sonner";
-import { updateExpense, createExpense, deleteExpense, deleteManyExpenses } from "@/app/actions";
+import { deleteManyExpenses } from "@/app/actions";
+import { ExpenseModal } from "@/components/expense-modal";
 import { CATEGORIES, CAT_TONE, CAT_BAR, catLabel, chf } from "@/lib/money";
 import { SelectionBar, SelectionAction } from "@/components/ui/selection-bar";
 import { downloadCSV, useConfirm, useSort, SortableTH } from "@/components/ui/table-kit";
@@ -32,7 +32,6 @@ export type ExpenseRow = {
 };
 
 const fieldCls = "h-9 w-full rounded-lg border border-zinc-300 bg-white px-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-(--color-brand)";
-const labelCls = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
 
 const ACCESSORS = {
   date: (r: ExpenseRow) => r.dateISO,
@@ -40,78 +39,6 @@ const ACCESSORS = {
   category: (r: ExpenseRow) => catLabel(r.category),
   amount: (r: ExpenseRow) => r.totalCents,
 } as Record<string, (r: ExpenseRow) => string | number | null>;
-
-function ExpenseModal({ row, onClose }: { row: Partial<ExpenseRow>; onClose: () => void }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const isNew = !row.id;
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  const submit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    start(async () => {
-      if (isNew) await createExpense(fd);
-      else await updateExpense(row.id!, fd);
-      router.refresh();
-      onClose();
-    });
-  };
-  const remove = () => {
-    if (!row.id || !window.confirm("Supprimer cette dépense ? Définitif.")) return;
-    start(async () => {
-      await deleteExpense(row.id!);
-      router.refresh();
-      onClose();
-    });
-  };
-
-  return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-zinc-900/40 backdrop-blur-[1px]" onClick={onClose} />
-      <form onSubmit={submit} className="relative z-10 max-h-[90vh] w-full max-w-sm space-y-4 overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
-        <div className="flex items-start justify-between gap-3">
-          <p className="text-[15px] font-bold text-zinc-900">{isNew ? "Nouvelle dépense" : "Dépense"}</p>
-          <button type="button" onClick={onClose} aria-label="Fermer" className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="size-5" /></button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <label><span className={labelCls}>Date</span><input name="date" type="date" defaultValue={row.dateISO ?? new Date().toISOString().slice(0, 10)} className={fieldCls} /></label>
-          <label><span className={labelCls}>Montant (CHF) *</span><input name="totalChf" type="number" step="0.05" min="0" required defaultValue={row.totalCents ? row.totalCents / 100 : ""} autoFocus={isNew} className={fieldCls} /></label>
-          <label className="col-span-2"><span className={labelCls}>Commerçant</span><input name="merchant" placeholder="Migros, Landi…" defaultValue={row.merchant ?? ""} className={fieldCls} /></label>
-          <label className="col-span-2">
-            <span className={labelCls}>Catégorie</span>
-            <select name="category" defaultValue={row.category ?? "MATIERES_PREMIERES"} className={fieldCls}>
-              {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
-            </select>
-          </label>
-          <label className="col-span-2"><span className={labelCls}>Note</span><input name="notes" placeholder="Optionnel" defaultValue={row.notes ?? ""} className={fieldCls} /></label>
-        </div>
-
-        {row.receiptPath ? (
-          <MediaViewer src={`/api/receipts/${row.receiptPath}`} kind={row.receiptPath.endsWith(".pdf") ? "pdf" : "image"} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-(--color-brand) hover:underline" title="Voir le justificatif">
-            {row.receiptPath.endsWith(".pdf") ? <FileText className="size-4" /> : <Camera className="size-4" />} Voir le justificatif
-          </MediaViewer>
-        ) : null}
-
-        <div className="flex items-center justify-between border-t border-zinc-100 pt-3">
-          {!isNew ? (
-            <button type="button" onClick={remove} className="text-[13px] text-zinc-400 transition-colors hover:text-red-600">Supprimer</button>
-          ) : <span />}
-          <button disabled={pending} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-zinc-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-zinc-700 disabled:opacity-50">
-            <Check className="size-4" /> {isNew ? "Ajouter" : "Enregistrer"}
-          </button>
-        </div>
-      </form>
-    </div>,
-    document.body
-  );
-}
 
 export default function ExpensesSection({ rows }: { rows: ExpenseRow[] }) {
   const router = useRouter();
