@@ -6,7 +6,7 @@
 
 import { useRef, useState } from "react";
 import { ChevronDown, Check } from "lucide-react";
-import { updateContact, deleteContact } from "@/app/actions";
+import { updateContact } from "@/app/actions";
 import { AutoSaveForm } from "@/app/commandes/[id]/AutoSave";
 import { SOURCES } from "@/lib/statuts";
 import { ChannelIcon } from "@/components/ui/channel-icon";
@@ -67,17 +67,10 @@ type C = {
   instagram: string; facebook: string; source: string; notes: string; consentNewsletter: boolean;
 };
 
-export default function ContactForm({ contact, ordersCount }: { contact: C; ordersCount: number }) {
+export default function ContactForm({ contact }: { contact: C }) {
   const save = async (fd: FormData) => {
     const r = await updateContact(contact.id, undefined, fd);
     if (r && "error" in r && r.error) throw new Error(r.error);
-  };
-  const confirmDelete = (e: React.FormEvent) => {
-    const msg =
-      ordersCount > 0
-        ? `Supprimer ${contact.firstName} ET ses ${ordersCount} commande(s) ? C'est définitif.`
-        : `Supprimer ${contact.firstName} ? C'est définitif.`;
-    if (!window.confirm(msg)) e.preventDefault();
   };
 
   return (
@@ -115,17 +108,6 @@ export default function ContactForm({ contact, ordersCount }: { contact: C; orde
         <span className="relative h-5 w-9 shrink-0 rounded-full bg-zinc-200 transition-colors peer-checked:bg-(--color-brand) after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4" />
         <span className="text-[13px] font-medium text-zinc-600">OK pour la newsletter</span>
       </label>
-
-      <div className="flex justify-end border-t border-zinc-100 pt-3">
-        <button
-          formAction={deleteContact.bind(null, contact.id)}
-          onClick={confirmDelete}
-          title="Supprimer définitivement (avec ses commandes)"
-          className="text-[13px] text-zinc-400 transition-colors hover:text-red-600"
-        >
-          Supprimer la fiche{ordersCount > 0 ? ` (+${ordersCount} commande${ordersCount > 1 ? "s" : ""})` : ""}
-        </button>
-      </div>
     </AutoSaveForm>
   );
 }

@@ -98,7 +98,6 @@ export default async function ContactFiche({ params }: { params: Promise<{ id: s
             notes: contact.notes,
             consentNewsletter: contact.consentNewsletter,
           }}
-          ordersCount={contact.orders.length}
         />
 
         {/* Historique — mêmes codes visuels que la table Historique */}

@@ -8,14 +8,14 @@
 
 import { useMemo, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Copy, Trash2, Check, Download, PackageCheck, Archive } from "lucide-react";
+import { ExternalLink, Copy, Trash2, Check, CheckCheck, Download, PackageCheck, Banknote, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { markManyPaidInFull, duplicateOrder, deleteOrder, markManyDelivered, deleteManyOrders } from "@/app/actions";
 import { downloadCSV } from "@/components/ui/table-kit";
 import { Table, THead, TR, TD, TH, EmptyState } from "@/components/ui/table";
 import { STATUS_BADGE } from "@/components/ui/badge";
 import { ChannelIcon } from "@/components/ui/channel-icon";
-import { Button } from "@/components/ui/button";
+import { SelectionBar, SelectionAction } from "@/components/ui/selection-bar";
 import { useSort, SortableTH, RowMenu, useConfirm } from "@/components/ui/table-kit";
 import { STATUS_TONE } from "@/lib/statuts";
 import { occasionIcon, occasionShort } from "@/lib/occasions";
@@ -149,75 +149,59 @@ export default function OrdersTable({ rows, statut, annee, years }: { rows: Row[
         </div>
       </div>
 
-      {selMode && (
-        <div className="sticky top-14 z-10 mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-(--color-line) bg-(--color-brand-soft) px-4 py-2 md:top-0">
-          <span className="text-[13px] font-medium text-zinc-800">
-            {count} sélectionnée{count > 1 ? "s" : ""}
-          </span>
-          <button type="button" onClick={() => setSel(Object.fromEntries(rows.map((r) => [r.id, true])))} className="text-[13px] font-medium text-(--color-brand) hover:underline">
-            Tout sélectionner
-          </button>
-
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <Button
-              type="button" size="sm" variant="outline"
-              onClick={() => {
-                const chosen = rows.filter((r) => sel[r.id]);
-                downloadCSV(
-                  `commandes-selection-${new Date().toISOString().slice(0, 10)}.csv`,
-                  ["date_evenement", "cliente", "occasion", "statut", "montant_chf"],
-                  chosen.map((r) => [r.dateISO?.slice(0, 10) ?? "", r.name, r.occasion, STATUS_BADGE[r.status]?.label ?? r.status, r.amountCents])
-                );
-              }}
-            >
-              <Download /> Export CSV
-            </Button>
-            <Button
-              type="button" size="sm" variant="outline"
-              onClick={() =>
-                confirm({
-                  title: `Marquer ${count} commande${count > 1 ? "s" : ""} livrée${count > 1 ? "s" : ""}`,
-                  desc: "Horodate la livraison (les demandes d'avis suivront pour les fiches éligibles).",
-                  confirmLabel: "Marquer livrées",
-                  action: async () => { await markManyDelivered(chosenIds()); setSel({}); router.refresh(); },
-                })
-              }
-            >
-              <PackageCheck /> Livrées
-            </Button>
-            <Button
-              type="button" size="sm"
-              onClick={async () => {
-                const ids = chosenIds();
-                const fd = new FormData();
-                ids.forEach((id) => fd.append("ids", id));
-                await markManyPaidInFull(fd);
-                setSel({});
-                router.refresh();
-                toast.success(`${ids.length} commande${ids.length > 1 ? "s" : ""} marquée${ids.length > 1 ? "s" : ""} payée${ids.length > 1 ? "s" : ""}.`);
-              }}
-            >
-              Payé en entier
-            </Button>
-            <Button
-              type="button" size="sm" variant="destructive-outline"
-              onClick={() =>
-                confirm({
-                  title: `Supprimer ${count} commande${count > 1 ? "s" : ""}`,
-                  desc: "Fiches, historiques et relances disparaissent. Définitif.",
-                  confirmLabel: "Supprimer",
-                  action: async () => { await deleteManyOrders(chosenIds()); setSel({}); router.refresh(); },
-                })
-              }
-            >
-              Supprimer
-            </Button>
-            <button type="button" onClick={() => setSel({})} className="rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-zinc-500 transition-colors hover:bg-white hover:text-zinc-800">
-              Terminé
-            </button>
-          </div>
-        </div>
-      )}
+      <SelectionBar count={count} label={count > 1 ? "commandes" : "commande"} onClear={() => setSel({})}>
+        <SelectionAction icon={<CheckCheck />} label="Tout sélectionner" onClick={() => setSel(Object.fromEntries(rows.map((r) => [r.id, true])))} />
+        <SelectionAction
+          icon={<Download />}
+          label="Exporter en CSV"
+          onClick={() => {
+            const chosen = rows.filter((r) => sel[r.id]);
+            downloadCSV(
+              `commandes-selection-${new Date().toISOString().slice(0, 10)}.csv`,
+              ["date_evenement", "cliente", "occasion", "statut", "montant_chf"],
+              chosen.map((r) => [r.dateISO?.slice(0, 10) ?? "", r.name, r.occasion, STATUS_BADGE[r.status]?.label ?? r.status, r.amountCents])
+            );
+          }}
+        />
+        <SelectionAction
+          icon={<PackageCheck />}
+          label="Marquer livrées"
+          onClick={() =>
+            confirm({
+              title: `Marquer ${count} commande${count > 1 ? "s" : ""} livrée${count > 1 ? "s" : ""}`,
+              desc: "Horodate la livraison (les demandes d'avis suivront pour les fiches éligibles).",
+              confirmLabel: "Marquer livrées",
+              action: async () => { await markManyDelivered(chosenIds()); setSel({}); router.refresh(); },
+            })
+          }
+        />
+        <SelectionAction
+          icon={<Banknote />}
+          label="Marquer payées en entier"
+          onClick={async () => {
+            const ids = chosenIds();
+            const fd = new FormData();
+            ids.forEach((id) => fd.append("ids", id));
+            await markManyPaidInFull(fd);
+            setSel({});
+            router.refresh();
+            toast.success(`${ids.length} commande${ids.length > 1 ? "s" : ""} marquée${ids.length > 1 ? "s" : ""} payée${ids.length > 1 ? "s" : ""}.`);
+          }}
+        />
+        <SelectionAction
+          icon={<Trash2 />}
+          label="Supprimer"
+          destructive
+          onClick={() =>
+            confirm({
+              title: `Supprimer ${count} commande${count > 1 ? "s" : ""}`,
+              desc: "Fiches, historiques et relances disparaissent. Définitif.",
+              confirmLabel: "Supprimer",
+              action: async () => { await deleteManyOrders(chosenIds()); setSel({}); router.refresh(); },
+            })
+          }
+        />
+      </SelectionBar>
 
       <Table>
         <THead>

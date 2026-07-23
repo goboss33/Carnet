@@ -9,10 +9,10 @@
 
 import { useMemo, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Trash2, Users, Check, Download, GitMerge } from "lucide-react";
+import { ExternalLink, Trash2, Users, Check, CheckCheck, Download, GitMerge } from "lucide-react";
 import { deleteContact, deleteManyContacts } from "@/app/actions";
 import { downloadCSV } from "@/components/ui/table-kit";
-import { Button } from "@/components/ui/button";
+import { SelectionBar, SelectionAction } from "@/components/ui/selection-bar";
 import MergeDialog from "./MergeDialog";
 import { avatar, cn } from "@/lib/ui";
 import { Table, THead, TR, TD, TH, EmptyState } from "@/components/ui/table";
@@ -118,52 +118,38 @@ export default function ContactsTable({ rows }: { rows: Row[] }) {
         )}
       </div>
 
-      {selMode && (
-        <div className="sticky top-14 z-10 mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-(--color-line) bg-(--color-brand-soft) px-4 py-2 md:top-0">
-          <span className="text-[13px] font-medium text-zinc-800">{count} sélectionnée{count > 1 ? "s" : ""}</span>
-          <button type="button" onClick={() => setSel(Object.fromEntries(sorted.map((r) => [r.id, true])))} className="text-[13px] font-medium text-(--color-brand) hover:underline">
-            Tout sélectionner
-          </button>
-
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <Button
-              type="button" size="sm" variant="outline"
-              onClick={() =>
-                downloadCSV(
-                  `contacts-${new Date().toISOString().slice(0, 10)}.csv`,
-                  ["nom", "telephone", "email", "instagram", "commandes"],
-                  selected.map((r) => [r.name, r.phone, r.email, r.instagram, r.ordersCount])
-                )
-              }
-            >
-              <Download /> Export CSV
-            </Button>
-            <Button type="button" size="sm" variant="outline" disabled={count !== 2} title={count !== 2 ? "Sélectionne exactement 2 fiches" : undefined} onClick={() => setMerging(true)}>
-              <GitMerge /> Fusionner
-            </Button>
-            <Button
-              type="button" size="sm" variant="destructive-outline"
-              onClick={() =>
-                confirm({
-                  title: `Supprimer ${count} fiche${count > 1 ? "s" : ""}`,
-                  desc: "Leurs commandes seront supprimées aussi. Définitif.",
-                  confirmLabel: "Supprimer",
-                  action: async () => {
-                    await deleteManyContacts(selected.map((r) => r.id));
-                    setSel({});
-                    router.refresh();
-                  },
-                })
-              }
-            >
-              Supprimer
-            </Button>
-            <button type="button" onClick={() => setSel({})} className="rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-zinc-500 transition-colors hover:bg-white hover:text-zinc-800">
-              Terminé
-            </button>
-          </div>
-        </div>
-      )}
+      <SelectionBar count={count} label={count > 1 ? "fiches" : "fiche"} onClear={() => setSel({})}>
+        <SelectionAction icon={<CheckCheck />} label="Tout sélectionner" onClick={() => setSel(Object.fromEntries(sorted.map((r) => [r.id, true])))} />
+        <SelectionAction
+          icon={<Download />}
+          label="Exporter en CSV"
+          onClick={() =>
+            downloadCSV(
+              `contacts-${new Date().toISOString().slice(0, 10)}.csv`,
+              ["nom", "telephone", "email", "instagram", "commandes"],
+              selected.map((r) => [r.name, r.phone, r.email, r.instagram, r.ordersCount])
+            )
+          }
+        />
+        <SelectionAction icon={<GitMerge />} label="Fusionner (sélectionne exactement 2 fiches)" disabled={count !== 2} onClick={() => setMerging(true)} />
+        <SelectionAction
+          icon={<Trash2 />}
+          label="Supprimer"
+          destructive
+          onClick={() =>
+            confirm({
+              title: `Supprimer ${count} fiche${count > 1 ? "s" : ""}`,
+              desc: "Leurs commandes seront supprimées aussi. Définitif.",
+              confirmLabel: "Supprimer",
+              action: async () => {
+                await deleteManyContacts(selected.map((r) => r.id));
+                setSel({});
+                router.refresh();
+              },
+            })
+          }
+        />
+      </SelectionBar>
 
       <Table>
         <THead>
