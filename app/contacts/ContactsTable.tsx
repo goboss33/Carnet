@@ -1,21 +1,27 @@
 "use client";
 
-/* Contacts — recherche instantanée, tri par colonne, actions par ligne. */
+/* Contacts — mêmes interactions que l'Historique.
+   Clic/tap sur une ligne → ouvre la fiche contact. Appui long (~0,5 s) → entre
+   en mode sélection et coche la ligne ; ensuite un tap coche/décoche. Le scroll
+   (doigt qui bouge) annule l'appui long. Ctrl/Cmd+clic sélectionne directement.
+   Recherche live sur toutes les données (contact + historique de commandes),
+   actions groupées (export / fusion / suppression) + menu ⋮ par ligne. */
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ExternalLink, Trash2, Users } from "lucide-react";
+import { ExternalLink, Trash2, Users, Check, Download, GitMerge } from "lucide-react";
 import { deleteContact, deleteManyContacts } from "@/app/actions";
 import { downloadCSV } from "@/components/ui/table-kit";
-import { Download, GitMerge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MergeDialog from "./MergeDialog";
-import { avatar } from "@/lib/ui";
+import { avatar, cn } from "@/lib/ui";
 import { Table, THead, TR, TD, TH, EmptyState } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ChannelIcon } from "@/components/ui/channel-icon";
+import { occasionIcon, occasionShort } from "@/lib/occasions";
 import { useSort, SortableTH, RowMenu, useConfirm } from "@/components/ui/table-kit";
+
+const fieldCls = "h-9 rounded-lg border border-zinc-300 bg-white px-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-(--color-brand)";
 
 export type Row = {
   id: string;
@@ -23,13 +29,14 @@ export type Row = {
   phone: string;
   email: string;
   instagram: string;
-  sourceLabel: string;
+  sourceId: string; // canal d'acquisition (enum Source)
   orderId: string | null;
-  occasion: string;
+  occasion: string; // dernière occasion
   dateLabel: string;
   dateISO: string | null;
   price: number | null;
   ordersCount: number;
+  search: string; // index de recherche (contact + toutes ses commandes)
 };
 
 const ACCESSORS = {
@@ -41,81 +48,128 @@ const ACCESSORS = {
 
 export default function ContactsTable({ rows }: { rows: Row[] }) {
   const router = useRouter();
-  const [q, setQ] = useState("");
+  const [query, setQuery] = useState("");
   const [sel, setSel] = useState<Record<string, boolean>>({});
   const [merging, setMerging] = useState(false);
   const { confirm, node } = useConfirm();
-  const selected = rows.filter((r) => sel[r.id]);
 
+  // Recherche live multi-mots : tous les mots doivent matcher l'index.
   const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter((r) => r.name.toLowerCase().includes(needle) || r.phone.replace(/\s/g, "").includes(needle.replace(/\s/g, "")) || r.occasion.toLowerCase().includes(needle));
-  }, [rows, q]);
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!tokens.length) return rows;
+    return rows.filter((r) => tokens.every((t) => r.search.includes(t)));
+  }, [rows, query]);
 
   const { sorted, sort, toggle } = useSort(filtered, { key: "date", dir: "desc" }, ACCESSORS);
+
+  const count = useMemo(() => rows.reduce((n, r) => n + (sel[r.id] ? 1 : 0), 0), [rows, sel]);
+  const selMode = count > 0;
+  const selected = rows.filter((r) => sel[r.id]);
+
+  // ------- appui long + désambiguïsation du scroll --------
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressRef = useRef(false); // supprime le clic qui suit un appui long
+  const clearPress = () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } startRef.current = null; };
+  useEffect(() => () => clearPress(), []);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLTableRowElement>, id: string) => {
+    if (e.button !== 0) return; // ignore clic droit/milieu
+    suppressRef.current = false;
+    startRef.current = { x: e.clientX, y: e.clientY };
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      suppressRef.current = true;
+      setSel((s) => ({ ...s, [id]: true }));
+    }, 500);
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLTableRowElement>) => {
+    if (!startRef.current || !timerRef.current) return;
+    if (Math.abs(e.clientX - startRef.current.x) > 10 || Math.abs(e.clientY - startRef.current.y) > 10) clearPress();
+  };
+  const onRowClick = (e: React.MouseEvent<HTMLTableRowElement>, id: string) => {
+    if (suppressRef.current) { suppressRef.current = false; return; } // clic issu d'un appui long
+    if (selMode || e.ctrlKey || e.metaKey) { setSel((s) => ({ ...s, [id]: !s[id] })); return; }
+    router.push(`/contacts/${id}`);
+  };
 
   return (
     <div>
       {node}
       {merging && selected.length === 2 && <MergeDialog a={selected[0]} b={selected[1]} onClose={() => { setMerging(false); setSel({}); }} />}
-      <div className="relative mb-3 max-w-xs">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom, mobile, occasion…" className="h-8 pl-8 text-[13px]" />
+
+      {/* Recherche live pleine largeur */}
+      <div className="mb-3 space-y-2">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Rechercher (nom, téléphone, e-mail, occasion, thème, notes…)"
+          className={cn(fieldCls, "w-full")}
+        />
+        {query && (
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setQuery("")} className="text-sm text-zinc-400 transition-colors hover:text-zinc-700">
+              Réinitialiser
+            </button>
+            <span className="ml-auto text-xs text-zinc-400">{sorted.length} fiche{sorted.length > 1 ? "s" : ""}</span>
+          </div>
+        )}
       </div>
-      {selected.length > 0 && (
+
+      {selMode && (
         <div className="sticky top-14 z-10 mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-(--color-line) bg-(--color-brand-soft) px-4 py-2 md:top-0">
-          <span className="mr-auto text-[13px] font-medium text-zinc-800">{selected.length} fiche{selected.length > 1 ? "s" : ""} sélectionnée{selected.length > 1 ? "s" : ""}</span>
-          <Button
-            type="button" size="sm" variant="outline"
-            onClick={() =>
-              downloadCSV(
-                `contacts-${new Date().toISOString().slice(0, 10)}.csv`,
-                ["nom", "telephone", "email", "instagram", "commandes"],
-                selected.map((r) => [r.name, r.phone, r.email, r.instagram, r.ordersCount])
-              )
-            }
-          >
-            <Download /> Export CSV
-          </Button>
-          <Button type="button" size="sm" variant="outline" disabled={selected.length !== 2} title={selected.length !== 2 ? "Sélectionne exactement 2 fiches" : undefined} onClick={() => setMerging(true)}>
-            <GitMerge /> Fusionner
-          </Button>
-          <Button
-            type="button" size="sm" variant="destructive-outline"
-            onClick={() =>
-              confirm({
-                title: `Supprimer ${selected.length} fiche${selected.length > 1 ? "s" : ""}`,
-                desc: "Leurs commandes seront supprimées aussi. Définitif.",
-                confirmLabel: "Supprimer",
-                action: async () => {
-                  await deleteManyContacts(selected.map((r) => r.id));
-                  setSel({});
-                  router.refresh();
-                },
-              })
-            }
-          >
-            Supprimer
-          </Button>
+          <span className="text-[13px] font-medium text-zinc-800">{count} sélectionnée{count > 1 ? "s" : ""}</span>
+          <button type="button" onClick={() => setSel(Object.fromEntries(sorted.map((r) => [r.id, true])))} className="text-[13px] font-medium text-(--color-brand) hover:underline">
+            Tout sélectionner
+          </button>
+
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button
+              type="button" size="sm" variant="outline"
+              onClick={() =>
+                downloadCSV(
+                  `contacts-${new Date().toISOString().slice(0, 10)}.csv`,
+                  ["nom", "telephone", "email", "instagram", "commandes"],
+                  selected.map((r) => [r.name, r.phone, r.email, r.instagram, r.ordersCount])
+                )
+              }
+            >
+              <Download /> Export CSV
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={count !== 2} title={count !== 2 ? "Sélectionne exactement 2 fiches" : undefined} onClick={() => setMerging(true)}>
+              <GitMerge /> Fusionner
+            </Button>
+            <Button
+              type="button" size="sm" variant="destructive-outline"
+              onClick={() =>
+                confirm({
+                  title: `Supprimer ${count} fiche${count > 1 ? "s" : ""}`,
+                  desc: "Leurs commandes seront supprimées aussi. Définitif.",
+                  confirmLabel: "Supprimer",
+                  action: async () => {
+                    await deleteManyContacts(selected.map((r) => r.id));
+                    setSel({});
+                    router.refresh();
+                  },
+                })
+              }
+            >
+              Supprimer
+            </Button>
+            <button type="button" onClick={() => setSel({})} className="rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-zinc-500 transition-colors hover:bg-white hover:text-zinc-800">
+              Terminé
+            </button>
+          </div>
         </div>
       )}
+
       <Table>
         <THead>
           <tr>
-            <TH className="w-10">
-              <input
-                type="checkbox"
-                checked={sorted.length > 0 && sorted.every((r) => sel[r.id])}
-                onChange={() => {
-                  const all = sorted.length > 0 && sorted.every((r) => sel[r.id]);
-                  setSel(all ? {} : Object.fromEntries(sorted.map((r) => [r.id, true])));
-                }}
-                aria-label="Tout sélectionner"
-                className="size-4 accent-(--color-brand)"
-              />
-            </TH>
             <SortableTH label="Nom" k="name" sort={sort} onToggle={toggle} />
+            <TH className="w-8" aria-label="Canal" />
             <TH>Mobile</TH>
             <TH>Dernière occasion</TH>
             <SortableTH label="Date" k="date" sort={sort} onToggle={toggle} />
@@ -127,31 +181,52 @@ export default function ContactsTable({ rows }: { rows: Row[] }) {
         <tbody>
           {sorted.map((r) => {
             const av = avatar(r.name);
+            const OccIcon = occasionIcon(r.occasion);
             return (
-              <TR key={r.id}>
-                <TD className="w-10">
-                  <input type="checkbox" checked={!!sel[r.id]} onChange={(e) => setSel((s2) => ({ ...s2, [r.id]: e.target.checked }))} aria-label={`Sélectionner ${r.name}`} className="size-4 accent-(--color-brand)" />
-                </TD>
+              <TR
+                key={r.id}
+                className={cn("cursor-pointer select-none", sel[r.id] ? "bg-(--color-brand-soft) even:bg-(--color-brand-soft) hover:bg-(--color-brand-soft)" : "even:bg-zinc-50/50")}
+                onClick={(e) => onRowClick(e, r.id)}
+                onPointerDown={(e) => onPointerDown(e, r.id)}
+                onPointerMove={onPointerMove}
+                onPointerUp={clearPress}
+                onPointerLeave={clearPress}
+                onPointerCancel={clearPress}
+              >
                 <TD>
-                  <Link href={`/contacts/${r.id}`} className="flex items-center gap-2.5 font-medium text-zinc-900 hover:underline">
-                    <span className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${av.color}`}>{av.initials}</span>
+                  <span className="flex items-center gap-2.5 font-medium text-zinc-900">
+                    {selMode ? (
+                      <span className={cn("flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors", sel[r.id] ? "border-(--color-brand) bg-(--color-brand) text-white" : "border-zinc-300 bg-white")}>
+                        {sel[r.id] && <Check className="size-3" />}
+                      </span>
+                    ) : (
+                      <span className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${av.color}`}>{av.initials}</span>
+                    )}
                     {r.name}
-                  </Link>
+                  </span>
                 </TD>
-                <TD className="whitespace-nowrap tabular-nums">{r.phone || "—"}</TD>
-                <TD className="max-w-[240px]">
-                  {r.orderId ? (
-                    <Link href={`/commandes/${r.orderId}`} className="block truncate hover:underline" title={r.occasion}>{r.occasion || "—"}</Link>
-                  ) : ("—")}
-                  {r.sourceLabel ? <span className="ml-0 block text-xs text-zinc-400">{r.sourceLabel}</span> : null}
+                <TD className="w-8">
+                  <ChannelIcon source={r.sourceId} className="size-4" />
+                </TD>
+                <TD className="whitespace-nowrap tabular-nums text-zinc-600">{r.phone || "—"}</TD>
+                <TD className="max-w-[220px]">
+                  {r.occasion ? (
+                    <span className="inline-flex items-center gap-1.5 text-zinc-700">
+                      <OccIcon className="size-3.5 shrink-0 text-(--color-brand)" />
+                      <span className="truncate">{occasionShort(r.occasion)}</span>
+                    </span>
+                  ) : (
+                    <span className="text-zinc-400">—</span>
+                  )}
                 </TD>
                 <TD className="whitespace-nowrap tabular-nums text-zinc-500">{r.dateLabel}</TD>
                 <TD className="text-right"><Badge variant="outline">{r.ordersCount}</Badge></TD>
                 <TD className="text-right font-medium tabular-nums text-zinc-900">{r.price ? `CHF ${r.price}` : "—"}</TD>
-                <TD className="w-10">
+                <TD className="w-10" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                   <RowMenu
                     actions={[
                       { label: "Ouvrir la fiche", icon: <ExternalLink />, href: `/contacts/${r.id}` },
+                      ...(r.orderId ? [{ label: "Dernière commande", icon: <ExternalLink />, href: `/commandes/${r.orderId}` }] : []),
                       {
                         label: "Supprimer",
                         icon: <Trash2 />,
@@ -177,7 +252,7 @@ export default function ContactsTable({ rows }: { rows: Row[] }) {
           {sorted.length === 0 && (
             <tr>
               <td colSpan={8}>
-                <EmptyState icon={<Users />} title={q ? "Aucun contact ne correspond" : "Aucun contact"} hint={q ? "Essaie un autre terme." : "Crée ta première fiche ou importe ton historique."} />
+                <EmptyState icon={<Users />} title={query ? "Aucun contact ne correspond" : "Aucun contact"} hint={query ? "Essaie un autre terme." : "Crée ta première fiche ou importe ton historique."} />
               </td>
             </tr>
           )}
