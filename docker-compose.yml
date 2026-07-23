@@ -29,6 +29,8 @@ services:
       DIGEST_HOUR: ${DIGEST_HOUR:-7}
       NUDGE_HOUR: ${NUDGE_HOUR:-20}
       GOOGLE_REVIEW_URL: ${GOOGLE_REVIEW_URL:-}
+      # Autocomplétion d'adresse (Places API) — même clé serveur que le site
+      GOOGLE_MAPS_SERVER_KEY: ${GOOGLE_MAPS_SERVER_KEY:-}
       # Google Agenda (compte de service recommandé ; OAuth en secours)
       GCAL_SA_KEY_JSON_B64: ${GCAL_SA_KEY_JSON_B64:-}
       DATAFORSEO_LOGIN: ${DATAFORSEO_LOGIN:-}
