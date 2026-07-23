@@ -72,11 +72,15 @@ function Card({ o, now }: { o: OrderWithContact; now: Date }) {
               {o.occasion ? occasionShort(o.occasion) : "à préciser"}
             </span>
             {o.parts ? <span className="whitespace-nowrap">{o.parts} parts</span> : null}
-            {heure && (
+            {heure ? (
               <span className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-zinc-700">
                 <Clock className="size-3.5 text-zinc-400" /> {heure}
               </span>
-            )}
+            ) : !isDevis ? (
+              <span className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-amber-600" title="Heure de remise à fixer">
+                <Clock className="size-3.5" /> --:--
+              </span>
+            ) : null}
             {o.sansLactose && (
               <span title="Sans lactose"><MilkOff className="size-3.5 text-red-500" /></span>
             )}
