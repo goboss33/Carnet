@@ -10,27 +10,30 @@ import { updateContact, deleteContact } from "@/app/actions";
 import { AutoSaveForm } from "@/app/commandes/[id]/AutoSave";
 import { SOURCES } from "@/lib/statuts";
 import { ChannelIcon } from "@/components/ui/channel-icon";
-import { cn, setNativeInputValue } from "@/lib/ui";
+import { cn } from "@/lib/ui";
 
 const input = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
 const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
 const labelRow = "mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
 
 /* Canal avec icônes : un <select> natif ne peut pas en afficher → menu custom.
-   Input caché + événement natif « change » pour que l'auto-save le capte. */
+   L'input caché est CONTRÔLÉ par l'état React (la FormData lit toujours la
+   valeur à jour) ; l'événement « input » déclencheur est dispatché depuis le
+   conteneur — pas depuis l'input — pour que React ne le dédoublonne pas. */
 function ChannelSelect({ initial }: { initial: string }) {
   const [value, setValue] = useState(initial);
   const [open, setOpen] = useState(false);
-  const hidden = useRef<HTMLInputElement>(null);
+  const wrap = useRef<HTMLDivElement>(null);
   const cur = SOURCES.find((s) => s.id === value) ?? SOURCES[SOURCES.length - 1];
   const choose = (id: string) => {
     setValue(id);
     setOpen(false);
-    if (hidden.current) setNativeInputValue(hidden.current, id); // setter natif → l'auto-save capte bien l'événement
+    // Réveille l'auto-save (débounce 0,8 s) — la FormData sera lue après le re-render.
+    setTimeout(() => wrap.current?.dispatchEvent(new Event("input", { bubbles: true })), 0);
   };
   return (
-    <div className="relative">
-      <input ref={hidden} type="hidden" name="source" defaultValue={initial} />
+    <div ref={wrap} className="relative">
+      <input type="hidden" name="source" value={value} readOnly />
       <button type="button" onClick={() => setOpen((v) => !v)} className={cn(input, "flex items-center gap-2 text-left")}>
         <span className="flex size-4 shrink-0 items-center justify-center"><ChannelIcon source={cur.id} className="size-4" /></span>
         <span className="flex-1">{cur.label}</span>
