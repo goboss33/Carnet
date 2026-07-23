@@ -1,21 +1,22 @@
 "use client";
 
 /* Dépenses du mois — mêmes interactions que les tables de l'app.
-   Lignes d'AFFICHAGE pur (date, commerçant, pastille catégorie, justificatif,
-   montant) : clic → modale d'édition ; appui long (~0,5 s) → sélection multiple
-   (pilule flottante : export CSV / suppression) ; Ctrl/Cmd+clic direct.
-   Chips de catégories (montant + mini-barre) = filtres ; recherche live.
+   Table triable (Date / Commerçant / Catégorie / Montant) : clic → modale
+   d'édition ; appui long (~0,5 s) → sélection multiple (pilule flottante :
+   export CSV / suppression) ; Ctrl/Cmd+clic direct. Graphique en BARRES
+   VERTICALES par catégorie (cliquables = filtre) ; recherche live.
    « + Dépense » ouvre la même modale, vide. */
 
 import { useMemo, useRef, useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { Plus, X, Check, Download, Trash2, CheckCheck, FileText, Camera } from "lucide-react";
+import { Plus, X, Check, Download, Trash2, CheckCheck, FileText, Camera, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { updateExpense, createExpense, deleteExpense, deleteManyExpenses } from "@/app/actions";
 import { CATEGORIES, CAT_TONE, CAT_BAR, catLabel, chf } from "@/lib/money";
 import { SelectionBar, SelectionAction } from "@/components/ui/selection-bar";
-import { downloadCSV, useConfirm } from "@/components/ui/table-kit";
+import { downloadCSV, useConfirm, useSort, SortableTH } from "@/components/ui/table-kit";
+import { Table, THead, TR, TD, TH, EmptyState } from "@/components/ui/table";
 import MediaViewer from "@/app/components/MediaViewer";
 import { cn } from "@/lib/ui";
 
@@ -32,6 +33,13 @@ export type ExpenseRow = {
 
 const fieldCls = "h-9 w-full rounded-lg border border-zinc-300 bg-white px-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-(--color-brand)";
 const labelCls = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
+
+const ACCESSORS = {
+  date: (r: ExpenseRow) => r.dateISO,
+  merchant: (r: ExpenseRow) => r.merchant.toLowerCase(),
+  category: (r: ExpenseRow) => catLabel(r.category),
+  amount: (r: ExpenseRow) => r.totalCents,
+} as Record<string, (r: ExpenseRow) => string | number | null>;
 
 function ExpenseModal({ row, onClose }: { row: Partial<ExpenseRow>; onClose: () => void }) {
   const router = useRouter();
@@ -119,6 +127,7 @@ export default function ExpensesSection({ rows }: { rows: ExpenseRow[] }) {
     return t;
   }, [rows]);
   const maxCat = Math.max(1, ...Object.values(totals));
+  const cats = CATEGORIES.filter((c) => totals[c.id]);
 
   const filtered = useMemo(() => {
     const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -129,6 +138,8 @@ export default function ExpensesSection({ rows }: { rows: ExpenseRow[] }) {
       return tokens.every((t) => blob.includes(t));
     });
   }, [rows, query, cat]);
+
+  const { sorted, sort, toggle } = useSort(filtered, { key: "date", dir: "desc" }, ACCESSORS);
 
   const count = useMemo(() => rows.reduce((n, r) => n + (sel[r.id] ? 1 : 0), 0), [rows, sel]);
   const selMode = count > 0;
@@ -174,30 +185,34 @@ export default function ExpensesSection({ rows }: { rows: ExpenseRow[] }) {
         </div>
       </div>
 
-      {/* Chips catégories = filtres (montant + mini-barre proportionnelle) */}
-      {Object.keys(totals).length > 0 && (
-        <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {CATEGORIES.filter((c) => totals[c.id]).map((c) => {
-            const on = cat === c.id;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setCat(on ? "" : c.id)}
-                aria-pressed={on}
-                className={cn(
-                  "shrink-0 rounded-lg border px-2.5 py-1.5 text-left transition-colors",
-                  on ? "border-(--color-brand) bg-(--color-brand-soft)" : "border-zinc-200 bg-white hover:border-zinc-300",
-                )}
-              >
-                <span className={cn("rounded-full px-1.5 py-0.5 text-[11px] font-semibold", CAT_TONE[c.id])}>{c.label}</span>
-                <span className="ml-1.5 text-[12px] font-semibold tabular-nums text-zinc-700">{chf(totals[c.id])}</span>
-                <span className="mt-1 block h-1 w-full overflow-hidden rounded-full bg-zinc-100">
-                  <span className={cn("block h-full rounded-full", CAT_BAR[c.id])} style={{ width: `${Math.round((totals[c.id] / maxCat) * 100)}%` }} />
-                </span>
-              </button>
-            );
-          })}
+      {/* Répartition par catégorie — barres verticales cliquables (= filtre) */}
+      {cats.length > 0 && (
+        <div className="mb-3 rounded-2xl border border-zinc-200 bg-white px-3 pb-2 pt-3">
+          <div className="flex items-end justify-around gap-2">
+            {cats.map((c) => {
+              const on = cat === c.id;
+              const pct = Math.max(8, Math.round((totals[c.id] / maxCat) * 100));
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCat(on ? "" : c.id)}
+                  aria-pressed={on}
+                  title={`${c.label} — ${chf(totals[c.id])}`}
+                  className="group flex min-w-0 flex-1 flex-col items-center gap-1"
+                >
+                  <span className="whitespace-nowrap text-[10px] font-semibold tabular-nums text-zinc-500">{chf(totals[c.id])}</span>
+                  <span className="flex h-20 w-full max-w-9 items-end">
+                    <span
+                      className={cn("block w-full rounded-t-md transition-all", CAT_BAR[c.id], on ? "opacity-100 ring-2 ring-(--color-brand) ring-offset-1" : cat ? "opacity-35 group-hover:opacity-70" : "opacity-90 group-hover:opacity-100")}
+                      style={{ height: `${pct}%` }}
+                    />
+                  </span>
+                  <span className={cn("w-full truncate text-center text-[10px] leading-tight", on ? "font-semibold text-(--color-brand)" : "text-zinc-500")}>{c.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -211,52 +226,70 @@ export default function ExpensesSection({ rows }: { rows: ExpenseRow[] }) {
         />
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-        {filtered.map((r) => (
-          <div
-            key={r.id}
-            role="button"
-            tabIndex={0}
-            onClick={(e) => onRowClick(e, r)}
-            onKeyDown={(e) => { if (e.key === "Enter") setEditing(r); }}
-            onPointerDown={(e) => onPointerDown(e, r.id)}
-            onPointerMove={onPointerMove}
-            onPointerUp={clearPress}
-            onPointerLeave={clearPress}
-            onPointerCancel={clearPress}
-            className={cn(
-              "flex cursor-pointer select-none items-center gap-2.5 border-b border-zinc-100 px-3.5 py-2.5 text-sm transition-colors last:border-b-0",
-              sel[r.id] ? "bg-(--color-brand-soft)" : "even:bg-zinc-50/50 hover:bg-zinc-50",
-            )}
-          >
-            {selMode ? (
-              <span className={cn("flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors", sel[r.id] ? "border-(--color-brand) bg-(--color-brand) text-white" : "border-zinc-300 bg-white")}>
-                {sel[r.id] && <Check className="size-3" />}
-              </span>
-            ) : (
-              <span className="w-10 shrink-0 whitespace-nowrap text-[12px] tabular-nums text-zinc-400">{r.dateLabel}</span>
-            )}
-            <span className="min-w-0 flex-1 truncate font-medium text-zinc-900">{r.merchant || <span className="font-normal text-zinc-400">Commerçant ?</span>}</span>
-            <span className={cn("hidden shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold sm:inline-block", CAT_TONE[r.category] ?? CAT_TONE.AUTRE)}>{catLabel(r.category)}</span>
-            {r.receiptPath ? (
-              <span onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-                <MediaViewer src={`/api/receipts/${r.receiptPath}`} kind={r.receiptPath.endsWith(".pdf") ? "pdf" : "image"} className="text-zinc-400 hover:text-zinc-700" title="Voir le justificatif">
-                  {r.receiptPath.endsWith(".pdf") ? <FileText className="size-4" /> : <Camera className="size-4" />}
-                </MediaViewer>
-              </span>
-            ) : null}
-            <span className="shrink-0 whitespace-nowrap font-semibold tabular-nums text-zinc-900">{chf(r.totalCents)}</span>
-          </div>
-        ))}
-        {filtered.length === 0 && (
-          <p className="px-4 py-10 text-center text-sm text-zinc-400">
-            {rows.length === 0 ? "Aucune dépense ce mois-ci — envoie une photo de ticket au bot, ou ajoute-la ici." : "Aucune dépense ne correspond."}
-          </p>
-        )}
-      </div>
+      <Table>
+        <THead>
+          <tr>
+            <SortableTH label="Date" k="date" sort={sort} onToggle={toggle} />
+            <SortableTH label="Commerçant" k="merchant" sort={sort} onToggle={toggle} />
+            <SortableTH label="Catégorie" k="category" sort={sort} onToggle={toggle} />
+            <TH className="w-8" aria-label="Justificatif" />
+            <SortableTH label="Montant" k="amount" sort={sort} onToggle={toggle} className="text-right" align="right" />
+          </tr>
+        </THead>
+        <tbody>
+          {sorted.map((r) => (
+            <TR
+              key={r.id}
+              className={cn("cursor-pointer select-none", sel[r.id] ? "bg-(--color-brand-soft) even:bg-(--color-brand-soft) hover:bg-(--color-brand-soft)" : "even:bg-zinc-50/50")}
+              onClick={(e) => onRowClick(e, r)}
+              onPointerDown={(e) => onPointerDown(e, r.id)}
+              onPointerMove={onPointerMove}
+              onPointerUp={clearPress}
+              onPointerLeave={clearPress}
+              onPointerCancel={clearPress}
+            >
+              <TD className="whitespace-nowrap tabular-nums text-zinc-500">
+                <span className="flex items-center gap-2">
+                  {selMode && (
+                    <span className={cn("flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors", sel[r.id] ? "border-(--color-brand) bg-(--color-brand) text-white" : "border-zinc-300 bg-white")}>
+                      {sel[r.id] && <Check className="size-3" />}
+                    </span>
+                  )}
+                  {r.dateLabel}
+                </span>
+              </TD>
+              <TD className="max-w-[180px]">
+                <span className="block truncate font-medium text-zinc-900">{r.merchant || <span className="font-normal text-zinc-400">Commerçant ?</span>}</span>
+              </TD>
+              <TD>
+                <span className={cn("inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold", CAT_TONE[r.category] ?? CAT_TONE.AUTRE)}>{catLabel(r.category)}</span>
+              </TD>
+              <TD className="w-8" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                {r.receiptPath ? (
+                  <MediaViewer src={`/api/receipts/${r.receiptPath}`} kind={r.receiptPath.endsWith(".pdf") ? "pdf" : "image"} className="text-zinc-400 hover:text-zinc-700" title="Voir le justificatif">
+                    {r.receiptPath.endsWith(".pdf") ? <FileText className="size-4" /> : <Camera className="size-4" />}
+                  </MediaViewer>
+                ) : null}
+              </TD>
+              <TD className="whitespace-nowrap text-right font-semibold tabular-nums text-zinc-900">{chf(r.totalCents)}</TD>
+            </TR>
+          ))}
+          {sorted.length === 0 && (
+            <tr>
+              <td colSpan={5}>
+                <EmptyState
+                  icon={<Receipt />}
+                  title={rows.length === 0 ? "Aucune dépense ce mois-ci" : "Aucune dépense ne correspond"}
+                  hint={rows.length === 0 ? "Envoie une photo de ticket au bot, ou ajoute-la ici." : "Essaie un autre terme ou retire le filtre."}
+                />
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </Table>
 
       <SelectionBar count={count} label={count > 1 ? "dépenses" : "dépense"} onClear={() => setSel({})}>
-        <SelectionAction icon={<CheckCheck />} label="Tout sélectionner" onClick={() => setSel(Object.fromEntries(filtered.map((r) => [r.id, true])))} />
+        <SelectionAction icon={<CheckCheck />} label="Tout sélectionner" onClick={() => setSel(Object.fromEntries(sorted.map((r) => [r.id, true])))} />
         <SelectionAction
           icon={<Download />}
           label="Exporter en CSV"

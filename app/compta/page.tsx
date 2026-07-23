@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { prisma, currentTenant } from "@/lib/db";
-import { chf, CATEGORIES, mileageCents, PAYKIND_LABEL, PAYKIND_TONE } from "@/lib/money";
+import { chf, CATEGORIES, mileageCents } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
 import { paymentState } from "@/lib/payments";
-import { occasionIcon } from "@/lib/occasions";
 import { updateExpense, deleteExpense, purgeEmptyDrafts } from "@/app/actions";
 import { FileText, Camera, Download, ArrowUpRight, ArrowDownRight, HandCoins } from "lucide-react";
 import MediaViewer from "@/app/components/MediaViewer";
 import { PageHeader } from "@/components/ui/page-header";
 import MonthNav from "./MonthNav";
 import ExpensesSection, { type ExpenseRow } from "./ExpensesSection";
+import RecettesTable, { type PayRow } from "./RecettesTable";
 import { cn } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
@@ -22,11 +22,15 @@ function monthRange(m: string) {
 }
 
 /* Pastille de variation vs mois précédent. good : le sens « heureux » (up pour
-   les recettes, down pour les dépenses, null = neutre → gris). */
-function Delta({ delta, good }: { delta: number; good: "up" | "down" | null }) {
+   les recettes, null = neutre → gris). force : couleur imposée quel que soit le
+   signe — utilisée pour les Dépenses, jugées sur le TAUX (dépenses ÷ recettes)
+   et non sur le montant (plus de ventes = plus d'achats, c'est normal). */
+function Delta({ delta, good, force }: { delta: number; good: "up" | "down" | null; force?: "good" | "bad" | "neutral" }) {
   if (delta === 0) return null;
   const up = delta > 0;
-  const tone = good === null ? "bg-zinc-100 text-zinc-500" : (up ? good === "up" : good === "down") ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700";
+  const tone = force
+    ? force === "good" ? "bg-emerald-50 text-emerald-700" : force === "bad" ? "bg-red-50 text-red-700" : "bg-zinc-100 text-zinc-500"
+    : good === null ? "bg-zinc-100 text-zinc-500" : (up ? good === "up" : good === "down") ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700";
   return (
     <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium", tone)}>
       {up ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
@@ -92,10 +96,17 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
     receiptPath: e.receiptPath,
   }));
 
-  const kpis = [
-    { label: "Encaissé", value: chf(totalRev), tone: "text-emerald-700", sub: `${payments.length} encaissement${payments.length > 1 ? "s" : ""}`, delta: totalRev - prevRev, good: "up" as const },
-    { label: "Dépenses", value: chf(totalExp), tone: "text-red-700", sub: `${expenses.length} ticket${expenses.length > 1 ? "s" : ""}`, delta: totalExp - prevExp, good: "down" as const },
-    { label: "Résultat", value: chf(totalRev - totalExp), tone: totalRev - totalExp >= 0 ? "text-zinc-900" : "text-red-700", sub: "encaissé − dépenses", delta: totalRev - totalExp - (prevRev - prevExp), good: "up" as const },
+  // Dépenses jugées au TAUX (dépenses ÷ encaissé) : vert si la marge s'améliore,
+  // même quand le montant monte — plus de ventes = plus d'achats, c'est normal.
+  const ratio = totalRev > 0 ? totalExp / totalRev : null;
+  const prevRatio = prevRev > 0 ? prevExp / prevRev : null;
+  const depForce: "good" | "bad" | "neutral" = ratio !== null && prevRatio !== null ? (ratio <= prevRatio ? "good" : "bad") : "neutral";
+  const depSub = `${expenses.length} ticket${expenses.length > 1 ? "s" : ""}${ratio !== null ? ` · ${Math.round(ratio * 100)} % de l'encaissé` : ""}`;
+
+  const kpis: { label: string; value: string; tone: string; sub: string; delta: number; good: "up" | "down" | null; force?: "good" | "bad" | "neutral" }[] = [
+    { label: "Encaissé", value: chf(totalRev), tone: "text-emerald-700", sub: `${payments.length} encaissement${payments.length > 1 ? "s" : ""}`, delta: totalRev - prevRev, good: "up" },
+    { label: "Dépenses", value: chf(totalExp), tone: "text-red-700", sub: depSub, delta: totalExp - prevExp, good: null, force: depForce },
+    { label: "Résultat", value: chf(totalRev - totalExp), tone: totalRev - totalExp >= 0 ? "text-zinc-900" : "text-red-700", sub: "encaissé − dépenses", delta: totalRev - totalExp - (prevRev - prevExp), good: "up" },
     { label: "Déplacements", value: chf(mileage), tone: "text-zinc-900", sub: `${kmTotal} km A/R déductibles`, delta: mileage - prevMileage, good: null },
   ];
 
@@ -124,7 +135,7 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
             <p className="text-[11px] font-semibold uppercase leading-tight tracking-wider text-zinc-400">{k.label}</p>
             <div className="mt-auto flex flex-wrap items-baseline gap-x-2 gap-y-1 pt-2">
               <p className={cn("text-base font-semibold tracking-tight", k.tone)}>{k.value}</p>
-              <Delta delta={k.delta} good={k.good} />
+              <Delta delta={k.delta} good={k.good} force={k.force} />
             </div>
             <p className="mt-1 text-[11px] leading-tight text-zinc-400">{k.sub}</p>
           </div>
@@ -137,34 +148,19 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
           <p className="text-sm font-bold text-zinc-700">Encaissements du mois</p>
           <span className="text-xs tabular-nums text-zinc-400">{payments.length} · {chf(totalRev)}</span>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-          {payments.map((p) => {
-            const OccIcon = occasionIcon(p.order.occasion);
-            return (
-              <Link
-                key={p.id}
-                href={`/commandes/${p.orderId}`}
-                className="flex items-center gap-2.5 border-b border-zinc-100 px-3.5 py-2.5 text-sm transition-colors last:border-b-0 even:bg-zinc-50/50 hover:bg-zinc-50"
-              >
-                <span className="w-10 shrink-0 whitespace-nowrap text-[12px] tabular-nums text-zinc-400">{p.paidAt.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" })}</span>
-                <span className="inline-flex min-w-0 flex-1 items-center gap-1.5">
-                  <OccIcon className="size-3.5 shrink-0 text-(--color-brand)" />
-                  <span className="truncate font-medium text-zinc-900">{p.order.contact.firstName} {p.order.contact.lastName}</span>
-                  {p.order.orderNo ? <span className="hidden shrink-0 text-[11px] tabular-nums text-zinc-300 sm:inline">#{String(p.order.orderNo).padStart(4, "0")}</span> : null}
-                </span>
-                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold", PAYKIND_TONE[p.kind] ?? "bg-zinc-100 text-zinc-600")}>
-                  {PAYKIND_LABEL[p.kind] ?? p.kind}
-                </span>
-                <span className={cn("w-24 shrink-0 whitespace-nowrap text-right font-semibold tabular-nums", p.cents < 0 ? "text-red-700" : "text-zinc-900")}>
-                  {chf(p.cents)}
-                </span>
-              </Link>
-            );
-          })}
-          {payments.length === 0 && (
-            <p className="px-4 py-10 text-center text-sm text-zinc-400">Aucun encaissement ce mois-ci — les paiements reçus apparaîtront ici, à leur date.</p>
-          )}
-        </div>
+        <RecettesTable
+          rows={payments.map((p): PayRow => ({
+            id: p.id,
+            orderId: p.orderId,
+            dateISO: p.paidAt.toISOString(),
+            dateLabel: p.paidAt.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" }),
+            name: `${p.order.contact.firstName} ${p.order.contact.lastName}`.trim(),
+            orderNo: p.order.orderNo,
+            occasion: p.order.occasion,
+            kind: p.kind,
+            cents: p.cents,
+          }))}
+        />
 
         {/* Créances — livré mais pas encore payé (hors CA tant que l'argent n'est pas là) */}
         {receivables.length > 0 && (
