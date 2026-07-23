@@ -13,7 +13,7 @@ export default function NewOrderForm({ contactId }: { contactId: string }) {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="rounded-lg bg-zinc-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700">
+      <button onClick={() => setOpen(true)} className="inline-flex h-8 items-center rounded-lg bg-zinc-900 px-3 text-[13px] font-semibold text-white hover:bg-zinc-700">
         + Nouvelle commande
       </button>
     );
