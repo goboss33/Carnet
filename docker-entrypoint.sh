@@ -13,5 +13,9 @@ printf '%s' 'UPDATE "Order" SET "themeNote" = "style" WHERE ("themeNote" IS NULL
 # Transitoire (templates, 2026-07) : étiquette les pages existantes selon leur type/format.
 printf '%s' 'UPDATE "JournalEntry" SET "template" = CASE WHEN "type" = '"'"'CREATION'"'"' AND "format" = '"'"'DIAPORAMA'"'"' THEN '"'"'GALERIE'"'"'::"JournalTemplate" WHEN "type" = '"'"'CREATION'"'"' THEN '"'"'RECIT'"'"'::"JournalTemplate" WHEN "format" = '"'"'DIAPORAMA'"'"' THEN '"'"'SELECTION'"'"'::"JournalTemplate" ELSE '"'"'GUIDE'"'"'::"JournalTemplate" END WHERE "template" IS NULL OR "template" = '"'"'RECIT'"'"'::"JournalTemplate";' \
   | /prisma-cli/node_modules/.bin/prisma db execute --stdin --schema prisma/schema.prisma || true
+# Transitoire (KPI, 2026-07) : rebase les dates d'acquisition des commandes
+# importées sur la date d'événement (seul axe temporel réel) pour que les
+# statistiques de période fonctionnent. Idempotent.
+/prisma-cli/node_modules/.bin/prisma db execute --file prisma/backfill-kpi.sql --schema prisma/schema.prisma || true
 echo "Carnet : démarrage."
 exec node server.js
