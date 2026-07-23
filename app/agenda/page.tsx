@@ -73,19 +73,19 @@ function Card({ o, now, anchorId }: { o: OrderWithContact; now: Date; anchorId?:
                 <span className="truncate font-semibold text-zinc-900">{o.contact.firstName} {o.contact.lastName}</span>
                 {missing > 0 && <span className="size-2 shrink-0 rounded-full bg-amber-500" title={`${missing} donnée(s) manquante(s)`} />}
               </p>
-              {/* L2 — occasion (+ sans lactose) */}
-              <p className="mt-1 flex items-center gap-2 text-[13px]">
+              {/* L2 — occasion */}
+              <p className="mt-1 flex items-center text-[13px]">
                 <span className="inline-flex min-w-0 items-center gap-1.5 text-zinc-700">
                   <OccIcon className="size-3.5 shrink-0 text-(--color-brand)" />
                   <span className="truncate">{o.occasion ? occasionShort(o.occasion) : "à préciser"}</span>
                 </span>
+              </p>
+              {/* L3 — étages + parts (+ sans lactose) */}
+              <p className="mt-1 flex items-center gap-2 text-[13px] text-zinc-500">
+                <span>{[o.tiers ? `${o.tiers} étage${o.tiers > 1 ? "s" : ""}` : null, o.parts ? `${o.parts} parts` : null].filter(Boolean).join(" · ") || "—"}</span>
                 {o.sansLactose && (
                   <span className="shrink-0" title="Sans lactose"><MilkOff className="size-3.5 text-red-500" /></span>
                 )}
-              </p>
-              {/* L3 — étages + parts */}
-              <p className="mt-1 text-[13px] text-zinc-500">
-                {[o.tiers ? `${o.tiers} étage${o.tiers > 1 ? "s" : ""}` : null, o.parts ? `${o.parts} parts` : null].filter(Boolean).join(" · ") || "—"}
               </p>
             </div>
 
