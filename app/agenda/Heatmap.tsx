@@ -4,7 +4,9 @@
    Une case s'allume (vert, intensité selon la charge en parts) quand au moins
    une commande confirmée/en production tombe ce jour ; le nombre de commandes
    s'affiche dans la case en vue 1/3 mois. Clic sur une case pleine → défile
-   jusqu'à la commande du jour (ancre #day-YYYY-MM-DD). Aujourd'hui est cerclé. */
+   jusqu'à la commande du jour (ancre #day-YYYY-MM-DD). Aujourd'hui est cerclé.
+   La grille défile HORIZONTALEMENT à l'intérieur de sa carte (initiales des
+   jours fixes à gauche) — elle ne pousse jamais la largeur de la page. */
 
 import { useState } from "react";
 import { cn } from "@/lib/ui";
@@ -55,6 +57,17 @@ export default function Heatmap({ days, todayISO }: { days: Record<string, HeatD
     weeks.push(col);
   }
 
+  // Étiquettes de mois (une par changement de mois, jamais deux trop proches).
+  const labels: string[] = [];
+  let lastLabeled = -10;
+  const minGapCols = months === 12 ? 3 : 2;
+  weeks.forEach((col, wi) => {
+    const first = col.find((d) => d.getDate() === 1);
+    if (wi === 0) { labels.push(MONTHS[col[0].getMonth()]); lastLabeled = 0; }
+    else if (first && wi - lastLabeled >= minGapCols) { labels.push(MONTHS[first.getMonth()]); lastLabeled = wi; }
+    else labels.push("");
+  });
+
   const small = months === 12;
   const cell = small ? "size-3 rounded-[3px] text-[0px]" : months === 1 ? "size-8 rounded-md text-[11px]" : "size-6 rounded-[5px] text-[10px]";
   const gap = small ? "gap-[2px]" : "gap-[3px]";
@@ -64,7 +77,7 @@ export default function Heatmap({ days, todayISO }: { days: Record<string, HeatD
   };
 
   return (
-    <div className="mb-7 rounded-2xl border border-zinc-200 bg-white p-4">
+    <div className="mb-7 min-w-0 max-w-full rounded-2xl border border-zinc-200 bg-white p-4">
       <div className="mb-3 flex gap-1.5">
         {PERIODS.map((p) => (
           <button
@@ -82,53 +95,53 @@ export default function Heatmap({ days, todayISO }: { days: Record<string, HeatD
         ))}
       </div>
 
-      <div className={cn("flex", gap, small && "overflow-x-auto pb-1")}>
-        {/* Initiales des jours */}
-        <div className={cn("flex shrink-0 flex-col", gap)}>
+      <div className="flex min-w-0">
+        {/* Initiales des jours — fixes, hors de la zone qui défile */}
+        <div className={cn("flex shrink-0 flex-col pr-1.5", gap)}>
           <div className={cn(cell, "invisible")} />
           {WEEKDAYS.map((w, i) => (
             <div key={i} className={cn(cell, "flex items-center justify-center bg-transparent font-medium text-zinc-400", small ? "text-[8px]" : "text-[10px]")}>{w}</div>
           ))}
         </div>
 
-        {weeks.map((col, wi) => {
-          const firstOfMonth = col.find((d) => d.getDate() === 1);
-          const showMonth = wi === 0 || firstOfMonth;
-          const monthLabel = wi === 0 ? MONTHS[col[0].getMonth()] : firstOfMonth ? MONTHS[firstOfMonth.getMonth()] : "";
-          return (
-            <div key={wi} className={cn("flex shrink-0 flex-col", gap)}>
-              <div className={cn(cell, "flex items-end justify-start overflow-visible whitespace-nowrap bg-transparent font-medium text-zinc-400", small ? "text-[8px]" : "text-[10px]")}>
-                {showMonth ? monthLabel : ""}
+        {/* Grille — défile horizontalement dans la carte, sans pousser la page */}
+        <div className="min-w-0 flex-1 overflow-x-auto pb-1">
+          <div className={cn("flex w-max", gap)}>
+            {weeks.map((col, wi) => (
+              <div key={wi} className={cn("flex shrink-0 flex-col", gap)}>
+                <div className={cn(cell, "flex items-end justify-start overflow-visible whitespace-nowrap bg-transparent font-medium text-zinc-400", small ? "text-[8px]" : "text-[10px]")}>
+                  {labels[wi]}
+                </div>
+                {col.map((d) => {
+                  const dISO = iso(d);
+                  const past = d < today && dISO !== todayISO;
+                  const isToday = dISO === todayISO;
+                  const data = days[dISO];
+                  const filled = !!data && !past;
+                  const title = `${d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" })}${data ? ` — ${data.count} commande${data.count > 1 ? "s" : ""}${data.parts ? ` · ${data.parts} parts` : ""}` : ""}`;
+                  return (
+                    <button
+                      key={dISO}
+                      type="button"
+                      tabIndex={filled ? 0 : -1}
+                      onClick={filled ? () => jump(dISO) : undefined}
+                      title={title}
+                      aria-label={title}
+                      className={cn(
+                        cell,
+                        "flex items-center justify-center font-semibold tabular-nums transition-transform",
+                        filled ? cn(LEVEL_CLS[level(data!)], "cursor-pointer hover:scale-110") : past ? "cursor-default bg-zinc-50" : "cursor-default bg-zinc-100/80",
+                        isToday && "ring-1 ring-zinc-900/50",
+                      )}
+                    >
+                      {!small && filled ? data!.count : ""}
+                    </button>
+                  );
+                })}
               </div>
-              {col.map((d) => {
-                const dISO = iso(d);
-                const past = d < today;
-                const isToday = dISO === todayISO;
-                const data = days[dISO];
-                const filled = !!data && !past || (!!data && isToday);
-                const title = `${d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" })}${data ? ` — ${data.count} commande${data.count > 1 ? "s" : ""}${data.parts ? ` · ${data.parts} parts` : ""}` : ""}`;
-                return (
-                  <button
-                    key={dISO}
-                    type="button"
-                    tabIndex={filled ? 0 : -1}
-                    onClick={filled ? () => jump(dISO) : undefined}
-                    title={title}
-                    aria-label={title}
-                    className={cn(
-                      cell,
-                      "flex items-center justify-center font-semibold tabular-nums transition-transform",
-                      filled ? cn(LEVEL_CLS[level(data!)], "cursor-pointer hover:scale-110") : past ? "cursor-default bg-zinc-50" : "cursor-default bg-zinc-100/80",
-                      isToday && "ring-1 ring-zinc-900/50",
-                    )}
-                  >
-                    {!small && filled ? data!.count : ""}
-                  </button>
-                );
-              })}
-            </div>
-          );
-        })}
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
