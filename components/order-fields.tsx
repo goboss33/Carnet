@@ -10,6 +10,7 @@ import { Pencil, Check } from "lucide-react";
 import { cn } from "@/lib/ui";
 import { FOURRAGES, MAX_FOURRAGES, TIERS_PARTS } from "@/lib/order-options";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import { MapsLink } from "@/components/ui/map-link";
 
 const inputCls = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
 const labelCls = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
@@ -114,7 +115,10 @@ export function DeliveryFields({ mode, address }: { mode: string; address: strin
         </div>
       </div>
       <div className={cn("sm:col-span-2", m !== "livraison" && "hidden")}>
-        <span className={labelCls}>Adresse de livraison</span>
+        <span className="mb-1 flex items-center justify-between gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Adresse de livraison</span>
+          {address && <MapsLink address={address} className="text-[11px]" />}
+        </span>
         <AddressAutocomplete name="deliveryAddress" defaultValue={address} inputClassName={inputCls} placeholder="Commencez à taper l'adresse…" />
       </div>
     </div>

@@ -6,7 +6,8 @@ import { missingFor } from "@/lib/completeness";
 import { occasionIcon, occasionShort } from "@/lib/occasions";
 import { cn } from "@/lib/ui";
 import { PageHeader } from "@/components/ui/page-header";
-import { Truck, Store, Clock, MilkOff } from "lucide-react";
+import { Truck, Store, Clock, MilkOff, MapPin } from "lucide-react";
+import { MapsLink, shortAddress } from "@/components/ui/map-link";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -34,21 +35,20 @@ function Card({ o, now }: { o: OrderWithContact; now: Date }) {
   const jxTone = days <= 1 ? "bg-red-50 text-red-600" : days <= 7 ? "bg-amber-50 text-amber-700" : "bg-zinc-100 text-zinc-500";
   const sameYear = d.getFullYear() === now.getFullYear();
   const OccIcon = occasionIcon(o.occasion);
-  const Remise = o.deliveryMode === "livraison" ? Truck : Store;
   const pay = paymentState(o);
   const missing = missingFor(o).length;
   const isDevis = o.status === "DEVIS_ENVOYE";
   const heure = o.handoverAt ? o.handoverAt.toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" }) : null;
 
   return (
-    <li>
-      <Link
-        href={`/commandes/${o.id}`}
-        className={cn(
-          "flex items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-3.5 transition-shadow hover:shadow-sm",
-          isDevis && "opacity-55 hover:opacity-90"
-        )}
-      >
+    <li
+      className={cn(
+        "relative flex items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-3.5 transition-shadow hover:shadow-sm",
+        isDevis && "opacity-55 hover:opacity-90"
+      )}
+    >
+      {/* Toute la carte ouvre la fiche (calque) ; le lien d'itinéraire passe au-dessus. */}
+      <Link href={`/commandes/${o.id}`} aria-label={`Ouvrir la commande de ${o.contact.firstName}`} className="absolute inset-0 z-[1] rounded-xl" />
         {/* Date : jour de semaine + date (année seulement si différente) + J-x */}
         <div className="w-16 shrink-0 text-center">
           <p className="text-[11px] font-semibold uppercase leading-none text-zinc-400">
@@ -71,9 +71,6 @@ function Card({ o, now }: { o: OrderWithContact; now: Date }) {
               <OccIcon className="size-3.5 shrink-0 text-(--color-brand)" />
               {o.occasion ? occasionShort(o.occasion) : "à préciser"}
             </span>
-            <span className="inline-flex items-center gap-1" title={o.deliveryMode === "livraison" ? "Livraison" : "Retrait à l'atelier"}>
-              <Remise className="size-3.5 text-zinc-400" />
-            </span>
             {o.parts ? <span className="whitespace-nowrap">{o.parts} parts</span> : null}
             {heure && (
               <span className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-zinc-700">
@@ -82,6 +79,21 @@ function Card({ o, now }: { o: OrderWithContact; now: Date }) {
             )}
             {o.sansLactose && (
               <span title="Sans lactose"><MilkOff className="size-3.5 text-red-500" /></span>
+            )}
+          </p>
+          {/* Remise : ligne dédiée — adresse cliquable (itinéraire) ou retrait atelier */}
+          <p className="mt-1 flex min-w-0 items-center text-[12px]">
+            {o.deliveryMode === "livraison" ? (
+              o.deliveryAddress ? (
+                <MapsLink address={o.deliveryAddress} className="relative z-[2] min-w-0 gap-1.5">
+                  <MapPin className="size-3.5 shrink-0" />
+                  <span className="truncate">{shortAddress(o.deliveryAddress)}</span>
+                </MapsLink>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 font-medium text-amber-600"><Truck className="size-3.5 shrink-0" /> Livraison — adresse ?</span>
+              )
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-zinc-400"><Store className="size-3.5 shrink-0" /> Retrait atelier</span>
             )}
           </p>
         </div>
@@ -103,7 +115,6 @@ function Card({ o, now }: { o: OrderWithContact; now: Date }) {
             </p>
           )}
         </div>
-      </Link>
     </li>
   );
 }
