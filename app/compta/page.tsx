@@ -3,9 +3,11 @@ import { prisma, currentTenant } from "@/lib/db";
 import { chf, mileageCents } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
 import { paymentState } from "@/lib/payments";
-import { Download, ArrowUpRight, ArrowDownRight, HandCoins } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, HandCoins } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import MonthNav from "./MonthNav";
+import ViewToggle from "./ViewToggle";
+import ExportMenu from "./ExportMenu";
 import ExpensesSection, { type ExpenseRow } from "./ExpensesSection";
 import RecettesTable, { type PayRow } from "./RecettesTable";
 import { cn } from "@/lib/ui";
@@ -96,13 +98,12 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
   const ratio = totalRev > 0 ? totalExp / totalRev : null;
   const prevRatio = prevRev > 0 ? prevExp / prevRev : null;
   const depForce: "good" | "bad" | "neutral" = ratio !== null && prevRatio !== null ? (ratio <= prevRatio ? "good" : "bad") : "neutral";
-  const depSub = `${expenses.length} ticket${expenses.length > 1 ? "s" : ""}${ratio !== null ? ` · ${Math.round(ratio * 100)} % de l'encaissé` : ""}`;
-
-  const kpis: { label: string; value: string; tone: string; sub: string; delta: number; good: "up" | "down" | null; force?: "good" | "bad" | "neutral" }[] = [
+  // Sous-titres COURTS (une seule ligne garantie → cartes de même hauteur).
+  const kpis: { label: string; value: string; tone: string; sub: string; subTitle?: string; delta: number; good: "up" | "down" | null; force?: "good" | "bad" | "neutral" }[] = [
     { label: "Encaissé", value: chf(totalRev), tone: "text-emerald-700", sub: `${payments.length} encaissement${payments.length > 1 ? "s" : ""}`, delta: totalRev - prevRev, good: "up" },
-    { label: "Dépenses", value: chf(totalExp), tone: "text-red-700", sub: depSub, delta: totalExp - prevExp, good: null, force: depForce },
+    { label: "Dépenses", value: chf(totalExp), tone: "text-red-700", sub: `${expenses.length} ticket${expenses.length > 1 ? "s" : ""}${ratio !== null ? ` · ${Math.round(ratio * 100)} %` : ""}`, subTitle: ratio !== null ? `${Math.round(ratio * 100)} % de l'encaissé (marge)` : undefined, delta: totalExp - prevExp, good: null, force: depForce },
     { label: "Résultat", value: chf(totalRev - totalExp), tone: totalRev - totalExp >= 0 ? "text-zinc-900" : "text-red-700", sub: "encaissé − dépenses", delta: totalRev - totalExp - (prevRev - prevExp), good: "up" },
-    { label: "Déplacements", value: chf(mileage), tone: "text-zinc-900", sub: `${kmTotal} km A/R déductibles`, delta: mileage - prevMileage, good: null },
+    { label: "Déplacements", value: chf(mileage), tone: "text-zinc-900", sub: `${kmTotal} km A/R`, subTitle: "kilomètres aller-retour déductibles (forfait)", delta: mileage - prevMileage, good: null },
   ];
 
   return (
@@ -113,12 +114,8 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
         actions={
           <>
             <MonthNav month={month} prev={fmtM(prevD)} next={fmtM(nextD)} label={label} />
-            <Link href={`/compta/annee?y=${month.slice(0, 4)}`} className="inline-flex h-8 items-center rounded-lg border border-zinc-300 px-2.5 text-[13px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900">
-              Année
-            </Link>
-            <a href={`/api/compta/export?m=${month}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-300 px-2.5 text-[13px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 [&_svg]:size-4">
-              <Download /> CSV
-            </a>
+            <ViewToggle active="mois" month={month} year={Number(month.slice(0, 4))} />
+            <ExportMenu csvHref={`/api/compta/export?m=${month}`} pdfHref={`/api/compta/export/pdf?m=${month}`} />
           </>
         }
       />
@@ -132,7 +129,7 @@ export default async function Compta({ searchParams }: { searchParams: Promise<{
               <p className={cn("text-base font-semibold tracking-tight", k.tone)}>{k.value}</p>
               <Delta delta={k.delta} good={k.good} force={k.force} />
             </div>
-            <p className="mt-1 text-[11px] leading-tight text-zinc-400">{k.sub}</p>
+            <p className="mt-1 truncate text-[11px] leading-tight text-zinc-400" title={k.subTitle ?? k.sub}>{k.sub}</p>
           </div>
         ))}
       </div>

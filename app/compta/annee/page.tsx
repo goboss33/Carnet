@@ -3,16 +3,20 @@ import { prisma, currentTenant } from "@/lib/db";
 import { chf, mileageCents } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
 import { PageHeader } from "@/components/ui/page-header";
-import { ChevronLeft, ChevronRight, Download, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import ViewToggle from "@/app/compta/ViewToggle";
+import ExportMenu from "@/app/compta/ExportMenu";
 import { cn } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
 
 /* Pastille de variation vs année précédente (même langage que la vue mois). */
-function Delta({ delta, good }: { delta: number; good: "up" | "down" | null }) {
+function Delta({ delta, good, force }: { delta: number; good: "up" | "down" | null; force?: "good" | "bad" | "neutral" }) {
   if (delta === 0) return null;
   const up = delta > 0;
-  const tone = good === null ? "bg-zinc-100 text-zinc-500" : (up ? good === "up" : good === "down") ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700";
+  const tone = force
+    ? force === "good" ? "bg-emerald-50 text-emerald-700" : force === "bad" ? "bg-red-50 text-red-700" : "bg-zinc-100 text-zinc-500"
+    : good === null ? "bg-zinc-100 text-zinc-500" : (up ? good === "up" : good === "down") ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700";
   return (
     <span className={cn("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium", tone)}>
       {up ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
@@ -64,11 +68,17 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
   const currentMonth = year === now.getFullYear() ? now.getMonth() : -1;
   const maxRev = Math.max(1, ...months.map((m) => m.rev));
 
-  const kpis = [
-    { label: `Encaissé ${year}`, value: chf(totRev), tone: "text-emerald-700", sub: `${payments.length} encaissement${payments.length > 1 ? "s" : ""}`, delta: totRev - prevRev, good: "up" as const },
-    { label: `Dépenses ${year}`, value: chf(totExp), tone: "text-red-700", sub: vatYear > 0 ? `dont TVA ${chf(vatYear)}` : `${expenses.length} tickets`, delta: totExp - prevExp, good: "down" as const },
-    { label: "Frais de déplacement", value: chf(mileageYear), tone: "text-zinc-900", sub: `forfait ${s.kmRate} CHF/km, A/R`, delta: mileageYear - prevMileage, good: null },
-    { label: "Résultat imposable estimé", value: chf(totRev - totExp - mileageYear), tone: totRev - totExp - mileageYear >= 0 ? "text-zinc-900" : "text-red-700", sub: "recettes − dépenses − déplacements", delta: totRev - totExp - mileageYear - (prevRev - prevExp - prevMileage), good: "up" as const },
+  // Mêmes 4 KPI que la vue mensuelle ; dépenses jugées au TAUX (÷ encaissé).
+  const ratio = totRev > 0 ? totExp / totRev : null;
+  const prevRatio = prevRev > 0 ? prevExp / prevRev : null;
+  const depForce: "good" | "bad" | "neutral" = ratio !== null && prevRatio !== null ? (ratio <= prevRatio ? "good" : "bad") : "neutral";
+  const kmYear = delivered.reduce((a, o) => a + (o.deliveryMode === "livraison" && o.deliveryKm ? o.deliveryKm * 2 : 0), 0);
+
+  const kpis: { label: string; value: string; tone: string; sub: string; subTitle?: string; delta: number; good: "up" | "down" | null; force?: "good" | "bad" | "neutral" }[] = [
+    { label: "Encaissé", value: chf(totRev), tone: "text-emerald-700", sub: `${payments.length} encaissement${payments.length > 1 ? "s" : ""}`, delta: totRev - prevRev, good: "up" },
+    { label: "Dépenses", value: chf(totExp), tone: "text-red-700", sub: `${expenses.length} ticket${expenses.length > 1 ? "s" : ""}${ratio !== null ? ` · ${Math.round(ratio * 100)} %` : ""}`, subTitle: ratio !== null ? `${Math.round(ratio * 100)} % de l'encaissé (marge)` : undefined, delta: totExp - prevExp, good: null, force: depForce },
+    { label: "Résultat", value: chf(totRev - totExp), tone: totRev - totExp >= 0 ? "text-zinc-900" : "text-red-700", sub: "encaissé − dépenses", delta: totRev - totExp - (prevRev - prevExp), good: "up" },
+    { label: "Déplacements", value: chf(mileageYear), tone: "text-zinc-900", sub: `${kmYear} km A/R`, subTitle: `forfait ${s.kmRate} CHF/km, aller-retour, déductible`, delta: mileageYear - prevMileage, good: null },
   ];
 
   return (
@@ -83,12 +93,8 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
               <span className="min-w-14 text-center text-[13px] font-semibold text-zinc-800">{year}</span>
               <Link href={`/compta/annee?y=${year + 1}`} aria-label="Année suivante" className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800"><ChevronRight className="size-4" /></Link>
             </div>
-            <Link href="/compta" className="inline-flex h-8 items-center rounded-lg border border-zinc-300 px-2.5 text-[13px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900">
-              Mois
-            </Link>
-            <a href={`/api/compta/export?y=${year}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-300 px-2.5 text-[13px] font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:text-zinc-900 [&_svg]:size-4">
-              <Download /> CSV
-            </a>
+            <ViewToggle active="annee" month={`${year}-01`} year={year} />
+            <ExportMenu csvHref={`/api/compta/export?y=${year}`} pdfHref={`/api/compta/export/pdf?y=${year}`} />
           </>
         }
       />
@@ -100,9 +106,9 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
             <p className="text-[11px] font-semibold uppercase leading-tight tracking-wider text-zinc-400">{k.label}</p>
             <div className="mt-auto flex flex-wrap items-baseline gap-x-2 gap-y-1 pt-2">
               <p className={cn("text-base font-semibold tracking-tight", k.tone)}>{k.value}</p>
-              <Delta delta={k.delta} good={k.good} />
+              <Delta delta={k.delta} good={k.good} force={k.force} />
             </div>
-            <p className="mt-1 text-[11px] leading-tight text-zinc-400">{k.sub}</p>
+            <p className="mt-1 truncate text-[11px] leading-tight text-zinc-400" title={k.subTitle ?? k.sub}>{k.sub}</p>
           </div>
         ))}
       </div>
@@ -124,7 +130,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
                 <td className="px-4 py-2.5 font-medium capitalize">
                   <Link href={`/compta?m=${year}-${String(m.i + 1).padStart(2, "0")}`} className="flex items-center gap-2 hover:underline">
                     {name(m.i)}
-                    {m.i === currentMonth && <span className="rounded-full bg-(--color-brand) px-1.5 py-0.5 text-[10px] font-semibold text-white">en cours</span>}
+                    {m.i === currentMonth && <span className="size-2 shrink-0 rounded-full bg-(--color-brand)" title="Mois en cours" />}
                   </Link>
                 </td>
                 <td className="px-4 py-2.5 text-right">
@@ -149,8 +155,15 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
         </table>
       </div>
 
+      {/* Dossier fiscal — synthèse discrète sous le tableau */}
+      <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-[13px]">
+        <p className="flex flex-wrap items-baseline gap-x-2">
+          <span className="font-semibold text-zinc-800">Résultat imposable estimé {year} : {chf(totRev - totExp - mileageYear)}</span>
+          <span className="text-zinc-400">(encaissé − dépenses − déplacements{vatYear > 0 ? ` · dont TVA payée ${chf(vatYear)}` : ""})</span>
+        </p>
+      </div>
       <p className="mt-3 text-xs text-zinc-400">
-        Le forfait kilométrique et l'assujettissement TVA sont à confirmer avec ta fiduciaire. Export CSV complet en haut de page.
+        Le forfait kilométrique et l'assujettissement TVA sont à confirmer avec ta fiduciaire. Export CSV / PDF en haut de page.
       </p>
     </>
   );
