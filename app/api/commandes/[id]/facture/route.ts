@@ -6,6 +6,7 @@ import { getBrand } from "@/lib/brand";
 import { getLexicon } from "@/lib/lexicon";
 import { PAYKIND_LABEL } from "@/lib/money";
 import { safePdfText as safe } from "@/lib/pdf";
+import { drawQrBill, qrBillReady, splitAddress, QR_ZONE_PT } from "@/lib/qrbill";
 
 /* ---------------------------------------------------------------------------
    GET /api/commandes/[id]/facture — facture PDF de la commande.
@@ -39,7 +40,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const dueCents = Math.max(0, totalCents - paidCents);
     const chf = (c: number) => `CHF ${(c / 100).toFixed(2)}`;
     const dt = (d: Date) => d.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
-    const no = order.orderNo ? String(order.orderNo).padStart(4, "0") : order.id.slice(-6).toUpperCase();
+    const no = order.orderNo ? String(order.orderNo).padStart(4, "0") : `${new Date().getFullYear()}-${order.id.slice(-4).toUpperCase()}`;
+    const addrLines = s.businessAddress.split("\n").map((l) => l.trim()).filter(Boolean);
+    // QR-facture : seulement s'il reste à payer et que l'émetteur est complet (IBAN CH/LI + adresse).
+    const canQr = dueCents > 0 && !!s.accountHolder && qrBillReady(s.iban, addrLines);
 
     const doc = await PDFDocument.create();
     const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -79,17 +83,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     text("FACTURE", 0, 20, { bold: true, right: A4.w - M });
     y -= 16;
     text(`n° ${no}`, 0, 10, { color: gray, right: A4.w - M });
-    const seller = [s.accountHolder, ...s.businessAddress.split("\n").map((l) => l.trim()).filter(Boolean)];
+    const seller = [s.accountHolder, ...addrLines];
     for (const l of seller) { y -= 13; text(l, M, 9, { color: gray }); }
     if (s.vatEnabled && s.vatNumber) { y -= 13; text(`N° TVA ${s.vatNumber}`, M, 9, { color: gray }); }
+    else if (s.businessUid) { y -= 13; text(`IDE ${s.businessUid}`, M, 9, { color: gray }); }
     y -= 24;
     text(`Date : ${dt(new Date())}`, 0, 9, { color: gray, right: A4.w - M });
 
-    // ---- Cliente
+    // ---- Client·e (entreprise en premier si renseignée — factures B2B)
     const c = order.contact;
-    text("Facturée à", M, 8, { color: gray });
+    const person = `${c.firstName} ${c.lastName}`.trim();
+    text(c.company ? "Facturé à" : "Facturée à", M, 8, { color: gray });
     y -= 14;
-    text(`${c.firstName} ${c.lastName}`.trim(), M, 11, { bold: true });
+    text(c.company || person, M, 11, { bold: true });
+    if (c.company && person) { y -= 12; text(`À l'attention de ${person}`, M, 9, { color: gray }); }
     if (order.deliveryMode === "livraison" && order.deliveryAddress) {
       for (const l of wrap(order.deliveryAddress, font, 9, 260)) { y -= 12; text(l, M, 9, { color: gray }); }
     }
@@ -113,7 +120,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const compo = [order.biscuit, ...(order.fourrages ?? [])].filter(Boolean).join(", ");
     if (compo) details.push(`Composition : ${compo}`);
     if (order.sansLactose) details.push("Sans lactose");
-    if (order.eventDate) details.push(`${cap(lex.occasion)} du ${dt(order.eventDate)}`);
+    if (order.eventDate) details.push(`Date de la prestation : ${dt(order.eventDate)}`);
     details.push(order.deliveryMode === "livraison" ? `Livraison${order.deliveryAddress ? ` — ${order.deliveryAddress}` : ""} (incluse)` : cap(lex.pickupLabel));
     for (const d of details) for (const l of wrap(d, font, 9, A4.w - 2 * M - 110)) { y -= 13; text(l, M + 10, 9, { color: gray }); }
 
@@ -133,7 +140,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       text("Paiements reçus", M, 8, { color: gray });
       y -= 5; hr(); y -= 13;
       for (const p of received) {
-        text(`${PAYKIND_LABEL[p.kind] ?? p.kind} — ${dt(p.paidAt)}`, M, 9);
+        text(`${cap(PAYKIND_LABEL[p.kind] ?? p.kind)} — ${dt(p.paidAt)}`, M, 9);
         text(`${p.cents < 0 ? "+" : "−"} ${chf(Math.abs(p.cents))}`, 0, 9, { color: gray, right: A4.w - M });
         y -= 13;
       }
@@ -145,25 +152,47 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (dueCents > 0) {
       text("Reste à payer", A4.w - M - 200, 12, { bold: true });
       text(chf(dueCents), 0, 12, { bold: true, right: A4.w - M, color: accent });
-      // ---- Coordonnées de règlement
-      const pay: string[] = [];
-      if (s.paymentDefault === "twint" && s.twintNumber) pay.push(`Twint : ${s.twintNumber}`);
-      if (s.iban) pay.push(`IBAN : ${s.iban}${s.bankName ? ` (${s.bankName})` : ""}${s.accountHolder ? ` — ${s.accountHolder}` : ""}`);
-      if (s.paymentDefault !== "twint" && s.twintNumber) pay.push(`Twint : ${s.twintNumber}`);
-      if (pay.length) {
-        y -= 22;
-        text("Règlement", M, 8, { color: gray });
+      if (s.paymentTermsDays > 0) {
+        const due = new Date(Date.now() + s.paymentTermsDays * 86400000);
+        y -= 13;
+        text(`Payable à ${s.paymentTermsDays} jours — échéance : ${dt(due)}`, 0, 8.5, { color: gray, right: A4.w - M });
+      }
+      // ---- Coordonnées de règlement (la QR-facture prend le relais quand elle est possible)
+      y -= 22;
+      text("Règlement", M, 8, { color: gray });
+      if (canQr) {
+        y -= 13;
+        text(`Par QR-facture ci-dessous${s.twintNumber ? ` ou Twint : ${s.twintNumber}` : ""}`, M, 9);
+      } else {
+        const pay: string[] = [];
+        if (s.paymentDefault === "twint" && s.twintNumber) pay.push(`Twint : ${s.twintNumber}`);
+        if (s.iban) pay.push(`IBAN : ${s.iban}${s.bankName ? ` (${s.bankName})` : ""}${s.accountHolder ? ` — ${s.accountHolder}` : ""}`);
+        if (s.paymentDefault !== "twint" && s.twintNumber) pay.push(`Twint : ${s.twintNumber}`);
         for (const l of pay) { y -= 13; text(l, M, 9); }
       }
     } else {
       text("Facture acquittée — merci !", 0, 11, { bold: true, right: A4.w - M, color: rgb(0.05, 0.55, 0.35) });
     }
 
-    // ---- Pied de page
+    // ---- QR-facture (section de paiement normée, bas de page)
+    if (canQr) {
+      const da = order.deliveryMode === "livraison" && order.deliveryAddress ? splitAddress(order.deliveryAddress) : null;
+      await drawQrBill(doc, page, font, bold, {
+        iban: s.iban,
+        creditorName: s.accountHolder,
+        creditorLine1: addrLines[0],
+        creditorLine2: addrLines[addrLines.length - 1],
+        amountCents: dueCents,
+        ...(da ? { debtorName: c.company || person, debtorLine1: da[0], debtorLine2: da[1] } : {}),
+        message: `Facture ${no}`,
+      });
+    }
+
+    // ---- Pied de page (au-dessus de la section de paiement quand elle existe)
     const footer: string[] = [];
     if (!s.vatEnabled) footer.push("Non assujetti à la TVA (art. 10 LTVA) — TVA non applicable.");
     footer.push(`Document généré par ${brand.name} le ${dt(new Date())}.`);
-    let fy = M;
+    let fy = canQr ? QR_ZONE_PT + 26 : M;
     for (const l of footer.reverse()) {
       page.drawText(safe(l), { x: M, y: fy, size: 7.5, font, color: gray });
       fy += 10;

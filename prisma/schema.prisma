@@ -79,8 +79,10 @@ model Settings {
   bankName          String   @default("")
   // facturation & TVA
   businessAddress   String   @default("") // adresse figurant sur les factures (multiligne)
+  businessUid       String   @default("") // n° IDE (CHE-…) — affiché sur les factures, indépendant de la TVA
+  paymentTermsDays  Int? // délai de paiement des factures (jours) — défaut 20
   vatEnabled        Boolean  @default(false) // assujetti TVA — bascule l'affichage sur les factures
-  vatNumber         String   @default("") // ex. CHE-123.456.789 TVA
+  vatNumber        String   @default("") // ex. CHE-123.456.789 TVA
   vatRate           Float? // taux applicable (%) — 2.6 denrées, 8.1 normal, réglable par artisan
   // assistant IA
   assistantActive       Boolean @default(true)
@@ -137,6 +139,7 @@ model Contact {
   tenant            Tenant   @relation(fields: [tenantId], references: [id])
   firstName         String
   lastName          String   @default("")
+  company           String   @default("") // raison sociale (clients entreprise — facturation B2B)
   phone             String   @default("")
   email             String   @default("")
   instagram         String   @default("")

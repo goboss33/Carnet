@@ -63,7 +63,7 @@ function ChannelSelect({ initial }: { initial: string }) {
 }
 
 type C = {
-  id: string; firstName: string; lastName: string; phone: string; email: string;
+  id: string; firstName: string; lastName: string; company: string; phone: string; email: string;
   instagram: string; facebook: string; source: string; notes: string; consentNewsletter: boolean;
 };
 
@@ -78,6 +78,10 @@ export default function ContactForm({ contact }: { contact: C }) {
       <div className="grid grid-cols-2 gap-3">
         <label><span className={label}>Prénom *</span><input name="firstName" defaultValue={contact.firstName} required className={input} /></label>
         <label><span className={label}>Nom</span><input name="lastName" defaultValue={contact.lastName} className={input} /></label>
+        <label className="col-span-2">
+          <span className={label}>Société (clients entreprise)</span>
+          <input name="company" defaultValue={contact.company} className={input} placeholder="Facultatif — apparaît en tête des factures B2B" />
+        </label>
         <label>
           <span className={labelRow}><ChannelIcon source="TELEPHONE" className="size-3.5" /> Mobile</span>
           <input name="phone" defaultValue={contact.phone} className={input} placeholder="+41…" />

@@ -85,8 +85,9 @@ async function main() {
   const [sophie, julie, vlora, daniela, celine, marc, lea, nadia] = contacts;
 
   // 5. Commandes — un exemplaire par statut, dates réalistes
+  let orderSeq = 0; // n° séquentiels comme en prod (backfill/nextOrderNo)
   const mk = (data: Prisma.OrderUncheckedCreateInput) =>
-    prisma.order.create({ data });
+    prisma.order.create({ data: { orderNo: ++orderSeq, ...data } });
 
   // LEAD (2)
   await mk({

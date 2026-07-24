@@ -763,6 +763,7 @@ export async function importCsv(
 const contactPatch = z.object({
   firstName: z.string().min(1, "Prénom requis"),
   lastName: z.string().default(""),
+  company: z.string().optional(),
   phone: z.string().default(""),
   email: z.string().default(""),
   instagram: z.string().default(""),
@@ -1038,6 +1039,8 @@ export async function saveSettings(formData: FormData) {
     iban: String(formData.get("iban") ?? "").trim(),
     bankName: String(formData.get("bankName") ?? "").trim(),
     businessAddress: String(formData.get("businessAddress") ?? "").trim().slice(0, 200),
+    businessUid: String(formData.get("businessUid") ?? "").trim().slice(0, 40),
+    paymentTermsDays: clampInt(num("paymentTermsDays"), 0, 90),
     vatEnabled: formData.get("vatEnabled") === "on",
     vatNumber: String(formData.get("vatNumber") ?? "").trim().slice(0, 40),
     vatRate: (() => {

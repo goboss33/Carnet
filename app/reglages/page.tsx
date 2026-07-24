@@ -253,8 +253,23 @@ export default async function Reglages() {
             <label className="mb-4 block">
               <span className={label}>Adresse sur les factures</span>
               <textarea name="businessAddress" rows={2} defaultValue={raw?.businessAddress ?? ""} placeholder={"Chemin des Curtils 1\n1261 Le Vaud"} className={input} />
-              <span className="mt-1 block text-[11px] text-zinc-400">Une ligne par ligne d'adresse. Le nom affiché est le titulaire du compte ci-dessus.</span>
+              <span className="mt-1 block text-[11px] text-zinc-400">
+                Une ligne par ligne d'adresse. Le nom affiché est le titulaire du compte ci-dessus.
+                Avec l'IBAN, elle active la <b>QR-facture</b> en bas des factures non soldées.
+              </span>
             </label>
+            <div className="mb-4 grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className={label}>N° IDE (facultatif)</span>
+                <input name="businessUid" defaultValue={raw?.businessUid ?? ""} placeholder="CHE-123.456.789" className={input} />
+                <span className="mt-1 block text-[11px] text-zinc-400">Attribué automatiquement à l'affiliation AVS. Affiché sur les factures.</span>
+              </label>
+              <label className="block">
+                <span className={label}>Délai de paiement (jours)</span>
+                <input name="paymentTermsDays" type="number" min="0" max="90" defaultValue={raw?.paymentTermsDays ?? ""} placeholder={String(eff.paymentTermsDays)} className={input} />
+                <span className="mt-1 block text-[11px] text-zinc-400">Échéance affichée sur les factures. 0 = pas d'échéance.</span>
+              </label>
+            </div>
             <label className="mb-4 flex items-center gap-3 text-sm text-zinc-700">
               <input type="checkbox" name="vatEnabled" defaultChecked={eff.vatEnabled} className="size-4 accent-(--color-brand)" />
               Assujetti à la TVA — les factures affichent « Prix TTC, dont TVA x % »

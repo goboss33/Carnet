@@ -45,6 +45,8 @@ export type EffectiveSettings = {
   iban: string;
   bankName: string;
   businessAddress: string;
+  businessUid: string;
+  paymentTermsDays: number;
   vatEnabled: boolean;
   vatNumber: string;
   vatRate: number;
@@ -102,6 +104,8 @@ export async function getSettings(tenantId: string): Promise<EffectiveSettings> 
     iban: s?.iban ?? "",
     bankName: s?.bankName ?? "",
     businessAddress: s?.businessAddress ?? "",
+    businessUid: s?.businessUid ?? "",
+    paymentTermsDays: s?.paymentTermsDays ?? 20,
     vatEnabled: s?.vatEnabled ?? false,
     vatNumber: s?.vatNumber ?? "",
     vatRate: s?.vatRate ?? 2.6,

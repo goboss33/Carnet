@@ -90,6 +90,7 @@ export default async function ContactFiche({ params }: { params: Promise<{ id: s
             id: contact.id,
             firstName: contact.firstName,
             lastName: contact.lastName,
+            company: contact.company,
             phone: contact.phone,
             email: contact.email,
             instagram: contact.instagram,
