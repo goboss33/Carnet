@@ -103,8 +103,18 @@ export async function fillField(tenantId: string, orderId: string, field: string
     return field === "parts" ? `${n} parts` : `prix : CHF ${n}`;
   }
   if (field === "occasion") {
-    await prisma.order.update({ where: { id: orderId }, data: { occasion: text.slice(0, 60) } });
-    return `occasion : ${text.slice(0, 60)}`;
+    // Rabattue sur la liste standard ; la formulation d'origine part en note (convention du bot).
+    const { normalizeOccasion } = await import("@/lib/order-options");
+    const norm = normalizeOccasion(text, order.celebrantAge);
+    const keepRaw = norm && norm.toLowerCase() !== text.trim().toLowerCase();
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        occasion: norm,
+        ...(keepRaw ? { notes: `${order.notes ? `${order.notes}\n` : ""}Occasion précisée : ${text.slice(0, 60)}` } : {}),
+      },
+    });
+    return `occasion : ${norm}${keepRaw ? ` (« ${text.slice(0, 40)} » gardé en note)` : ""}`;
   }
   if (field === "handoverAt") {
     const m = text.match(/(\d{1,2})\s*[h:.]\s*(\d{2})?/);

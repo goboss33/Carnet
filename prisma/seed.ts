@@ -123,7 +123,7 @@ async function main() {
   await mk({
     tenantId, contactId: imane.id, status: OrderStatus.DEVIS_ENVOYE, source: Source.AUTRE,
     sourceDetail: "E-mail entreprise", kind: "EXCEPTION",
-    occasion: "100 ans d'entreprise", themeNote: "« La Route des 100 ans » — noir mat, or, argent",
+    occasion: "Événement d'entreprise", themeNote: "100 ans — « La Route des 100 ans », noir mat, or, argent",
     eventDate: new Date(Date.UTC(2027, 10, 5, 17)), priceQuoted: 10200,
     deliveryMode: "livraison", deliveryAddress: "SwissTech Convention Center, Écublens", deliveryKm: 12,
     revenueCategory: RevenueCategory.SUR_MESURE,

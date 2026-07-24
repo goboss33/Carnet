@@ -102,8 +102,9 @@ export function FourrageChips({ selected }: { selected: string[] }) {
 export function DeliveryFields({ mode, address }: { mode: string; address: string }) {
   const [m, setM] = useState(mode === "livraison" ? "livraison" : "retrait");
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
-      <div>
+    // Colonne « Mode » auto-dimensionnée : le toggle ne peut plus déborder sous l'adresse.
+    <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+      <div className="shrink-0">
         <span className={labelCls}>Mode</span>
         <div className="inline-flex rounded-lg border border-zinc-300 p-0.5 text-[13px]">
           {(["retrait", "livraison"] as const).map((v) => (
@@ -114,7 +115,7 @@ export function DeliveryFields({ mode, address }: { mode: string; address: strin
           ))}
         </div>
       </div>
-      <div className={cn("sm:col-span-2", m !== "livraison" && "hidden")}>
+      <div className={cn("min-w-0", m !== "livraison" && "hidden")}>
         <span className="mb-1 flex items-center justify-between gap-2">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Adresse de livraison</span>
           {address && <MapsLink address={address} className="text-[11px]" />}

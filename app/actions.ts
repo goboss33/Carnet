@@ -247,9 +247,11 @@ export async function setOrderKind(orderId: string, exception: boolean) {
   revalidatePath("/");
 }
 
-/** Occasion pilotée depuis la pastille du résumé (hors formulaire auto-save). */
+/** Occasion pilotée depuis la pastille du résumé (hors formulaire auto-save).
+    Toujours rabattue sur la liste standard — aucune valeur libre en base. */
 export async function setOccasion(orderId: string, occasion: string) {
-  await prisma.order.update({ where: { id: orderId }, data: { occasion: occasion.trim() } });
+  const { normalizeOccasion } = await import("@/lib/order-options");
+  await prisma.order.update({ where: { id: orderId }, data: { occasion: normalizeOccasion(occasion) } });
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
 }
