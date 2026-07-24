@@ -19,7 +19,7 @@ const M = 44; // marge
 /* Les polices standard (Helvetica) n'encodent que WinAnsi (Latin-1) : un seul
    caractère hors jeu (’ – emoji, diacritiques slaves…) fait planter pdf-lib.
    On remplace les typographiques courants puis on translittère/neutralise le reste. */
-const MAP: Record<string, string> = { "’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-", "…": "...", " ": " ", "·": "-", "→": "->", "œ": "oe", "Œ": "OE" };
+const MAP: Record<string, string> = { "’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-", "−": "-", "…": "...", " ": " ", "·": "-", "→": "->", "œ": "oe", "Œ": "OE" };
 function safe(s: string): string {
   let out = "";
   for (const ch of s) {
