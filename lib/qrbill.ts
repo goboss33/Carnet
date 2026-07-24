@@ -28,7 +28,19 @@ export type QrBillData = {
 };
 
 export function qrBillReady(iban: string, addressLines: string[]): boolean {
-  return /^(CH|LI)\d{19}$/.test(iban.replace(/\s+/g, "").toUpperCase()) && addressLines.length >= 2;
+  // IBAN CH/LI : 21 caractères, fin alphanumérique admise par la norme.
+  return /^(CH|LI)\d{2}[0-9A-Z]{17}$/.test(iban.replace(/\s+/g, "").toUpperCase()) && addressLines.length >= 2;
+}
+
+/* Lignes d'adresse : une par ligne du réglage ; si tout tient sur une seule
+   ligne (« Rue X 1, 1261 Le Vaud »), on coupe sur la dernière virgule. */
+export function toAddressLines(raw: string): string[] {
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 1) {
+    const sp = splitAddress(lines[0]);
+    if (sp) return [sp[0], sp[1]];
+  }
+  return lines;
 }
 
 /* « Rue du Four 12, 1261 Le Vaud » → ["Rue du Four 12", "1261 Le Vaud"] */

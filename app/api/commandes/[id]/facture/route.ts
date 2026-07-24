@@ -6,7 +6,7 @@ import { getBrand } from "@/lib/brand";
 import { getLexicon } from "@/lib/lexicon";
 import { PAYKIND_LABEL } from "@/lib/money";
 import { safePdfText as safe } from "@/lib/pdf";
-import { drawQrBill, qrBillReady, splitAddress, QR_ZONE_PT } from "@/lib/qrbill";
+import { drawQrBill, qrBillReady, splitAddress, toAddressLines, QR_ZONE_PT } from "@/lib/qrbill";
 
 /* ---------------------------------------------------------------------------
    GET /api/commandes/[id]/facture — facture PDF de la commande.
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const chf = (c: number) => `CHF ${(c / 100).toFixed(2)}`;
     const dt = (d: Date) => d.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
     const no = order.orderNo ? String(order.orderNo).padStart(4, "0") : `${new Date().getFullYear()}-${order.id.slice(-4).toUpperCase()}`;
-    const addrLines = s.businessAddress.split("\n").map((l) => l.trim()).filter(Boolean);
+    const addrLines = toAddressLines(s.businessAddress);
     // QR-facture : seulement s'il reste à payer et que l'émetteur est complet (IBAN CH/LI + adresse).
     const canQr = dueCents > 0 && !!s.accountHolder && qrBillReady(s.iban, addrLines);
 
@@ -203,6 +203,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="facture-${no}.pdf"`,
+        "Cache-Control": "no-store", // le PDF reflète l'état live (paiements, réglages)
       },
     });
   } catch (e) {
