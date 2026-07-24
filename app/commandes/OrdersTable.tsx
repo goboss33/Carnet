@@ -61,11 +61,10 @@ export default function OrdersTable({ rows, statut, annee, years }: { rows: Row[
   const { sorted, sort, toggle } = useSort(rows, { key: "date", dir: "desc" }, ACCESSORS);
   const { confirm, node } = useConfirm();
 
-  const currentYear = years[0] ?? annee;
   const go = (statutVal: string, anneeVal: string) => {
     const p = new URLSearchParams();
     if (statutVal) p.set("statut", statutVal);
-    if (anneeVal && anneeVal !== currentYear) p.set("annee", anneeVal);
+    if (anneeVal && anneeVal !== "all") p.set("annee", anneeVal); // défaut = toutes les années
     router.push(`/commandes${p.toString() ? `?${p}` : ""}`);
   };
 
@@ -75,6 +74,14 @@ export default function OrdersTable({ rows, statut, annee, years }: { rows: Row[
     return sorted.filter((r) => (!occ || r.occasion === occ) && (tokens.length === 0 || tokens.every((t) => r.search.includes(t))));
   }, [sorted, occ, query]);
   const totalChf = filtered.reduce((a, r) => a + r.amountCents, 0);
+
+  // Pagination client (50/page) — la recherche et le total portent sur TOUT le filtre.
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [query, occ, statut, annee, sort]);
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const cur = Math.min(page, pages - 1);
+  const paged = filtered.slice(cur * PAGE_SIZE, cur * PAGE_SIZE + PAGE_SIZE);
 
   const count = useMemo(() => rows.reduce((n, r) => n + (sel[r.id] ? 1 : 0), 0), [rows, sel]);
   const selMode = count > 0;
@@ -216,7 +223,7 @@ export default function OrdersTable({ rows, statut, annee, years }: { rows: Row[
           </tr>
         </THead>
         <tbody>
-          {filtered.map((r) => {
+          {paged.map((r) => {
             const OccIcon = occasionIcon(r.occasion);
             const totalC = r.amountCents * 100;
             const pct = totalC > 0 ? Math.min(100, Math.round((r.paidCents / totalC) * 100)) : 0;
@@ -321,6 +328,29 @@ export default function OrdersTable({ rows, statut, annee, years }: { rows: Row[
           )}
         </tbody>
       </Table>
+
+      {/* Pagination — visible seulement quand il y a plus d'une page */}
+      {pages > 1 && (
+        <div className="mt-3 flex items-center justify-center gap-3 text-[13px] text-zinc-500">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={cur === 0}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-medium transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            ‹ Précédent
+          </button>
+          <span className="tabular-nums">page {cur + 1} / {pages}</span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}
+            disabled={cur >= pages - 1}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-medium transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Suivant ›
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -26,6 +26,7 @@ const fieldCls = "h-9 rounded-lg border border-zinc-300 bg-white px-2.5 text-sm 
 export type Row = {
   id: string;
   name: string;
+  company: string; // raison sociale (contacts entreprise)
   phone: string;
   email: string;
   instagram: string;
@@ -189,6 +190,11 @@ export default function ContactsTable({ rows }: { rows: Row[] }) {
                       <span className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${av.color}`}>{av.initials}</span>
                     )}
                     {r.name}
+                    {r.company && (
+                      <span className="mt-0.5 block max-w-44 truncate rounded bg-zinc-100 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-zinc-500" title={r.company}>
+                        {r.company}
+                      </span>
+                    )}
                   </span>
                 </TD>
                 <TD className="w-8">

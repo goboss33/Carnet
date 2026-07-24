@@ -147,6 +147,7 @@ model Contact {
   facebook          String   @default("")
   source            Source   @default(AUTRE)
   consentNewsletter Boolean  @default(false)
+  consentPublication Boolean @default(false) // accord pour publier la création sur le site (Journal)
   notes             String   @default("")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

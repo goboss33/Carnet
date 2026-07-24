@@ -32,6 +32,7 @@ export default async function Contacts() {
     const totalCents = c.orders.reduce((a, x) => a + (x.depositCents ?? 0) + (x.balanceCents ?? 0) + (x.tipCents ?? 0), 0);
     const search = [
       name,
+      c.company,
       c.phone, c.email, c.instagram, c.facebook, c.notes,
       SOURCES.find((s) => s.id === c.source)?.label ?? "",
       ...c.orders.flatMap((x) => [
@@ -45,6 +46,7 @@ export default async function Contacts() {
     return {
       id: c.id,
       name,
+      company: c.company,
       phone: c.phone,
       email: c.email,
       instagram: c.instagram,

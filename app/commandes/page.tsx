@@ -25,7 +25,9 @@ export default async function Historique({
   const tenant = await currentTenant();
   const now = new Date();
   const statut = sp.statut && STATUS_IDS.includes(sp.statut as OrderStatus) ? (sp.statut as OrderStatus) : "";
-  const yearParam = sp.annee ?? String(now.getFullYear());
+  // Défaut : TOUT l'historique (les commandes d'années futures — grands événements —
+  // doivent être visibles d'emblée) ; le filtre par année reste disponible.
+  const yearParam = sp.annee ?? "all";
   const allYears = yearParam === "all";
   const year = /^\d{4}$/.test(yearParam) ? Number(yearParam) : now.getFullYear();
 
@@ -45,7 +47,7 @@ export default async function Historique({
     where,
     include: { contact: true },
     orderBy: [{ eventDate: "desc" }, { createdAt: "desc" }],
-    take: 300,
+    take: 2000, // la pagination se fait côté client (50/page), la recherche couvre tout
   });
 
   // Notes des médias liés (≈ alt-text) — enrichit l'index de recherche.

@@ -804,7 +804,14 @@ export async function updateContact(id: string, _prev: { error?: string; ok?: bo
   const parsed = contactPatch.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide" };
   const data = { ...parsed.data, phone: normPhone(parsed.data.phone), email: normEmail(parsed.data.email) };
-  await prisma.contact.update({ where: { id }, data: { ...data, consentNewsletter: formData.get("consentNewsletter") === "on" } });
+  await prisma.contact.update({
+    where: { id },
+    data: {
+      ...data,
+      consentNewsletter: formData.get("consentNewsletter") === "on",
+      consentPublication: formData.get("consentPublication") === "on",
+    },
+  });
   revalidatePath(`/contacts/${id}`);
   revalidatePath("/contacts");
   return { ok: true };

@@ -65,6 +65,7 @@ function ChannelSelect({ initial }: { initial: string }) {
 type C = {
   id: string; firstName: string; lastName: string; company: string; phone: string; email: string;
   instagram: string; facebook: string; source: string; notes: string; consentNewsletter: boolean;
+  consentPublication: boolean;
 };
 
 export default function ContactForm({ contact }: { contact: C }) {
@@ -111,6 +112,12 @@ export default function ContactForm({ contact }: { contact: C }) {
         <input type="checkbox" name="consentNewsletter" defaultChecked={contact.consentNewsletter} className="peer sr-only" />
         <span className="relative h-5 w-9 shrink-0 rounded-full bg-zinc-200 transition-colors peer-checked:bg-(--color-brand) after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4" />
         <span className="text-[13px] font-medium text-zinc-600">OK pour la newsletter</span>
+      </label>
+
+      <label className="flex cursor-pointer items-center gap-2.5" title="Accord pour publier la création sur le site (Journal) — indispensable pour les entreprises (logo, référence client)">
+        <input type="checkbox" name="consentPublication" defaultChecked={contact.consentPublication} className="peer sr-only" />
+        <span className="relative h-5 w-9 shrink-0 rounded-full bg-zinc-200 transition-colors peer-checked:bg-(--color-brand) after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4" />
+        <span className="text-[13px] font-medium text-zinc-600">OK pour publication sur le site</span>
       </label>
     </AutoSaveForm>
   );

@@ -98,6 +98,7 @@ export default async function ContactFiche({ params }: { params: Promise<{ id: s
             source: contact.source,
             notes: contact.notes,
             consentNewsletter: contact.consentNewsletter,
+            consentPublication: contact.consentPublication,
           }}
         />
 

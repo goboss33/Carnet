@@ -7,7 +7,10 @@ import { Clapperboard, FileText, ExternalLink } from "lucide-react";
 import StudioUploader from "./StudioUploader";
 
 export default async function StudioPanel({ orderId }: { orderId: string }) {
-  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { tenantId: true, status: true } });
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { tenantId: true, status: true, contactId: true, contact: { select: { consentPublication: true } } },
+  });
   if (!order) return null;
   const s = await getSettings(order.tenantId);
   if (!s.studioEnabled) return null;
@@ -65,6 +68,18 @@ export default async function StudioPanel({ orderId }: { orderId: string }) {
         ) : (
           <p className="flex items-center gap-1.5 text-[12px] text-zinc-400"><Clapperboard className="size-3.5" /> Une fois livrée, cette commande pourra devenir une page du site.</p>
         )}
+
+        {/* Accord de publication — indispensable avant une page du site (surtout B2B : logo, référence) */}
+        <p className="mt-2 flex items-center gap-1.5 text-[11px]">
+          <span className={`size-2 shrink-0 rounded-full ${order.contact.consentPublication ? "bg-emerald-500" : "bg-amber-400"}`} />
+          {order.contact.consentPublication ? (
+            <span className="text-zinc-400">Accord de publication : OK</span>
+          ) : (
+            <Link href={`/contacts/${order.contactId}`} className="text-amber-600 underline-offset-2 hover:underline">
+              Accord de publication à demander — régler sur la fiche contact
+            </Link>
+          )}
+        </p>
       </div>
     </div>
   );
