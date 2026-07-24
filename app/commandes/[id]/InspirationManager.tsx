@@ -5,12 +5,12 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, X } from "lucide-react";
+import { ImagePlus, X, FileSignature } from "lucide-react";
 import { toast } from "sonner";
-import { uploadInspirations, removeInspiration } from "@/app/actions";
+import { uploadInspirations, removeInspiration, toggleQuotePhoto } from "@/app/actions";
 import MediaViewer from "@/app/components/MediaViewer";
 
-export default function InspirationManager({ orderId, photos }: { orderId: string; photos: string[] }) {
+export default function InspirationManager({ orderId, photos, quotePhotos = [] }: { orderId: string; photos: string[]; quotePhotos?: string[] }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [pending, start] = useTransition();
@@ -67,6 +67,29 @@ export default function InspirationManager({ orderId, photos }: { orderId: strin
               title={confirmRel === src ? "Clique à nouveau pour confirmer" : "Supprimer"}
             >
               <X className="size-3" />
+            </button>
+            {/* Coche « sur le devis » — section Visuels du concept (max 4) */}
+            <button
+              type="button"
+              aria-label="Afficher sur le devis"
+              onClick={() =>
+                start(async () => {
+                  const on = !quotePhotos.includes(src);
+                  const r = await toggleQuotePhoto(orderId, src, on);
+                  if (r.error) toast.error(r.error);
+                  else toast.success(on ? "Ajoutée aux visuels du devis." : "Retirée du devis.");
+                  router.refresh();
+                })
+              }
+              className={`absolute bottom-1 left-1 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold shadow transition-colors ${
+                quotePhotos.includes(src)
+                  ? "bg-(--color-brand) text-white"
+                  : "bg-white/90 text-zinc-500 opacity-0 hover:text-zinc-800 group-hover:opacity-100"
+              }`}
+              title={quotePhotos.includes(src) ? "Sur le devis — clique pour retirer" : "Afficher sur le devis (Visuels du concept)"}
+            >
+              <FileSignature className="size-3" />
+              devis
             </button>
           </span>
         ))}

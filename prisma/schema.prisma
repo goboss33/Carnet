@@ -221,6 +221,7 @@ model Order {
   themeNote       String      @default("")
   extras          Json?
   inspirationPhotos String[]  @default([])
+  quotePhotos     String[]    @default([]) // sous-ensemble d'inspirationPhotos affiché sur le devis (max 4)
 
   deliveryMode    String      @default("retrait") // retrait | livraison
   deliveryAddress String      @default("")

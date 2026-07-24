@@ -158,11 +158,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     y -= 26;
     text("Conditions", M, 8, { color: gray });
     y -= 5; hr(); y -= 13;
+    const quotePhotos = order.quotePhotos.filter((p) => order.inspirationPhotos.includes(p)).slice(0, 4);
     const conditions = [
       order.eventDate ? `Prestation prévue le ${dt(order.eventDate)}${order.deliveryMode === "livraison" && order.deliveryAddress ? ` — ${order.deliveryAddress}` : ""}.` : "",
       `Devis valable jusqu'au ${dt(validUntil)} ; il annule et remplace tout devis antérieur pour cette ${lex.order}.`,
       `Il est réputé accepté par confirmation écrite (un e-mail suffit) ou par le versement de l'acompte de ${s.depositPct} %.`,
       "Chaque élément reste modulable jusqu'à la validation finale du design.",
+      quotePhotos.length ? "Les visuels présentés en page 2 illustrent l'intention créative ; ils ne constituent pas un rendu contractuel." : "",
     ].filter(Boolean);
     for (const cond of conditions) for (const l of wrap(cond, font, 9, A4.w - 2 * M)) { text(l, M, 9); y -= 12; }
 
@@ -183,6 +185,63 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     for (const l of footer.reverse()) {
       page.drawText(safe(l), { x: M, y: fy, size: 7.5, font, color: gray });
       fy += 10;
+    }
+
+    // ---- Page 2 : Visuels du concept (photos cochées « sur le devis »)
+    if (quotePhotos.length) {
+      const sharp = (await import("sharp")).default;
+      const path = await import("path");
+      const { readFile } = await import("fs/promises");
+      const dir = path.resolve(process.env.RECEIPTS_DIR ?? "./data/receipts");
+
+      const images: { img: Awaited<ReturnType<typeof doc.embedJpg>>; w: number; h: number }[] = [];
+      for (const rel of quotePhotos) {
+        try {
+          // Les photos sont stockées en webp — pdf-lib ne lit que JPG/PNG : conversion à la volée.
+          const buf = await readFile(path.join(dir, rel));
+          const jpg = await sharp(buf).rotate().resize(1400, 1400, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+          const img = await doc.embedJpg(jpg);
+          images.push({ img, w: img.width, h: img.height });
+        } catch (e) {
+          console.error("devis visuel illisible:", rel, e);
+        }
+      }
+
+      if (images.length) {
+        const p2 = doc.addPage([A4.w, A4.h]);
+        let y2 = A4.h - M;
+        p2.drawText(safe("Visuels du concept"), { x: M, y: y2, size: 15, font: bold, color: accent });
+        p2.drawText(safe(`Devis n° ${no}`), { x: A4.w - M - font.widthOfTextAtSize(safe(`Devis n° ${no}`), 9), y: y2 + 3, size: 9, font, color: gray });
+        y2 -= 16;
+        // La précision qui compte : inspiration, pas rendu exact — chaque pièce est faite main.
+        const disclaimer =
+          "Ces visuels illustrent l'intention créative et la direction artistique du projet. " +
+          "Chaque création étant réalisée entièrement à la main, la pièce livrée pourra s'écarter de ces images " +
+          "(proportions, teintes, détails de décor) tout en respectant l'esprit du concept validé ensemble. " +
+          "Ils constituent une source d'inspiration, non un engagement sur un rendu à l'identique.";
+        for (const l of wrap(disclaimer, font, 9, A4.w - 2 * M)) {
+          p2.drawText(safe(l), { x: M, y: y2, size: 9, font, color: gray });
+          y2 -= 12;
+        }
+        y2 -= 10;
+
+        // Grille 2 colonnes — cases égales, image centrée à l'échelle.
+        const gap = 14;
+        const boxW = (A4.w - 2 * M - gap) / 2;
+        const boxH = images.length <= 2 ? 380 : 280;
+        images.slice(0, 4).forEach(({ img, w, h }, i) => {
+          const col = i % 2;
+          const row = Math.floor(i / 2);
+          const scale = Math.min(boxW / w, boxH / h);
+          const dw = w * scale;
+          const dh = h * scale;
+          const x = M + col * (boxW + gap) + (boxW - dw) / 2;
+          const yTop = y2 - row * (boxH + gap);
+          p2.drawImage(img, { x, y: yTop - dh - (boxH - dh) / 2, width: dw, height: dh }); // centrée dans sa case
+        });
+
+        p2.drawText(safe(`Document généré par ${brand.name} le ${dt(new Date())}.`), { x: M, y: M, size: 7.5, font, color: gray });
+      }
     }
 
     const bytes = await doc.save();

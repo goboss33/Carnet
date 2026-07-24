@@ -191,7 +191,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
 
           <div className="rounded-2xl border border-zinc-200 bg-white p-5">
             <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Images className="size-4 text-(--color-brand)" /> Photos d'inspiration</div>
-            <InspirationManager orderId={order.id} photos={order.inspirationPhotos} />
+            <InspirationManager orderId={order.id} photos={order.inspirationPhotos} quotePhotos={order.quotePhotos} />
           </div>
         </div>
 

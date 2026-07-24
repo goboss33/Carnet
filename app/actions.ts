@@ -904,6 +904,20 @@ export async function uploadInspirations(orderId: string, formData: FormData): P
   return { added: rels.length };
 }
 
+/** Coche « sur le devis » d'une photo d'inspiration (max 4 — section Visuels du concept). */
+export async function toggleQuotePhoto(orderId: string, rel: string, on: boolean): Promise<{ error?: string }> {
+  const tenant = await currentTenant();
+  const order = await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id } });
+  if (!order) return { error: "Commande introuvable." };
+  if (!order.inspirationPhotos.includes(rel)) return { error: "Photo introuvable." };
+  const cur = order.quotePhotos.filter((p) => order.inspirationPhotos.includes(p));
+  const next = on ? [...cur.filter((p) => p !== rel), rel] : cur.filter((p) => p !== rel);
+  if (on && next.length > 4) return { error: "4 visuels maximum sur le devis." };
+  await prisma.order.update({ where: { id: orderId }, data: { quotePhotos: next } });
+  revalidatePath(`/commandes/${orderId}`);
+  return {};
+}
+
 export async function removeInspiration(orderId: string, rel: string): Promise<{ error?: string }> {
   const tenant = await currentTenant();
   const order = await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id } });
@@ -915,7 +929,10 @@ export async function removeInspiration(orderId: string, rel: string): Promise<{
   await unlink(path.join(dir, rel)).catch(() => null);
   await prisma.order.update({
     where: { id: orderId },
-    data: { inspirationPhotos: order.inspirationPhotos.filter((p) => p !== rel) },
+    data: {
+      inspirationPhotos: order.inspirationPhotos.filter((p) => p !== rel),
+      quotePhotos: order.quotePhotos.filter((p) => p !== rel), // la coche « sur le devis » suit
+    },
   });
   revalidatePath(`/commandes/${orderId}`);
   return {};
