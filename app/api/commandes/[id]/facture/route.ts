@@ -39,7 +39,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Lignes de commande : quand elles existent, la facture les détaille
     // (mêmes lignes que le devis — continuité devis → facture).
     const lineItems = (parseItems(order.items) ?? []).filter((it) => !it.opt);
-    const totalCents = lineItems.length ? itemsTotalCents(lineItems) : order.priceQuoted * 100;
+    const totalCents = lineItems.length ? itemsTotalCents(lineItems) : (order.priceQuoted ?? 0) * 100;
     const received = order.payments.filter((p) => p.kind !== "POURBOIRE");
     const paidCents = received.reduce((a, p) => a + p.cents, 0);
     const dueCents = Math.max(0, totalCents - paidCents);
