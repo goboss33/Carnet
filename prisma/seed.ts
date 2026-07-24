@@ -83,6 +83,13 @@ async function main() {
     contacts.push(await prisma.contact.create({ data: { tenantId, ...c } }));
   }
   const [sophie, julie, vlora, daniela, celine, marc, lea, nadia] = contacts;
+  // Contact entreprise (B2B) — teste le champ société + la commande d'exception
+  const imane = await prisma.contact.create({
+    data: {
+      tenantId, firstName: "Imane", lastName: "Kandy", company: "COLAS Suisse DG",
+      phone: "079 622 40 81", email: "imane.kandy@colas.ch", source: Source.AUTRE,
+    },
+  });
 
   // 5. Commandes — un exemplaire par statut, dates réalistes
   let orderSeq = 0; // n° séquentiels comme en prod (backfill/nextOrderNo)
@@ -110,6 +117,23 @@ async function main() {
     eventDate: day(60, 16), priceQuoted: 620, revenueCategory: RevenueCategory.SUR_MESURE,
     deliveryMode: "livraison", deliveryAddress: "Domaine de Rovéréaz, Lausanne", deliveryKm: 8,
     notes: "Devis envoyé, en attente de réponse.",
+  });
+
+  // Commande d'exception (B2B) — lignes de devis, type cas COLAS
+  await mk({
+    tenantId, contactId: imane.id, status: OrderStatus.DEVIS_ENVOYE, source: Source.AUTRE,
+    sourceDetail: "E-mail entreprise", kind: "EXCEPTION",
+    occasion: "100 ans d'entreprise", themeNote: "« La Route des 100 ans » — noir mat, or, argent",
+    eventDate: new Date(Date.UTC(2027, 10, 5, 17)), priceQuoted: 10200,
+    deliveryMode: "livraison", deliveryAddress: "SwissTech Convention Center, Écublens", deliveryKm: 12,
+    revenueCategory: RevenueCategory.SUR_MESURE,
+    items: [
+      { id: "l1", label: "Parts de service en coffret personnalisé", detail: "Entremets, boîte transparente, ruban satiné, cuillère dorée, médaillon « 100 »", qty: 800, unit: 1000, cents: 800000 },
+      { id: "l2", label: "Pièce maîtresse « La Route des 100 ans »", detail: "4 niveaux (~1 m), étage supérieur réel pour la coupe, décors pâte à sucre, éléments miniatures", cents: 170000 },
+      { id: "l3", label: "Livraison, montage et finitions sur place", detail: "SwissTech Convention Center, le jour J", cents: 50000 },
+      { id: "l4", label: "Dégustation", detail: "Séance de choix des saveurs, T1 2027", cents: 0, opt: true },
+    ],
+    notes: "Concept envoyé avec visuels. Variante « pièce seule » demandée par la cliente.",
   });
 
   // ACOMPTE_RECU (2)

@@ -12,6 +12,7 @@ import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
 import { getSettings } from "@/lib/settings";
 import { nextOrderNo } from "@/lib/order-number";
 import { syncPaymentJournal } from "@/lib/payment-journal";
+import { parseItems, itemsTotalCents } from "@/lib/order-items";
 import type { OrderStatus, Source } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 
@@ -199,6 +200,17 @@ const orderPatch = z.object({
 
 export async function updateOrder(orderId: string, formData: FormData) {
   const d = orderPatch.parse(Object.fromEntries(formData));
+  // Lignes de devis : présentes dans la FormData seulement quand l'éditeur est monté.
+  const rawItems = formData.get("items");
+  let itemsData: { items?: Prisma.InputJsonValue | typeof Prisma.JsonNull; priceQuoted?: number } = {};
+  if (typeof rawItems === "string" && rawItems.trim() !== "") {
+    const items = parseItems(rawItems);
+    if (items) {
+      itemsData = items.length
+        ? { items: items as unknown as Prisma.InputJsonValue, priceQuoted: Math.round(itemsTotalCents(items) / 100) }
+        : { items: Prisma.JsonNull }; // liste vidée → retour au prix unique (conservé)
+    }
+  }
   await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -214,11 +226,25 @@ export async function updateOrder(orderId: string, formData: FormData) {
       fourrages: formData.getAll("fourrages").map(String).filter(Boolean).slice(0, 2),
       sansLactose: formData.get("sansLactose") === "on",
       notes: d.notes,
+      ...itemsData,
     },
   });
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
   void syncOrderEvent(orderId).catch(() => null);
+}
+
+/** Bascule Commande standard ↔ d'exception (B2B, grands événements). */
+export async function setOrderKind(orderId: string, exception: boolean) {
+  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { items: true, priceQuoted: true } });
+  const data: Prisma.OrderUpdateInput = { kind: exception ? "EXCEPTION" : "STANDARD" };
+  // Première bascule : amorce les lignes avec le prix existant pour ne rien perdre.
+  if (exception && !order?.items && order?.priceQuoted) {
+    data.items = [{ id: `l${Date.now()}`, label: "Création sur mesure", cents: order.priceQuoted * 100 }] as unknown as Prisma.InputJsonValue;
+  }
+  await prisma.order.update({ where: { id: orderId }, data });
+  revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/");
 }
 
 /** Occasion pilotée depuis la pastille du résumé (hors formulaire auto-save). */

@@ -23,7 +23,8 @@ export function missingFor(order: Order & { contact: Contact }, handoverLeadDays
 
   if (r >= 1) {
     if (!order.eventDate) out.push({ field: "eventDate", label: "date de l'événement", ask: "Quelle est la date de l'événement de {name} ? (ex. 22.08)" });
-    if (!order.parts) out.push({ field: "parts", label: "nombre de parts", ask: "Combien de parts pour {name} ? (ex. 26)" });
+    // Commande d'exception : les parts n'ont pas de sens (le détail vit dans les lignes).
+    if (!order.parts && order.kind !== "EXCEPTION") out.push({ field: "parts", label: "nombre de parts", ask: "Combien de parts pour {name} ? (ex. 26)" });
     if (!order.priceQuoted) out.push({ field: "priceQuoted", label: "prix", ask: "Quel prix as-tu annoncé à {name} ? (en CHF, ex. 185)" });
     if (!order.occasion) out.push({ field: "occasion", label: "occasion", ask: "C'est pour quelle occasion chez {name} ? (anniversaire, mariage, baptême…)" });
   }

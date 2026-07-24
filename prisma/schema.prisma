@@ -81,6 +81,7 @@ model Settings {
   businessAddress   String   @default("") // adresse figurant sur les factures (multiligne)
   businessUid       String   @default("") // n° IDE (CHE-…) — affiché sur les factures, indépendant de la TVA
   paymentTermsDays  Int? // délai de paiement des factures (jours) — défaut 20
+  quoteValidityDays Int? // validité des devis (jours) — défaut 90
   vatEnabled        Boolean  @default(false) // assujetti TVA — bascule l'affichage sur les factures
   vatNumber        String   @default("") // ex. CHE-123.456.789 TVA
   vatRate           Float? // taux applicable (%) — 2.6 denrées, 8.1 normal, réglable par artisan
@@ -201,6 +202,8 @@ model Order {
   contactId       String
   contact         Contact     @relation(fields: [contactId], references: [id])
   status          OrderStatus @default(LEAD)
+  kind            String      @default("STANDARD") // STANDARD | EXCEPTION (B2B, grands événements)
+  items           Json? // lignes de devis/facture [{id,label,detail,qty,unit,cents,opt}] — total → priceQuoted
   source          Source      @default(AUTRE)
   sourceDetail    String      @default("") // ex. « recommandée par Daniela »
 

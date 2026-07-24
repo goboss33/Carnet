@@ -21,6 +21,9 @@ import { TiersParts, FourrageChips, DeliveryFields } from "./OrderFields";
 import { BISCUITS } from "@/lib/order-options";
 import { ContactInfo } from "./ContactInfo";
 import { ChannelPicker } from "./ChannelPicker";
+import ItemsEditor from "./ItemsEditor";
+import KindToggle from "./KindToggle";
+import { parseItems } from "@/lib/order-items";
 import { Calendar, Cake, Truck, StickyNote, Images, FileText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +49,9 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
   const eff = await getSettings(order.tenantId);
   const lastAssistant = order.aiMessages.filter((m) => m.role === "assistant").at(-1);
   const d = (x?: Date | null) => (x ? x.toISOString().slice(0, 10) : "");
+
+  const exception = order.kind === "EXCEPTION";
+  const items = parseItems(order.items) ?? null;
 
   const days = order.eventDate ? Math.ceil((order.eventDate.getTime() - Date.now()) / 86400000) : null;
   const jx = days === null ? null : days < 0 ? "passé" : days === 0 ? "aujourd'hui" : days === 1 ? "demain" : `J-${days}`;
@@ -122,24 +128,40 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
             </section>
 
             <section>
-              <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Cake className="size-4 text-(--color-brand)" /> Le gâteau</div>
+              <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700">
+                <Cake className="size-4 text-(--color-brand)" /> {exception ? "Le projet" : "Le gâteau"}
+                <KindToggle orderId={order.id} exception={exception} />
+              </div>
               <div className="space-y-4">
-                <TiersParts tiers={order.tiers} parts={order.parts} />
-                <label className="block">
-                  <span className={label}>Biscuit</span>
-                  <select name="biscuit" defaultValue={order.biscuit} className={input}>
-                    <option value="">—</option>
-                    {BISCUITS.map((b) => <option key={b} value={b}>{b}</option>)}
-                    {order.biscuit && !(BISCUITS as readonly string[]).includes(order.biscuit) && <option value={order.biscuit}>{order.biscuit}</option>}
-                  </select>
-                </label>
-                <FourrageChips selected={order.fourrages} />
+                {exception ? (
+                  /* Mode exception : les lignes SONT le descriptif (pièce maîtresse,
+                     parts de service, livraison…) — slider/biscuit n'ont plus de sens. */
+                  <ItemsEditor initial={items} priceQuoted={order.priceQuoted} exception />
+                ) : (
+                  <>
+                    <TiersParts tiers={order.tiers} parts={order.parts} />
+                    <label className="block">
+                      <span className={label}>Biscuit</span>
+                      <select name="biscuit" defaultValue={order.biscuit} className={input}>
+                        <option value="">—</option>
+                        {BISCUITS.map((b) => <option key={b} value={b}>{b}</option>)}
+                        {order.biscuit && !(BISCUITS as readonly string[]).includes(order.biscuit) && <option value={order.biscuit}>{order.biscuit}</option>}
+                      </select>
+                    </label>
+                    <FourrageChips selected={order.fourrages} />
+                  </>
+                )}
                 <label className="block"><span className={label}>Thème & style</span><input name="themeNote" defaultValue={order.themeNote} className={input} placeholder="Ex. licorne pastel arc-en-ciel, semi-naked fleurs fraîches…" /></label>
-                <label className="flex cursor-pointer items-center gap-2.5" title="Gâteau sans lactose">
-                  <input type="checkbox" name="sansLactose" defaultChecked={order.sansLactose} className="peer sr-only" />
-                  <span className="relative h-5 w-9 shrink-0 rounded-full bg-zinc-200 transition-colors peer-checked:bg-(--color-brand) after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4" />
-                  <span className="text-[13px] font-medium text-zinc-600">Sans lactose</span>
-                </label>
+                {!exception && (
+                  <>
+                    <label className="flex cursor-pointer items-center gap-2.5" title="Gâteau sans lactose">
+                      <input type="checkbox" name="sansLactose" defaultChecked={order.sansLactose} className="peer sr-only" />
+                      <span className="relative h-5 w-9 shrink-0 rounded-full bg-zinc-200 transition-colors peer-checked:bg-(--color-brand) after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4" />
+                      <span className="text-[13px] font-medium text-zinc-600">Sans lactose</span>
+                    </label>
+                    <ItemsEditor initial={items} priceQuoted={order.priceQuoted} exception={false} />
+                  </>
+                )}
               </div>
             </section>
 

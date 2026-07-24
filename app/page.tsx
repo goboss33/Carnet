@@ -31,7 +31,7 @@ export default async function Pipeline() {
     }),
     prisma.order.findMany({
       where: { tenantId: tenant.id, OR: [{ createdAt: { gte: fetchStart } }, { depositPaidAt: { gte: fetchStart } }] },
-      select: { createdAt: true, depositPaidAt: true, priceQuoted: true },
+      select: { createdAt: true, depositPaidAt: true, priceQuoted: true, kind: true },
       take: 5000,
     }),
   ]);
@@ -64,11 +64,12 @@ export default async function Pipeline() {
         if (p >= curStart && p < curEnd && p <= nowT) {
           const i = Math.min(SAMPLES, Math.floor(((p - curStart) / curSpan) * SAMPLES));
           cCon[i]++;
-          if (o.priceQuoted) { cSum[i] += o.priceQuoted; cCnt[i]++; }
+          // Panier moyen : hors commandes d'exception (un 10 000 B2B fausserait la lecture B2C).
+          if (o.priceQuoted && o.kind !== "EXCEPTION") { cSum[i] += o.priceQuoted; cCnt[i]++; }
         } else if (p >= prevStart && p < prevEnd) {
           const i = Math.min(SAMPLES, Math.floor(((p - prevStart) / prevSpan) * SAMPLES));
           pCon[i]++;
-          if (o.priceQuoted) { pSum[i] += o.priceQuoted; pCnt[i]++; }
+          if (o.priceQuoted && o.kind !== "EXCEPTION") { pSum[i] += o.priceQuoted; pCnt[i]++; }
         }
       }
     }

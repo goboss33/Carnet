@@ -398,6 +398,7 @@ async function reviewNudges(t: Tenant, s: Awaited<ReturnType<typeof getSettings>
     where: {
       tenantId: t.id,
       status: "LIVRE",
+      kind: { not: "EXCEPTION" }, // pas de demande d'avis grand public aux clients B2B
       reviewAskedAt: null,
       deliveredAt: { lte: new Date(Date.now() - s.reviewDelayDays * 86400000), gte: new Date(Date.now() - (s.reviewDelayDays + 12) * 86400000) },
     },
@@ -441,6 +442,7 @@ async function birthdayNudges(t: Tenant, s: Awaited<ReturnType<typeof getSetting
   const candidates = await prisma.order.findMany({
     where: {
       tenantId: t.id,
+      kind: { not: "EXCEPTION" }, // relance anniversaire = concept B2C
       occasion: { contains: "anniversaire", mode: "insensitive" },
       eventDate: { lt: new Date(now.getTime() - 60 * 86400000) }, // au moins 2 mois passés
       OR: [{ anniversaryNudgedAt: null }, { anniversaryNudgedAt: { lt: new Date(now.getTime() - 300 * 86400000) } }],
