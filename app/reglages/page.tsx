@@ -9,6 +9,7 @@ import PromptLab from "./PromptLab";
 import { PROMPT_TEMPLATES } from "@/lib/prompts";
 import SettingsTabs from "./SettingsTabs";
 import { Card, CardBody } from "@/components/ui/card";
+import { ibanValid, qrBillReady, toAddressLines } from "@/lib/qrbill";
 import { PageHeader } from "@/components/ui/page-header";
 import { SubmitButton } from "@/components/ui/submit-button";
 import StudioMaintenance from "./StudioMaintenance";
@@ -246,10 +247,28 @@ export default async function Reglages() {
           </div>
           <div className="border-t border-zinc-100 pt-5">
             <p className="mb-1 text-[13px] font-semibold text-zinc-700">Facturation & TVA</p>
-            <p className="mb-4 text-[11px] leading-relaxed text-zinc-400">
+            <p className="mb-3 text-[11px] leading-relaxed text-zinc-400">
               Utilisé par le bouton « Facture PDF » des commandes. Tant que le toggle est désactivé, les factures
               portent la mention « non assujetti à la TVA » — sans aucune ligne TVA (c'est la règle : l'impôt mentionné est dû).
             </p>
+            {(() => {
+              const missing = [
+                !ibanValid(eff.iban) && (eff.iban ? "IBAN invalide — un IBAN suisse fait 21 caractères" : "IBAN manquant (section Paiement ci-dessus)"),
+                toAddressLines(eff.businessAddress).length < 2 && "adresse de facturation incomplète (rue + NPA localité)",
+                !eff.accountHolder && "titulaire du compte manquant",
+              ].filter(Boolean) as string[];
+              return missing.length === 0 ? (
+                <p className="mb-4 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-[12px] font-medium text-emerald-700">
+                  <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
+                  QR-facture active — elle s'imprime en bas des factures avec un reste à payer.
+                </p>
+              ) : (
+                <p className="mb-4 inline-flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12px] font-medium text-amber-700">
+                  <span className="mt-1 size-2 shrink-0 rounded-full bg-amber-500" />
+                  <span>QR-facture inactive : {missing.join(" · ")}.</span>
+                </p>
+              );
+            })()}
             <label className="mb-4 block">
               <span className={label}>Adresse sur les factures</span>
               <textarea name="businessAddress" rows={2} defaultValue={raw?.businessAddress ?? ""} placeholder={"Chemin des Curtils 1\n1261 Le Vaud"} className={input} />

@@ -27,9 +27,21 @@ export type QrBillData = {
   message?: string; // ex. « Facture 0042 »
 };
 
+/* IBAN CH/LI : 21 caractères + checksum mod-97 — attrape les fautes de frappe. */
+export function ibanValid(raw: string): boolean {
+  const iban = raw.replace(/\s+/g, "").toUpperCase();
+  if (!/^(CH|LI)\d{2}[0-9A-Z]{17}$/.test(iban)) return false;
+  const s = iban.slice(4) + iban.slice(0, 4);
+  let rem = 0;
+  for (const ch of s) {
+    const v = ch >= "0" && ch <= "9" ? ch : String(ch.charCodeAt(0) - 55);
+    for (const d of v) rem = (rem * 10 + (d.charCodeAt(0) - 48)) % 97;
+  }
+  return rem === 1;
+}
+
 export function qrBillReady(iban: string, addressLines: string[]): boolean {
-  // IBAN CH/LI : 21 caractères, fin alphanumérique admise par la norme.
-  return /^(CH|LI)\d{2}[0-9A-Z]{17}$/.test(iban.replace(/\s+/g, "").toUpperCase()) && addressLines.length >= 2;
+  return ibanValid(iban) && addressLines.length >= 2;
 }
 
 /* Lignes d'adresse : une par ligne du réglage ; si tout tient sur une seule
