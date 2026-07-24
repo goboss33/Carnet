@@ -8,7 +8,7 @@ export type ReceiptData = {
   date: string | null; // ISO
   totalCents: number;
   vat: { rate: number; amountCents: number }[];
-  category: "MATIERES_PREMIERES" | "EMBALLAGE" | "MATERIEL" | "DEPLACEMENT" | "MARKETING" | "AUTRE";
+  category: "MATIERES_PREMIERES" | "EMBALLAGE" | "MATERIEL" | "MARKETING" | "AUTRE";
 };
 
 const PROMPT = `Tu analyses un justificatif d'achat suisse (ticket de caisse, facture en ligne, PDF) pour la comptabilité d'une pâtissière artisanale (cake design).
@@ -18,11 +18,12 @@ Extrais et réponds UNIQUEMENT avec un objet JSON (aucun autre texte) :
   "date": "date du ticket au format YYYY-MM-DD, ou null si illisible",
   "total_chf": nombre décimal (total payé en CHF),
   "vat": [{ "rate": taux TVA en %, "amount_chf": montant TVA en CHF }],
-  "category": "MATIERES_PREMIERES" | "EMBALLAGE" | "MATERIEL" | "DEPLACEMENT" | "MARKETING" | "AUTRE"
+  "category": "MATIERES_PREMIERES" | "EMBALLAGE" | "MATERIEL" | "MARKETING" | "AUTRE"
 }
 Catégorie : MATIERES_PREMIERES pour l'alimentaire (farine, beurre, œufs, sucre, décors comestibles…),
 EMBALLAGE pour boîtes/cartons/rubans, MATERIEL pour ustensiles/moules/petit équipement,
-DEPLACEMENT pour essence/parking/transports, MARKETING pour impressions/pub. Sinon AUTRE.`;
+MARKETING pour impressions/pub. Sinon AUTRE (y compris essence/entretien du véhicule :
+ils sont couverts par le forfait kilométrique, pas par les dépenses).`;
 
 const FALLBACK_MODEL = "gemini-flash-latest";
 
@@ -122,7 +123,7 @@ async function callGemini(key: string, model: string, image: Buffer, mime: strin
       console.error("gemini bad json:", text.slice(0, 300));
       return null;
     }
-    const cats = ["MATIERES_PREMIERES", "EMBALLAGE", "MATERIEL", "DEPLACEMENT", "MARKETING", "AUTRE"];
+    const cats = ["MATIERES_PREMIERES", "EMBALLAGE", "MATERIEL", "MARKETING", "AUTRE"];
     return {
       merchant: String(j.merchant ?? "").slice(0, 80),
       date: typeof j.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(j.date) ? j.date : null,

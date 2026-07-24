@@ -220,7 +220,7 @@ async function main() {
   await exp({ tenantId, status: "CONFIRMED", date: dm(0, 4), merchant: "Aligro", category: "MATIERES_PREMIERES", totalCents: 15630, notes: "Chocolat de couverture, farine" });
   await exp({ tenantId, status: "CONFIRMED", date: dm(0, 6), merchant: "Boxes & Co", category: "EMBALLAGE", totalCents: 4520, notes: "Boîtes à gâteaux 30 cm" });
   await exp({ tenantId, status: "CONFIRMED", date: dm(0, 9), merchant: "Landi", category: "MATERIEL", totalCents: 2990, notes: "Spatules + douilles" });
-  await exp({ tenantId, status: "CONFIRMED", date: dm(0, 11), merchant: "Shell", category: "DEPLACEMENT", totalCents: 6210, notes: "Plein essence" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(0, 11), merchant: "Manor", category: "MATERIEL", totalCents: 6210, notes: "Présentoirs à gâteaux" });
   await exp({ tenantId, status: "CONFIRMED", date: dm(0, 14), merchant: "Meta Ads", category: "MARKETING", totalCents: 5000, notes: "Campagne Instagram juillet" });
   await exp({ tenantId, status: "CONFIRMED", date: dm(0, 15), merchant: "Coop", category: "MATIERES_PREMIERES", totalCents: 3260, notes: "Fruits frais décor" });
   await exp({ tenantId, status: "CONFIRMED", date: dm(0, 16), merchant: "Poste", category: "AUTRE", totalCents: 1250, notes: "" });
@@ -228,7 +228,7 @@ async function main() {
   await exp({ tenantId, status: "CONFIRMED", date: dm(-1, 3), merchant: "Migros", category: "MATIERES_PREMIERES", totalCents: 11420, notes: "" });
   await exp({ tenantId, status: "CONFIRMED", date: dm(-1, 8), merchant: "Aligro", category: "MATIERES_PREMIERES", totalCents: 9880, notes: "" });
   await exp({ tenantId, status: "CONFIRMED", date: dm(-1, 12), merchant: "Boxes & Co", category: "EMBALLAGE", totalCents: 6300, notes: "" });
-  await exp({ tenantId, status: "CONFIRMED", date: dm(-1, 18), merchant: "Shell", category: "DEPLACEMENT", totalCents: 5480, notes: "" });
+  await exp({ tenantId, status: "CONFIRMED", date: dm(-1, 18), merchant: "Papeterie Vaudoise", category: "EMBALLAGE", totalCents: 5480, notes: "Rubans + étiquettes" });
   await exp({ tenantId, status: "CONFIRMED", date: dm(-1, 22), merchant: "Fust", category: "MATERIEL", totalCents: 12900, notes: "Batteur remplacé" });
   // Brouillons (comme envoyés par le bot, à compléter)
   await exp({ tenantId, status: "DRAFT", date: dm(0, 17), merchant: "Denner", category: "MATIERES_PREMIERES", totalCents: 0, notes: "" });

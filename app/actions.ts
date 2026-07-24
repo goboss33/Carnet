@@ -447,7 +447,7 @@ const expensePatch = z.object({
   date: z.string().default(""),
   merchant: z.string().default(""),
   totalChf: z.coerce.number().min(0).default(0),
-  category: z.enum(["MATIERES_PREMIERES", "EMBALLAGE", "MATERIEL", "DEPLACEMENT", "MARKETING", "AUTRE"]).default("AUTRE"),
+  category: z.enum(["MATIERES_PREMIERES", "EMBALLAGE", "MATERIEL", "MARKETING", "AUTRE"]).default("AUTRE"),
   notes: z.string().default(""),
 });
 

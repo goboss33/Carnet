@@ -153,7 +153,7 @@ N'invente RIEN : null quand l'information n'apparaît pas.
     template: `[user]
 Tu analyses un justificatif d'achat suisse (ticket de caisse, facture en ligne, PDF) pour la comptabilité d'une pâtissière artisanale (cake design).
 Extrais et réponds UNIQUEMENT avec un objet JSON :
-{ merchant, date (YYYY-MM-DD|null), total_chf, vat[{rate, amount_chf}], category (MATIERES_PREMIERES|EMBALLAGE|MATERIEL|DEPLACEMENT|MARKETING|AUTRE) }
+{ merchant, date (YYYY-MM-DD|null), total_chf, vat[{rate, amount_chf}], category (MATIERES_PREMIERES|EMBALLAGE|MATERIEL|MARKETING|AUTRE) }
 {+ l'image du justificatif}`,
   },
 ];

@@ -1,16 +1,22 @@
 export const chf = (cents: number) =>
   new Intl.NumberFormat("fr-CH", { style: "currency", currency: "CHF" }).format(cents / 100);
 
+/* NB : pas de catégorie « Déplacement » — les frais de véhicule (essence,
+   entretien…) sont déjà couverts par le forfait kilométrique ; les saisir en
+   dépense reviendrait à les déduire deux fois. Un futur réglage forfait vs
+   frais effectifs (avec comparatif) pourra la réintroduire proprement. */
 export const CATEGORIES: { id: string; label: string; emoji: string }[] = [
   { id: "MATIERES_PREMIERES", label: "Matières premières", emoji: "🥚" },
   { id: "EMBALLAGE", label: "Emballage", emoji: "🎀" },
   { id: "MATERIEL", label: "Matériel", emoji: "🍳" },
-  { id: "DEPLACEMENT", label: "Déplacement", emoji: "🚗" },
   { id: "MARKETING", label: "Marketing", emoji: "📣" },
   { id: "AUTRE", label: "Autre", emoji: "📎" },
 ];
 
-export const catLabel = (id: string) => CATEGORIES.find((c) => c.id === id)?.label ?? id;
+/* Libellés hérités : d'anciennes lignes peuvent encore porter ces catégories. */
+const LEGACY_LABELS: Record<string, string> = { DEPLACEMENT: "Déplacement" };
+
+export const catLabel = (id: string) => CATEGORIES.find((c) => c.id === id)?.label ?? LEGACY_LABELS[id] ?? id;
 
 /** Types d'écriture du journal des encaissements. */
 export const PAYKIND_LABEL: Record<string, string> = {
