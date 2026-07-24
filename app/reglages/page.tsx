@@ -288,6 +288,11 @@ export default async function Reglages() {
                 <input name="paymentTermsDays" type="number" min="0" max="90" defaultValue={raw?.paymentTermsDays ?? ""} placeholder={String(eff.paymentTermsDays)} className={input} />
                 <span className="mt-1 block text-[11px] text-zinc-400">Échéance affichée sur les factures. 0 = pas d'échéance.</span>
               </label>
+              <label className="block">
+                <span className={label}>Validité des devis (jours)</span>
+                <input name="quoteValidityDays" type="number" min="7" max="365" defaultValue={raw?.quoteValidityDays ?? ""} placeholder={String(eff.quoteValidityDays)} className={input} />
+                <span className="mt-1 block text-[11px] text-zinc-400">« Valable jusqu'au … » sur les devis (90 = 3 mois).</span>
+              </label>
             </div>
             <label className="mb-4 flex items-center gap-3 text-sm text-zinc-700">
               <input type="checkbox" name="vatEnabled" defaultChecked={eff.vatEnabled} className="size-4 accent-(--color-brand)" />

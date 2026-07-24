@@ -6,6 +6,7 @@ import { getBrand } from "@/lib/brand";
 import { getLexicon } from "@/lib/lexicon";
 import { PAYKIND_LABEL } from "@/lib/money";
 import { safePdfText as safe } from "@/lib/pdf";
+import { parseItems, itemsTotalCents } from "@/lib/order-items";
 import { drawQrBill, qrBillReady, splitAddress, toAddressLines, QR_ZONE_PT } from "@/lib/qrbill";
 
 /* ---------------------------------------------------------------------------
@@ -30,15 +31,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       include: { contact: true, payments: { orderBy: { paidAt: "asc" } } },
     });
     if (!order || order.tenantId !== tenant.id) return new NextResponse("Introuvable", { status: 404 });
-    if (!order.priceQuoted) return new NextResponse("Renseigne d'abord le prix de la commande.", { status: 400 });
+    if (!order.priceQuoted && !(parseItems(order.items) ?? []).length)
+      return new NextResponse("Renseigne d'abord le prix de la commande.", { status: 400 });
 
     const [brand, s, lex] = await Promise.all([getBrand(), getSettings(tenant.id), getLexicon(tenant.id)]);
 
-    const totalCents = order.priceQuoted * 100;
+    // Lignes de commande : quand elles existent, la facture les détaille
+    // (mêmes lignes que le devis — continuité devis → facture).
+    const lineItems = (parseItems(order.items) ?? []).filter((it) => !it.opt);
+    const totalCents = lineItems.length ? itemsTotalCents(lineItems) : order.priceQuoted * 100;
     const received = order.payments.filter((p) => p.kind !== "POURBOIRE");
     const paidCents = received.reduce((a, p) => a + p.cents, 0);
     const dueCents = Math.max(0, totalCents - paidCents);
-    const chf = (c: number) => `CHF ${(c / 100).toFixed(2)}`;
+    const chf = (c: number) => {
+      const [int, dec] = (c / 100).toFixed(2).split(".");
+      return `CHF ${int.replace(/\B(?=(\d{3})+(?!\d))/g, "'")}.${dec}`;
+    };
     const dt = (d: Date) => d.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
     const no = order.orderNo ? String(order.orderNo).padStart(4, "0") : `${new Date().getFullYear()}-${order.id.slice(-4).toUpperCase()}`;
     const addrLines = toAddressLines(s.businessAddress);
@@ -109,20 +117,34 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     y -= 5; hr(); y -= 14;
 
     const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
-    const title = [cap(lex.product), "sur mesure", order.occasion ? `— ${order.occasion}` : ""].filter(Boolean).join(" ");
-    text(title, M, 10.5, { bold: true });
-    text(chf(totalCents), 0, 10.5, { bold: true, right: A4.w - M });
-    const details: string[] = [];
-    if (order.celebrant) details.push(`Pour ${order.celebrant}${order.celebrantAge ? ` (${order.celebrantAge} ans)` : ""}`);
-    if (order.themeNote) details.push(`Thème : ${order.themeNote}`);
-    const size = [order.tiers ? `${order.tiers} étage${order.tiers > 1 ? "s" : ""}` : "", order.parts ? `${order.parts} ${order.parts > 1 ? lex.units : lex.unit}` : ""].filter(Boolean).join(" · ");
-    if (size) details.push(size);
-    const compo = [order.biscuit, ...(order.fourrages ?? [])].filter(Boolean).join(", ");
-    if (compo) details.push(`Composition : ${compo}`);
-    if (order.sansLactose) details.push("Sans lactose");
-    if (order.eventDate) details.push(`Date de la prestation : ${dt(order.eventDate)}`);
-    details.push(order.deliveryMode === "livraison" ? `Livraison${order.deliveryAddress ? ` — ${order.deliveryAddress}` : ""} (incluse)` : cap(lex.pickupLabel));
-    for (const d of details) for (const l of wrap(d, font, 9, A4.w - 2 * M - 110)) { y -= 13; text(l, M + 10, 9, { color: gray }); }
+    if (lineItems.length) {
+      // Facture détaillée — mêmes lignes que le devis.
+      for (const it of lineItems) {
+        const qtyPrefix = it.qty && it.unit ? `${it.qty} × ` : "";
+        text(qtyPrefix + (it.label || "—"), M, 10.5, { bold: true });
+        text(chf(it.cents), 0, 10.5, { bold: true, right: A4.w - M });
+        if (it.qty && it.unit) { y -= 12; text(`${it.qty} pièces à ${chf(it.unit)}`, M + 10, 8.5, { color: gray }); }
+        if (it.detail) for (const l of wrap(it.detail, font, 9, A4.w - 2 * M - 90)) { y -= 12; text(l, M + 10, 9, { color: gray }); }
+        if (order.eventDate && it === lineItems[lineItems.length - 1]) { y -= 12; text(`Date de la prestation : ${dt(order.eventDate)}`, M + 10, 9, { color: gray }); }
+        y -= 17;
+      }
+      y += 13; // compense le dernier pas de boucle (le trait du total suit)
+    } else {
+      const title = [cap(lex.product), "sur mesure", order.occasion ? `— ${order.occasion}` : ""].filter(Boolean).join(" ");
+      text(title, M, 10.5, { bold: true });
+      text(chf(totalCents), 0, 10.5, { bold: true, right: A4.w - M });
+      const details: string[] = [];
+      if (order.celebrant) details.push(`Pour ${order.celebrant}${order.celebrantAge ? ` (${order.celebrantAge} ans)` : ""}`);
+      if (order.themeNote) details.push(`Thème : ${order.themeNote}`);
+      const size = [order.tiers ? `${order.tiers} étage${order.tiers > 1 ? "s" : ""}` : "", order.parts ? `${order.parts} ${order.parts > 1 ? lex.units : lex.unit}` : ""].filter(Boolean).join(" · ");
+      if (size) details.push(size);
+      const compo = [order.biscuit, ...(order.fourrages ?? [])].filter(Boolean).join(", ");
+      if (compo) details.push(`Composition : ${compo}`);
+      if (order.sansLactose) details.push("Sans lactose");
+      if (order.eventDate) details.push(`Date de la prestation : ${dt(order.eventDate)}`);
+      details.push(order.deliveryMode === "livraison" ? `Livraison${order.deliveryAddress ? ` — ${order.deliveryAddress}` : ""} (incluse)` : cap(lex.pickupLabel));
+      for (const d of details) for (const l of wrap(d, font, 9, A4.w - 2 * M - 110)) { y -= 13; text(l, M + 10, 9, { color: gray }); }
+    }
 
     // ---- Total (+ TVA incluse si assujetti)
     y -= 10; hr(); y -= 16;

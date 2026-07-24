@@ -24,7 +24,7 @@ import { ChannelPicker } from "./ChannelPicker";
 import ItemsEditor from "./ItemsEditor";
 import KindToggle from "./KindToggle";
 import { parseItems } from "@/lib/order-items";
-import { Calendar, Cake, Truck, StickyNote, Images, FileText } from "lucide-react";
+import { Calendar, Cake, Truck, StickyNote, Images, FileText, FileSignature } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -88,20 +88,30 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
         }
         actions={
           order.priceQuoted ? (
-            <a
-              href={`/api/commandes/${order.id}/facture`}
-              target="_blank"
-              rel="noopener"
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 text-[13px] font-medium text-zinc-700 transition hover:bg-zinc-50"
-            >
-              <FileText className="size-3.5" /> Facture
-            </a>
+            <>
+              <a
+                href={`/api/commandes/${order.id}/devis`}
+                target="_blank"
+                rel="noopener"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 text-[13px] font-medium text-zinc-700 transition hover:bg-zinc-50"
+              >
+                <FileSignature className="size-3.5" /> Devis
+              </a>
+              <a
+                href={`/api/commandes/${order.id}/facture`}
+                target="_blank"
+                rel="noopener"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 text-[13px] font-medium text-zinc-700 transition hover:bg-zinc-50"
+              >
+                <FileText className="size-3.5" /> Facture
+              </a>
+            </>
           ) : (
             <span
-              title="Renseigne d'abord le prix pour générer une facture."
+              title="Renseigne d'abord le prix (ou des lignes) pour générer devis et facture."
               className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-[13px] font-medium text-zinc-400"
             >
-              <FileText className="size-3.5" /> Facture
+              <FileSignature className="size-3.5" /> Devis · Facture
             </span>
           )
         }

@@ -1067,6 +1067,7 @@ export async function saveSettings(formData: FormData) {
     businessAddress: String(formData.get("businessAddress") ?? "").trim().slice(0, 200),
     businessUid: String(formData.get("businessUid") ?? "").trim().slice(0, 40),
     paymentTermsDays: clampInt(num("paymentTermsDays"), 0, 90),
+    quoteValidityDays: clampInt(num("quoteValidityDays"), 7, 365),
     vatEnabled: formData.get("vatEnabled") === "on",
     vatNumber: String(formData.get("vatNumber") ?? "").trim().slice(0, 40),
     vatRate: (() => {
