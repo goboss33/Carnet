@@ -5,7 +5,7 @@
 
 import path from "path";
 import { readFile } from "fs/promises";
-import sharp from "sharp";
+import sharp, { type OverlayOptions } from "sharp";
 import QRCode from "qrcode";
 
 const QR_X = 96 + 22;
@@ -27,7 +27,7 @@ export async function buildFlyer(opts: { code?: string } = {}): Promise<Buffer> 
     color: { dark: "#4A2C20", light: "#FFFFFF" },
   });
 
-  const composites: sharp.OverlayOptions[] = [{ input: qrPng, left: QR_X, top: QR_Y }];
+  const composites: OverlayOptions[] = [{ input: qrPng, left: QR_X, top: QR_Y }];
 
   if (opts.code) {
     const label = `CODE PARTENAIRE :  ${opts.code.toUpperCase()}`;
