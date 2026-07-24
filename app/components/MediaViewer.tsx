@@ -1,9 +1,13 @@
 "use client";
 
 /* Lightbox intégrée (overlay plein écran) pour images et PDF — remplace
-   l'ouverture dans un nouvel onglet. Le déclencheur est passé en children. */
+   l'ouverture dans un nouvel onglet. Le déclencheur est passé en children.
+   Rendue via PORTAIL : un fixed à l'intérieur de .animate-page (transform)
+   serait calé sur la page entière au lieu du viewport (croix hors écran,
+   image décentrée). */
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 export default function MediaViewer({
   src,
@@ -19,6 +23,8 @@ export default function MediaViewer({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open) return;
@@ -36,9 +42,9 @@ export default function MediaViewer({
       <button type="button" onClick={() => setOpen(true)} title={title ?? "Agrandir"} className={className}>
         {children}
       </button>
-      {open && (
+      {mounted && open && createPortal(
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-zinc-950/85 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-zinc-950/85 p-4 backdrop-blur-sm"
           onClick={() => setOpen(false)}
           role="dialog"
           aria-modal="true"
@@ -76,7 +82,8 @@ export default function MediaViewer({
           >
             Ouvrir dans un onglet ↗
           </a>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

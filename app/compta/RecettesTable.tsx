@@ -25,6 +25,7 @@ export type PayRow = {
 
 const ACCESSORS = {
   date: (r: PayRow) => r.dateISO,
+  no: (r: PayRow) => r.orderNo,
   name: (r: PayRow) => r.name.toLowerCase(),
   kind: (r: PayRow) => r.kind,
   amount: (r: PayRow) => r.cents,
@@ -39,6 +40,7 @@ export default function RecettesTable({ rows }: { rows: PayRow[] }) {
       <THead>
         <tr>
           <SortableTH label="Date" k="date" sort={sort} onToggle={toggle} />
+          <SortableTH label="N°" k="no" sort={sort} onToggle={toggle} />
           <SortableTH label="Cliente" k="name" sort={sort} onToggle={toggle} />
           <SortableTH label="Type" k="kind" sort={sort} onToggle={toggle} />
           <SortableTH label="Montant" k="amount" sort={sort} onToggle={toggle} className="text-right" align="right" />
@@ -50,11 +52,11 @@ export default function RecettesTable({ rows }: { rows: PayRow[] }) {
           return (
             <TR key={r.id} className="cursor-pointer even:bg-zinc-50/50" onClick={() => router.push(`/commandes/${r.orderId}`)}>
               <TD className="whitespace-nowrap tabular-nums text-zinc-500">{r.dateLabel}</TD>
+              <TD className="whitespace-nowrap tabular-nums text-zinc-400">{r.orderNo ? `#${String(r.orderNo).padStart(4, "0")}` : "—"}</TD>
               <TD>
                 <span className="inline-flex min-w-0 items-center gap-1.5">
                   <OccIcon className="size-3.5 shrink-0 text-(--color-brand)" />
                   <span className="truncate font-medium text-zinc-900">{r.name}</span>
-                  {r.orderNo ? <span className="hidden shrink-0 text-[11px] tabular-nums text-zinc-300 sm:inline">#{String(r.orderNo).padStart(4, "0")}</span> : null}
                 </span>
               </TD>
               <TD>
@@ -68,7 +70,7 @@ export default function RecettesTable({ rows }: { rows: PayRow[] }) {
         })}
         {sorted.length === 0 && (
           <tr>
-            <td colSpan={4}>
+            <td colSpan={5}>
               <EmptyState icon={<Wallet />} title="Aucun encaissement ce mois-ci" hint="Les paiements reçus apparaîtront ici, à leur date." />
             </td>
           </tr>
