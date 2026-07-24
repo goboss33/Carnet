@@ -48,7 +48,8 @@ export async function GET() {
   }));
 
   const debts = active
-    .map((o) => ({ o, missing: missingFor(o) }))
+    // handoverAt exclu : l'heure de remise a sa propre section (sinon doublon).
+    .map((o) => ({ o, missing: missingFor(o).filter((m) => m.field !== "handoverAt") }))
     .filter((x) => x.missing.length > 0)
     .slice(0, 10)
     // missingFor renvoie des objets { field, label, ask } — on ne sort que le LIBELLÉ

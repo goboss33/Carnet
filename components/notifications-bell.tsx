@@ -5,7 +5,7 @@
    livrées non soldées, heures de remise manquantes. Badge = total.
    Panneau en portail (échappe au transform de la page). */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createPortal } from "react-dom";
 import { Bell, Receipt, CircleAlert, HandCoins, Clock, X } from "lucide-react";
@@ -40,7 +40,20 @@ export default function NotificationsBell() {
   const [data, setData] = useState<Notif | null>(null);
   const [ticket, setTicket] = useState<ExpenseDraft | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [pos, setPos] = useState({ top: 60, left: 8 });
+  const btnRef = useRef<HTMLButtonElement>(null);
   useEffect(() => setMounted(true), []);
+
+  // Panneau ancré SOUS la cloche (sidebar à gauche sur desktop, topbar à droite
+  // sur mobile) — jamais à l'opposé de son déclencheur.
+  const toggle = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      const width = 336; // w-[21rem]
+      setPos({ top: r.bottom + 8, left: Math.min(Math.max(8, r.right - width), window.innerWidth - width - 8) });
+    }
+    setOpen((v) => !v);
+  };
 
   const load = useCallback(() => {
     fetch("/api/notifications").then((r) => (r.ok ? r.json() : null)).then((d) => d && setData(d)).catch(() => null);
@@ -55,8 +68,9 @@ export default function NotificationsBell() {
   return (
     <>
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         aria-label={`Notifications${count ? ` (${count})` : ""}`}
         className="relative rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800"
       >
@@ -73,7 +87,10 @@ export default function NotificationsBell() {
       {mounted && open && createPortal(
         <div className="fixed inset-0 z-[70]" role="dialog" aria-label="Notifications">
           <div className="absolute inset-0" onClick={() => setOpen(false)} />
-          <div className="absolute right-3 top-16 max-h-[75vh] w-[21rem] max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl md:right-6 md:top-14">
+          <div
+            style={{ top: pos.top, left: pos.left }}
+            className="absolute max-h-[75vh] w-[21rem] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl"
+          >
             <div className="mb-2 flex items-center justify-between px-1">
               <p className="text-[13px] font-bold text-zinc-900">À traiter</p>
               <button type="button" onClick={() => setOpen(false)} aria-label="Fermer" className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="size-4" /></button>
