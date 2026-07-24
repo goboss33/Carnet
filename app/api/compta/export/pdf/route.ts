@@ -16,6 +16,24 @@ export const dynamic = "force-dynamic";
 const A4 = { w: 595.28, h: 841.89 };
 const M = 44; // marge
 
+/* Les polices standard (Helvetica) n'encodent que WinAnsi (Latin-1) : un seul
+   caractère hors jeu (’ – emoji, diacritiques slaves…) fait planter pdf-lib.
+   On remplace les typographiques courants puis on translittère/neutralise le reste. */
+const MAP: Record<string, string> = { "’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-", "…": "...", " ": " ", "·": "-", "→": "->", "œ": "oe", "Œ": "OE" };
+function safe(s: string): string {
+  let out = "";
+  for (const ch of s) {
+    if (MAP[ch] !== undefined) { out += MAP[ch]; continue; }
+    const code = ch.codePointAt(0)!;
+    if ((code >= 0x20 && code <= 0x7e) || (code >= 0xa1 && code <= 0xff)) { out += ch; continue; }
+    // essaie de retirer les diacritiques (š → s), sinon neutralise
+    const base = ch.normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const bc = base.codePointAt(0) ?? 0;
+    out += (bc >= 0x20 && bc <= 0x7e) || (bc >= 0xa1 && bc <= 0xff) ? base : "?";
+  }
+  return out;
+}
+
 export async function GET(req: NextRequest) {
   const m = req.nextUrl.searchParams.get("m") ?? "";
   const yy = req.nextUrl.searchParams.get("y") ?? "";
@@ -35,6 +53,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse("?m=YYYY-MM ou ?y=YYYY requis", { status: 400 });
   }
 
+  try {
   const tenant = await currentTenant();
   const [brand, s, payments, expenses, delivered] = await Promise.all([
     getBrand(),
@@ -69,7 +88,8 @@ export async function GET(req: NextRequest) {
       y = A4.h - M;
     }
   };
-  const text = (t: string, x: number, size: number, opts?: { bold?: boolean; color?: ReturnType<typeof rgb>; right?: number }) => {
+  const text = (raw: string, x: number, size: number, opts?: { bold?: boolean; color?: ReturnType<typeof rgb>; right?: number }) => {
+    const t = safe(raw); // point unique : tout ce qui est dessiné passe ici
     const f = opts?.bold ? bold : font;
     const xx = opts?.right != null ? opts.right - f.widthOfTextAtSize(t, size) : x;
     page.drawText(t, { x: xx, y, size, font: f, color: opts?.color ?? dark });
@@ -171,4 +191,8 @@ export async function GET(req: NextRequest) {
       "Content-Disposition": `attachment; filename="carnet-compta-${file}.pdf"`,
     },
   });
+  } catch (e) {
+    console.error("export pdf:", e);
+    return new NextResponse("Export PDF impossible — détail dans les logs du serveur.", { status: 500 });
+  }
 }
