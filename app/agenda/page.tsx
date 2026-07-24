@@ -82,7 +82,11 @@ function Card({ o, now, anchorId }: { o: OrderWithContact; now: Date; anchorId?:
               </p>
               {/* L3 — étages + parts (+ sans lactose) */}
               <p className="mt-1 flex items-center gap-2 text-[13px] text-zinc-500">
-                <span>{[o.tiers ? `${o.tiers} étage${o.tiers > 1 ? "s" : ""}` : null, o.parts ? `${o.parts} parts` : null].filter(Boolean).join(" · ") || "—"}</span>
+                <span>
+                  {o.kind === "EXCEPTION"
+                    ? `Projet${o.priceQuoted ? ` · CHF ${o.priceQuoted.toLocaleString("fr-CH")}` : ""}`
+                    : [o.tiers ? `${o.tiers} étage${o.tiers > 1 ? "s" : ""}` : null, o.parts ? `${o.parts} parts` : null].filter(Boolean).join(" · ") || "—"}
+                </span>
                 {o.sansLactose && (
                   <span className="shrink-0" title="Sans lactose"><MilkOff className="size-3.5 text-red-500" /></span>
                 )}

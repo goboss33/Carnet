@@ -61,21 +61,33 @@ type EntrySuggestion = {
   altIdeas: string[];
 };
 
-/** Brief compact d'une commande — uniquement des faits non sensibles (jamais de nom de famille, téléphone, adresse exacte). */
+/** Brief compact d'une commande — uniquement des faits non sensibles (jamais de nom de famille,
+    téléphone, adresse privée exacte, jamais de montants). En Mode ligne : les postes du projet
+    remplacent parts/biscuit, et le lieu complet est donné (un lieu d'événement est public,
+    contrairement à un domicile). */
 async function orderBrief(tenantId: string, orderId: string): Promise<string | null> {
   const o = await prisma.order.findFirst({ where: { id: orderId, tenantId }, include: { contact: true } });
   if (!o) return null;
+  const isExc = o.kind === "EXCEPTION";
+  const { parseItems } = await import("@/lib/order-items");
+  const postes = isExc
+    ? (parseItems(o.items) ?? []).filter((it) => !it.opt).map((it) => (it.detail ? `${it.label} (${it.detail})` : it.label)).filter(Boolean)
+    : [];
   const city = o.deliveryAddress.match(/\b(1[0-9]{3})\s+([A-Za-zÀ-ÿ' -]+)/)?.[2]?.trim();
   return [
     `Occasion : ${o.occasion || "?"}`,
+    o.celebrant ? `Fêté·e : ${o.celebrant}` : null,
     o.celebrantAge ? `Âge fêté : ${o.celebrantAge} ans` : null,
+    postes.length ? `Postes du projet :\n${postes.map((p) => `  - ${p}`).join("\n")}` : null,
     o.parts ? `Parts : ${o.parts}` : null,
     o.tiers ? `Étages : ${o.tiers}` : null,
     o.biscuit ? `Biscuit : ${o.biscuit}` : null,
     o.fourrages.length ? `Fourrages : ${o.fourrages.join(", ")}` : null,
     o.sansLactose ? `Sans lactose : oui` : null,
     o.themeNote ? `Thème : ${o.themeNote}` : null,
-    o.deliveryMode === "livraison" && city ? `Commune de livraison : ${city}` : null,
+    isExc && o.deliveryMode === "livraison" && o.deliveryAddress
+      ? `Lieu de l'événement : ${o.deliveryAddress}`
+      : o.deliveryMode === "livraison" && city ? `Commune de livraison : ${city}` : null,
     o.eventDate ? `Mois : ${o.eventDate.toLocaleDateString("fr-CH", { month: "long", year: "numeric" })}` : null,
   ].filter(Boolean).join("\n");
 }

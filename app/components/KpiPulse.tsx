@@ -14,7 +14,7 @@ import type { LucideIcon } from "lucide-react";
 import { STATUTS } from "@/lib/statuts";
 import { cn } from "@/lib/ui";
 
-export type KpiMetric = { value: string; deltaText: string; dir: "up" | "down" | "flat"; cur: number[]; prev: number[] };
+export type KpiMetric = { value: string; deltaText: string; dir: "up" | "down" | "flat"; cur: number[]; prev: number[]; subExtra?: string };
 export type KpiPeriod = { key: string; label: string; comparison: string; metrics: KpiMetric[] };
 
 const leadDot = STATUTS.find((s) => s.id === "LEAD")?.dot ?? "bg-sky-500";
@@ -112,7 +112,10 @@ export default function KpiPulse({ periods }: { periods: KpiPeriod[] }) {
                   {Icon && <Icon className="size-3.5 shrink-0 text-zinc-400" />}
                   {slot.label}
                 </p>
-                <p className="mt-1 text-[11px] leading-tight text-zinc-400">{sub}</p>
+                <p className="mt-1 truncate text-[11px] leading-tight text-zinc-400" title={m.subExtra ? `${sub} ${m.subExtra}` : undefined}>
+                  {sub}
+                  {m.subExtra && <span className="font-medium text-emerald-600"> {m.subExtra}</span>}
+                </p>
                 <div className="mt-auto flex items-baseline gap-2 pt-2">
                   <p className="text-base font-semibold tracking-tight text-zinc-900">{m.value}</p>
                   {m.deltaText && (

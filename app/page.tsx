@@ -54,6 +54,7 @@ export default async function Pipeline() {
     const z = () => new Array(SAMPLES + 1).fill(0) as number[];
     const cDem = z(), cCon = z(), cSum = z(), cCnt = z();
     const pDem = z(), pCon = z(), pSum = z(), pCnt = z();
+    let excCnt = 0, excChf = 0; // commandes d'exception confirmées (fenêtre courante) — célébrées à part
 
     for (const o of kpiOrders) {
       const c = o.createdAt.getTime();
@@ -64,8 +65,10 @@ export default async function Pipeline() {
         if (p >= curStart && p < curEnd && p <= nowT) {
           const i = Math.min(SAMPLES, Math.floor(((p - curStart) / curSpan) * SAMPLES));
           cCon[i]++;
-          // Panier moyen : hors commandes d'exception (un 10 000 B2B fausserait la lecture B2C).
+          // Panier moyen : hors commandes d'exception (un 10 000 B2B fausserait la lecture B2C) —
+          // elles sont comptées à part et affichées en sous-ligne de la carte.
           if (o.priceQuoted && o.kind !== "EXCEPTION") { cSum[i] += o.priceQuoted; cCnt[i]++; }
+          else if (o.priceQuoted && o.kind === "EXCEPTION") { excCnt++; excChf += o.priceQuoted; }
         } else if (p >= prevStart && p < prevEnd) {
           const i = Math.min(SAMPLES, Math.floor(((p - prevStart) / prevSpan) * SAMPLES));
           pCon[i]++;
@@ -94,7 +97,14 @@ export default async function Pipeline() {
         { value: String(demT), deltaText: dtxt(demT - demP), dir: trend(demT - demP), cur: demCur, prev: demPrev },
         { value: String(conT), deltaText: dtxt(conT - conP), dir: trend(conT - conP), cur: conCur, prev: conPrev },
         { value: demT > 0 ? `${convT}%` : "—", deltaText: demT > 0 && demP > 0 ? dtxt(convT - convP, " pts") : "", dir: demT > 0 ? trend(convT - convP) : "flat", cur: convCur, prev: convPrev },
-        { value: panT > 0 ? `CHF ${panT}` : "—", deltaText: panT > 0 && panP > 0 ? dtxt(panT - panP) : "", dir: panT > 0 ? trend(panT - panP) : "flat", cur: panCur, prev: panPrev },
+        {
+          value: panT > 0 ? `CHF ${panT}` : "—",
+          deltaText: panT > 0 && panP > 0 ? dtxt(panT - panP) : "",
+          dir: panT > 0 ? trend(panT - panP) : "flat",
+          cur: panCur,
+          prev: panPrev,
+          ...(excCnt ? { subExtra: `· +${excCnt} exception${excCnt > 1 ? "s" : ""} : CHF ${excChf.toLocaleString("fr-CH")}` } : {}),
+        },
       ],
     };
   };
