@@ -52,6 +52,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
 
   const exception = order.kind === "EXCEPTION";
   const items = parseItems(order.items) ?? null;
+  const linesMode = exception || (items?.length ?? 0) > 0;
 
   const days = order.eventDate ? Math.ceil((order.eventDate.getTime() - Date.now()) / 86400000) : null;
   const jx = days === null ? null : days < 0 ? "passé" : days === 0 ? "aujourd'hui" : days === 1 ? "demain" : `J-${days}`;
@@ -137,15 +138,15 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               </div>
             </section>
 
+            {/* L'affichage suit le CONTENU : des lignes existent (ou Mode ligne actif)
+                → éditeur de lignes seul ; sinon champs gâteau. Jamais les deux. */}
             <section>
               <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700">
-                <Cake className="size-4 text-(--color-brand)" /> {exception ? "Le projet" : "Le gâteau"}
+                <Cake className="size-4 text-(--color-brand)" /> Le projet
                 <KindToggle orderId={order.id} exception={exception} />
               </div>
               <div className="space-y-4">
-                {exception ? (
-                  /* Mode exception : les lignes SONT le descriptif (pièce maîtresse,
-                     parts de service, livraison…) — slider/biscuit n'ont plus de sens. */
+                {linesMode ? (
                   <ItemsEditor initial={items} priceQuoted={order.priceQuoted} exception />
                 ) : (
                   <>
@@ -162,7 +163,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                   </>
                 )}
                 <label className="block"><span className={label}>Thème & style</span><input name="themeNote" defaultValue={order.themeNote} className={input} placeholder="Ex. licorne pastel arc-en-ciel, semi-naked fleurs fraîches…" /></label>
-                {!exception && (
+                {!linesMode && (
                   <>
                     <label className="flex cursor-pointer items-center gap-2.5" title="Gâteau sans lactose">
                       <input type="checkbox" name="sansLactose" defaultChecked={order.sansLactose} className="peer sr-only" />
