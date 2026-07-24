@@ -114,14 +114,14 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
       </div>
 
       {/* Mois par mois — ligne cliquable, barre de recettes proportionnelle */}
-      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white">
+        <table className="w-full whitespace-nowrap text-sm">
           <thead className="border-b border-zinc-200 bg-zinc-50 text-left text-[11px] uppercase tracking-wider text-zinc-500">
             <tr>
               <th className="px-4 py-3">Mois</th>
               <th className="px-4 py-3 text-right">Recettes</th>
               <th className="px-4 py-3 text-right">Dépenses</th>
-              <th className="hidden px-4 py-3 text-right sm:table-cell">Déplacements</th>
+              <th className="px-4 py-3 text-right">Déplacements</th>
               <th className="px-4 py-3 text-right">Résultat</th>
             </tr>
           </thead>
@@ -141,7 +141,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
                   </span>
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-red-700">{m.exp ? chf(m.exp) : "—"}</td>
-                <td className="hidden px-4 py-2.5 text-right tabular-nums text-zinc-500 sm:table-cell">{m.km ? chf(m.km) : "—"}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-zinc-500">{m.km ? chf(m.km) : "—"}</td>
                 <td className={cn("px-4 py-2.5 text-right font-semibold tabular-nums", m.rev - m.exp < 0 ? "text-red-700" : "text-zinc-900")}>{m.rev || m.exp ? chf(m.rev - m.exp) : "—"}</td>
               </tr>
             ))}
@@ -151,7 +151,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
               <td className="px-4 py-3">Total {year}</td>
               <td className="px-4 py-3 text-right tabular-nums text-emerald-700">{chf(totRev)}</td>
               <td className="px-4 py-3 text-right tabular-nums text-red-700">{chf(totExp)}</td>
-              <td className="hidden px-4 py-3 text-right tabular-nums text-zinc-500 sm:table-cell">{chf(mileageYear)}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-zinc-500">{chf(mileageYear)}</td>
               <td className="px-4 py-3 text-right tabular-nums">{chf(totRev - totExp)}</td>
             </tr>
           </tfoot>
