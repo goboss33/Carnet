@@ -51,7 +51,9 @@ export async function GET() {
     .map((o) => ({ o, missing: missingFor(o) }))
     .filter((x) => x.missing.length > 0)
     .slice(0, 10)
-    .map((x) => ({ id: x.o.id, name: name(x.o), count: x.missing.length, first: x.missing[0] ?? "" }));
+    // missingFor renvoie des objets { field, label, ask } — on ne sort que le LIBELLÉ
+    // (une valeur non sérialisée en string ferait planter le rendu côté client).
+    .map((x) => ({ id: x.o.id, name: name(x.o), count: x.missing.length, first: x.missing[0]?.label ?? "" }));
 
   const unpaid = delivered
     .map((o) => ({ o, pay: paymentState(o) }))
