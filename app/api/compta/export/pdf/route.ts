@@ -4,6 +4,7 @@ import { prisma, currentTenant } from "@/lib/db";
 import { catLabel, mileageCents, PAYKIND_LABEL } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
 import { getBrand } from "@/lib/brand";
+import { safePdfText as safe } from "@/lib/pdf";
 
 /* ---------------------------------------------------------------------------
    GET /api/compta/export/pdf?m=YYYY-MM (ou ?y=YYYY) — dossier compta en PDF :
@@ -15,24 +16,6 @@ export const dynamic = "force-dynamic";
 
 const A4 = { w: 595.28, h: 841.89 };
 const M = 44; // marge
-
-/* Les polices standard (Helvetica) n'encodent que WinAnsi (Latin-1) : un seul
-   caractère hors jeu (’ – emoji, diacritiques slaves…) fait planter pdf-lib.
-   On remplace les typographiques courants puis on translittère/neutralise le reste. */
-const MAP: Record<string, string> = { "’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-", "−": "-", "…": "...", " ": " ", "·": "-", "→": "->", "œ": "oe", "Œ": "OE" };
-function safe(s: string): string {
-  let out = "";
-  for (const ch of s) {
-    if (MAP[ch] !== undefined) { out += MAP[ch]; continue; }
-    const code = ch.codePointAt(0)!;
-    if ((code >= 0x20 && code <= 0x7e) || (code >= 0xa1 && code <= 0xff)) { out += ch; continue; }
-    // essaie de retirer les diacritiques (š → s), sinon neutralise
-    const base = ch.normalize("NFD").replace(/[̀-ͯ]/g, "");
-    const bc = base.codePointAt(0) ?? 0;
-    out += (bc >= 0x20 && bc <= 0x7e) || (bc >= 0xa1 && bc <= 0xff) ? base : "?";
-  }
-  return out;
-}
 
 export async function GET(req: NextRequest) {
   const m = req.nextUrl.searchParams.get("m") ?? "";

@@ -21,7 +21,7 @@ import { TiersParts, FourrageChips, DeliveryFields } from "./OrderFields";
 import { BISCUITS } from "@/lib/order-options";
 import { ContactInfo } from "./ContactInfo";
 import { ChannelPicker } from "./ChannelPicker";
-import { Calendar, Cake, Truck, StickyNote, Images } from "lucide-react";
+import { Calendar, Cake, Truck, StickyNote, Images, FileText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +79,25 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
             <ChannelPicker orderId={order.id} current={order.source} />
             {SOURCES.find((s) => s.id === order.source)?.label ?? ""} · créé le {fmtDate(order.createdAt)}
           </span>
+        }
+        actions={
+          order.priceQuoted ? (
+            <a
+              href={`/api/commandes/${order.id}/facture`}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 text-[13px] font-medium text-zinc-700 transition hover:bg-zinc-50"
+            >
+              <FileText className="size-3.5" /> Facture
+            </a>
+          ) : (
+            <span
+              title="Renseigne d'abord le prix pour générer une facture."
+              className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-[13px] font-medium text-zinc-400"
+            >
+              <FileText className="size-3.5" /> Facture
+            </span>
+          )
         }
       />
 

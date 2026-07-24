@@ -244,6 +244,33 @@ export default async function Reglages() {
                 </label>
               </div>
           </div>
+          <div className="border-t border-zinc-100 pt-5">
+            <p className="mb-1 text-[13px] font-semibold text-zinc-700">Facturation & TVA</p>
+            <p className="mb-4 text-[11px] leading-relaxed text-zinc-400">
+              Utilisé par le bouton « Facture PDF » des commandes. Tant que le toggle est désactivé, les factures
+              portent la mention « non assujetti à la TVA » — sans aucune ligne TVA (c'est la règle : l'impôt mentionné est dû).
+            </p>
+            <label className="mb-4 block">
+              <span className={label}>Adresse sur les factures</span>
+              <textarea name="businessAddress" rows={2} defaultValue={raw?.businessAddress ?? ""} placeholder={"Chemin des Curtils 1\n1261 Le Vaud"} className={input} />
+              <span className="mt-1 block text-[11px] text-zinc-400">Une ligne par ligne d'adresse. Le nom affiché est le titulaire du compte ci-dessus.</span>
+            </label>
+            <label className="mb-4 flex items-center gap-3 text-sm text-zinc-700">
+              <input type="checkbox" name="vatEnabled" defaultChecked={eff.vatEnabled} className="size-4 accent-(--color-brand)" />
+              Assujetti à la TVA — les factures affichent « Prix TTC, dont TVA x % »
+            </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className={label}>N° TVA</span>
+                <input name="vatNumber" defaultValue={raw?.vatNumber ?? ""} placeholder="CHE-123.456.789 TVA" className={input} />
+              </label>
+              <label className="block">
+                <span className={label}>Taux de TVA (%)</span>
+                <input name="vatRate" type="number" step="0.1" min="0" max="30" defaultValue={raw?.vatRate ?? ""} placeholder={String(eff.vatRate)} className={input} />
+                <span className="mt-1 block text-[11px] text-zinc-400">Suisse : 2.6 % denrées alimentaires à l'emporter, 8.1 % taux normal.</span>
+              </label>
+            </div>
+          </div>
         </CardBody>
       </Card>
     ),

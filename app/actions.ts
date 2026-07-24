@@ -1037,6 +1037,13 @@ export async function saveSettings(formData: FormData) {
     accountHolder: String(formData.get("accountHolder") ?? "").trim(),
     iban: String(formData.get("iban") ?? "").trim(),
     bankName: String(formData.get("bankName") ?? "").trim(),
+    businessAddress: String(formData.get("businessAddress") ?? "").trim().slice(0, 200),
+    vatEnabled: formData.get("vatEnabled") === "on",
+    vatNumber: String(formData.get("vatNumber") ?? "").trim().slice(0, 40),
+    vatRate: (() => {
+      const v = num("vatRate");
+      return v == null || isNaN(v) ? null : Math.min(30, Math.max(0, v));
+    })(),
     assistantActive: formData.get("assistantActive") === "on",
     assistantSignature: String(formData.get("assistantSignature") ?? "").trim(),
     assistantInstructions: String(formData.get("assistantInstructions") ?? "").trim(),
