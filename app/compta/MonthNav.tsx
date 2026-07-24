@@ -3,7 +3,8 @@
 /* Navigation de mois : flèches + popover maison (grille des 12 mois, année
    naviguable, raccourci « Ce mois »). Tout le label est cliquable. */
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/ui";
@@ -15,10 +16,26 @@ export default function MonthNav({ month, prev, next, label }: { month: string; 
   const [open, setOpen] = useState(false);
   const [curY, curM] = month.split("-").map(Number);
   const [viewYear, setViewYear] = useState(curY);
+  const [pos, setPos] = useState({ top: 60, left: 8 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const now = new Date();
 
   const go = (m: string) => { setOpen(false); router.push(`/compta?m=${m}`); };
   const pad = (n: number) => String(n).padStart(2, "0");
+
+  // Panneau en position FIXE, centré sous le bouton mais clampé au viewport
+  // (sinon tronqué à gauche sur mobile / à droite quand les actions sont à droite).
+  const toggle = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      const w = 240; // w-60
+      setPos({ top: r.bottom + 8, left: Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8) });
+    }
+    setViewYear(curY);
+    setOpen((v) => !v);
+  };
 
   return (
     <div className="relative flex items-center gap-0.5 rounded-lg border border-zinc-300 bg-white p-0.5">
@@ -26,8 +43,9 @@ export default function MonthNav({ month, prev, next, label }: { month: string; 
         <ChevronLeft className="size-4" />
       </button>
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => { setViewYear(curY); setOpen((v) => !v); }}
+        onClick={toggle}
         aria-expanded={open}
         className="flex min-w-28 items-center justify-center gap-1 rounded-md px-1.5 py-1 text-[13px] font-semibold capitalize text-zinc-800 transition-colors hover:bg-zinc-100"
       >
@@ -37,10 +55,10 @@ export default function MonthNav({ month, prev, next, label }: { month: string; 
         <ChevronRight className="size-4" />
       </button>
 
-      {open && (
+      {mounted && open && createPortal(
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-1/2 top-full z-50 mt-2 w-60 -translate-x-1/2 rounded-xl border border-zinc-200 bg-white p-3 shadow-lg">
+          <div style={{ top: pos.top, left: pos.left }} className="fixed z-50 w-60 rounded-xl border border-zinc-200 bg-white p-3 shadow-lg">
             <div className="mb-2 flex items-center justify-between">
               <button type="button" onClick={() => setViewYear((y) => y - 1)} aria-label="Année précédente" className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100"><ChevronLeft className="size-4" /></button>
               <span className="text-[13px] font-bold tabular-nums text-zinc-800">{viewYear}</span>
@@ -73,7 +91,8 @@ export default function MonthNav({ month, prev, next, label }: { month: string; 
               Ce mois
             </button>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

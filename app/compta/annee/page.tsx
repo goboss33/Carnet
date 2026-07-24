@@ -3,9 +3,10 @@ import { prisma, currentTenant } from "@/lib/db";
 import { chf, mileageCents } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
 import { PageHeader } from "@/components/ui/page-header";
-import { ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import ViewToggle from "@/app/compta/ViewToggle";
 import ExportMenu from "@/app/compta/ExportMenu";
+import YearNav from "./YearNav";
 import { cn } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
     prisma.payment.aggregate({ where: { tenantId: tenant.id, paidAt: { gte: pStart, lt: start } }, _sum: { cents: true } }),
     prisma.expense.aggregate({ where: { tenantId: tenant.id, status: "CONFIRMED", date: { gte: pStart, lt: start } }, _sum: { totalCents: true } }),
     // Livraisons : uniquement pour les km déductibles.
-    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: start, lt: end } }, select: { deliveryMode: true, deliveryKm: true } }),
+    prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: start, lt: end } }, select: { deliveryMode: true, deliveryKm: true, deliveredAt: true } }),
     prisma.order.findMany({ where: { tenantId: tenant.id, status: "LIVRE", deliveredAt: { gte: pStart, lt: start } }, select: { deliveryMode: true, deliveryKm: true } }),
   ]);
   const s = await getSettings(tenant.id);
@@ -49,7 +50,10 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
   const months = Array.from({ length: 12 }, (_, i) => {
     const rev = payments.filter((p) => p.paidAt.getUTCMonth() === i).reduce((a, p) => a + p.cents, 0);
     const exp = expenses.filter((e) => e.date.getUTCMonth() === i).reduce((a, e) => a + e.totalCents, 0);
-    return { i, rev, exp };
+    const km = delivered
+      .filter((o) => o.deliveredAt!.getUTCMonth() === i)
+      .reduce((a, o) => a + (o.deliveryMode === "livraison" ? mileageCents(o.deliveryKm, s.kmRate) : 0), 0);
+    return { i, rev, exp, km };
   });
   const totRev = months.reduce((a, m) => a + m.rev, 0);
   const totExp = months.reduce((a, m) => a + m.exp, 0);
@@ -88,11 +92,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
         subtitle="Le dossier annuel, mois par mois — prêt pour la fiduciaire."
         actions={
           <>
-            <div className="flex items-center gap-0.5 rounded-lg border border-zinc-300 bg-white p-0.5">
-              <Link href={`/compta/annee?y=${year - 1}`} aria-label="Année précédente" className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800"><ChevronLeft className="size-4" /></Link>
-              <span className="min-w-14 text-center text-[13px] font-semibold text-zinc-800">{year}</span>
-              <Link href={`/compta/annee?y=${year + 1}`} aria-label="Année suivante" className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800"><ChevronRight className="size-4" /></Link>
-            </div>
+            <YearNav year={year} />
             <ViewToggle active="annee" month={`${year}-01`} year={year} />
             <ExportMenu csvHref={`/api/compta/export?y=${year}`} pdfHref={`/api/compta/export/pdf?y=${year}`} />
           </>
@@ -121,6 +121,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
               <th className="px-4 py-3">Mois</th>
               <th className="px-4 py-3 text-right">Recettes</th>
               <th className="px-4 py-3 text-right">Dépenses</th>
+              <th className="hidden px-4 py-3 text-right sm:table-cell">Déplacements</th>
               <th className="px-4 py-3 text-right">Résultat</th>
             </tr>
           </thead>
@@ -140,6 +141,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
                   </span>
                 </td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-red-700">{m.exp ? chf(m.exp) : "—"}</td>
+                <td className="hidden px-4 py-2.5 text-right tabular-nums text-zinc-500 sm:table-cell">{m.km ? chf(m.km) : "—"}</td>
                 <td className={cn("px-4 py-2.5 text-right font-semibold tabular-nums", m.rev - m.exp < 0 ? "text-red-700" : "text-zinc-900")}>{m.rev || m.exp ? chf(m.rev - m.exp) : "—"}</td>
               </tr>
             ))}
@@ -149,6 +151,7 @@ export default async function Annee({ searchParams }: { searchParams: Promise<{ 
               <td className="px-4 py-3">Total {year}</td>
               <td className="px-4 py-3 text-right tabular-nums text-emerald-700">{chf(totRev)}</td>
               <td className="px-4 py-3 text-right tabular-nums text-red-700">{chf(totExp)}</td>
+              <td className="hidden px-4 py-3 text-right tabular-nums text-zinc-500 sm:table-cell">{chf(mileageYear)}</td>
               <td className="px-4 py-3 text-right tabular-nums">{chf(totRev - totExp)}</td>
             </tr>
           </tfoot>

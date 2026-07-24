@@ -77,12 +77,24 @@ export function ExpenseModal({ row, onClose, onSaved }: { row: ExpenseDraft; onC
             </select>
           </label>
           <label className="col-span-2"><span className={labelCls}>Note</span><input name="notes" placeholder="Optionnel" defaultValue={row.notes ?? ""} className={fieldCls} /></label>
+          <label className="col-span-2">
+            <span className={labelCls}>Justificatif (photo ou PDF)</span>
+            <input
+              name="receipt"
+              type="file"
+              accept="image/*,application/pdf"
+              className="block w-full text-[13px] text-zinc-500 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-[13px] file:font-medium file:text-zinc-700 hover:file:bg-zinc-200"
+            />
+          </label>
         </div>
 
         {row.receiptPath ? (
-          <MediaViewer src={`/api/receipts/${row.receiptPath}`} kind={row.receiptPath.endsWith(".pdf") ? "pdf" : "image"} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-(--color-brand) hover:underline" title="Voir le justificatif">
-            {row.receiptPath.endsWith(".pdf") ? <FileText className="size-4" /> : <Camera className="size-4" />} Voir le justificatif
-          </MediaViewer>
+          <div className="flex items-center justify-between gap-2">
+            <MediaViewer src={`/api/receipts/${row.receiptPath}`} kind={row.receiptPath.endsWith(".pdf") ? "pdf" : "image"} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-(--color-brand) hover:underline" title="Voir le justificatif">
+              {row.receiptPath.endsWith(".pdf") ? <FileText className="size-4" /> : <Camera className="size-4" />} Voir le justificatif
+            </MediaViewer>
+            <span className="text-[11px] text-zinc-400">un nouveau fichier le remplace</span>
+          </div>
         ) : null}
 
         <div className="flex items-center justify-between border-t border-zinc-100 pt-3">

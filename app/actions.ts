@@ -451,6 +451,33 @@ const expensePatch = z.object({
   notes: z.string().default(""),
 });
 
+/** Enregistre un justificatif uploadé depuis la modale (image → webp, PDF brut).
+    Même convention de chemin que le bot : {slug}/{YYYY-MM}/{expenseId}.{ext}. */
+async function saveReceiptFile(tenantSlug: string, expenseId: string, file: File): Promise<string | null> {
+  const isPdf = file.type === "application/pdf";
+  if ((!isPdf && !file.type.startsWith("image/")) || file.size === 0 || file.size > 10_000_000) return null;
+  try {
+    const path = await import("path");
+    const { mkdir, writeFile } = await import("fs/promises");
+    let buf = Buffer.from(await file.arrayBuffer());
+    let ext = "pdf";
+    if (!isPdf) {
+      const sharp = (await import("sharp")).default;
+      buf = Buffer.from(await sharp(buf).rotate().resize(2000, 2000, { fit: "inside", withoutEnlargement: true }).webp({ quality: 85 }).toBuffer());
+      ext = "webp";
+    }
+    const now = new Date();
+    const rel = `${tenantSlug}/${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}/${expenseId}.${ext}`;
+    const abs = path.join(path.resolve(process.env.RECEIPTS_DIR ?? "./data/receipts"), rel);
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, buf);
+    return rel;
+  } catch (e) {
+    console.error("saveReceiptFile:", e);
+    return null;
+  }
+}
+
 export async function updateExpense(id: string, formData: FormData) {
   const d = expensePatch.parse(Object.fromEntries(formData));
   await prisma.expense.update({
@@ -464,13 +491,19 @@ export async function updateExpense(id: string, formData: FormData) {
       status: "CONFIRMED",
     },
   });
+  const f = formData.get("receipt");
+  if (f instanceof File && f.size > 0) {
+    const tenant = await currentTenant();
+    const rel = await saveReceiptFile(tenant.slug, id, f);
+    if (rel) await prisma.expense.update({ where: { id }, data: { receiptPath: rel } });
+  }
   revalidatePath("/compta");
 }
 
 export async function createExpense(formData: FormData) {
   const d = expensePatch.parse(Object.fromEntries(formData));
   const tenant = await currentTenant();
-  await prisma.expense.create({
+  const created = await prisma.expense.create({
     data: {
       tenantId: tenant.id,
       status: "CONFIRMED",
@@ -481,6 +514,11 @@ export async function createExpense(formData: FormData) {
       notes: d.notes,
     },
   });
+  const f = formData.get("receipt");
+  if (f instanceof File && f.size > 0) {
+    const rel = await saveReceiptFile(tenant.slug, created.id, f);
+    if (rel) await prisma.expense.update({ where: { id: created.id }, data: { receiptPath: rel } });
+  }
   revalidatePath("/compta");
 }
 
