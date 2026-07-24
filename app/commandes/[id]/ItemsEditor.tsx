@@ -21,11 +21,7 @@ const toCents = (s: string): number => {
   return isNaN(n) ? 0 : Math.round(n * 100);
 };
 
-export default function ItemsEditor({ initial, priceQuoted, exception }: {
-  initial: OrderItem[] | null;
-  priceQuoted: number | null;
-  exception: boolean;
-}) {
+export default function ItemsEditor({ initial }: { initial: OrderItem[] | null }) {
   const [items, setItems] = useState<OrderItem[]>(initial ?? []);
   const wrap = useRef<HTMLDivElement>(null);
 
@@ -49,22 +45,6 @@ export default function ItemsEditor({ initial, priceQuoted, exception }: {
     }]);
 
   const total = items.filter((it) => !it.opt).reduce((a, it) => a + it.cents, 0);
-
-  // Commande standard sans lignes : juste la porte d'entrée discrète.
-  if (!exception && items.length === 0) {
-    return (
-      <div ref={wrap}>
-        <input type="hidden" name="items" value="[]" readOnly />
-        <button
-          type="button"
-          onClick={() => commit([{ id: `l${Date.now()}`, label: "Création sur mesure", cents: (priceQuoted ?? 0) * 100 }])}
-          className="text-[12px] font-medium text-zinc-400 underline-offset-2 hover:text-(--color-brand) hover:underline"
-        >
-          Détailler en lignes (plusieurs gâteaux, devis détaillé…)
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div ref={wrap} className="space-y-3">

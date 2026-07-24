@@ -27,7 +27,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const order = await prisma.order.findUnique({ where: { id }, include: { contact: true } });
     if (!order || order.tenantId !== tenant.id) return new NextResponse("Introuvable", { status: 404 });
 
-    const items = parseItems(order.items) ?? [];
+    // Lignes actives seulement en Mode ligne (éteint = dormantes, prix simple).
+    const items = order.kind === "EXCEPTION" ? (parseItems(order.items) ?? []) : [];
     const counted = items.filter((it) => !it.opt);
     const options = items.filter((it) => it.opt);
     const totalCents = counted.length ? itemsTotalCents(items) : (order.priceQuoted ?? 0) * 100;

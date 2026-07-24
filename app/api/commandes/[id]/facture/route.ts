@@ -31,14 +31,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       include: { contact: true, payments: { orderBy: { paidAt: "asc" } } },
     });
     if (!order || order.tenantId !== tenant.id) return new NextResponse("Introuvable", { status: 404 });
-    if (!order.priceQuoted && !(parseItems(order.items) ?? []).length)
+    // Lignes actives seulement en Mode ligne — éteint, elles sont dormantes et le prix simple fait foi.
+    const activeItems = order.kind === "EXCEPTION" ? (parseItems(order.items) ?? []) : [];
+    if (!order.priceQuoted && !activeItems.length)
       return new NextResponse("Renseigne d'abord le prix de la commande.", { status: 400 });
 
     const [brand, s, lex] = await Promise.all([getBrand(), getSettings(tenant.id), getLexicon(tenant.id)]);
 
-    // Lignes de commande : quand elles existent, la facture les détaille
+    // Lignes de commande : quand elles sont actives, la facture les détaille
     // (mêmes lignes que le devis — continuité devis → facture).
-    const lineItems = (parseItems(order.items) ?? []).filter((it) => !it.opt);
+    const lineItems = activeItems.filter((it) => !it.opt);
     const totalCents = lineItems.length ? itemsTotalCents(lineItems) : (order.priceQuoted ?? 0) * 100;
     const received = order.payments.filter((p) => p.kind !== "POURBOIRE");
     const paidCents = received.reduce((a, p) => a + p.cents, 0);
