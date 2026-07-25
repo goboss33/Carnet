@@ -68,9 +68,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const { name: brand, studio } = useBrandName();
 
   useEffect(() => setOpen(false), [pathname]);
+  // Verrou de défilement : body ET html (sur mobile, le conteneur de scroll peut
+  // être l'un ou l'autre — verrouiller le seul body laissait la page glisser).
   useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    const { body, documentElement: html } = document;
+    if (open) { body.style.overflow = "hidden"; html.style.overflow = "hidden"; }
+    else { body.style.overflow = ""; html.style.overflow = ""; }
+    return () => { body.style.overflow = ""; html.style.overflow = ""; };
   }, [open]);
 
   const settingsActive = pathname.startsWith("/reglages");
@@ -137,11 +141,26 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* drawer mobile */}
+      {/* Drawer mobile — plein écran (z-50) avec sa PROPRE barre de titre : il ne
+          dépend plus du header sticky, qui pouvait disparaître au scroll. */}
       {open && (
-        <div className="fixed inset-0 z-30 md:hidden">
+        <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-zinc-950/25" onClick={() => setOpen(false)} />
-          <nav className="absolute inset-x-0 top-14 space-y-0.5 border-b border-(--color-line) bg-white p-3 shadow-lg">
+          <div className="absolute inset-x-0 top-0 flex h-14 items-center justify-between border-b border-(--color-line) bg-white px-4">
+            <Link href="/" onClick={() => setOpen(false)} className="flex items-center gap-2">
+              <span className="flex size-6 items-center justify-center rounded-md bg-(--color-brand) text-[13px] font-bold text-white">
+                {brand.charAt(0).toUpperCase()}
+              </span>
+              <span className="text-[15px] font-semibold tracking-tight text-zinc-900">{brand}</span>
+            </Link>
+            <div className="flex items-center gap-1">
+              <NotificationsBell />
+              <button onClick={() => setOpen(false)} aria-label="Fermer le menu" className="rounded-lg p-2 text-zinc-600 transition-colors hover:bg-zinc-100">
+                <X className="size-5" />
+              </button>
+            </div>
+          </div>
+          <nav className="absolute inset-x-0 top-14 max-h-[calc(100dvh-3.5rem)] space-y-0.5 overflow-y-auto border-b border-(--color-line) bg-white p-3 shadow-lg">
             <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} studio={studio} />
             <div className="my-2 h-px bg-(--color-line)" />
             <Link href="/reglages" onClick={() => setOpen(false)} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] font-medium text-zinc-500 hover:bg-zinc-100/70 hover:text-zinc-900">
