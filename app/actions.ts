@@ -14,7 +14,7 @@ import { nextOrderNo } from "@/lib/order-number";
 import { syncPaymentJournal } from "@/lib/payment-journal";
 import { parseItems, itemsTotalCents } from "@/lib/order-items";
 import { readPricing } from "@/lib/pricing";
-import { parsePieces, flatFromPieces, piecesTotal } from "@/lib/order-pieces";
+import { parsePieces, flatFromPieces, piecesOf, orderTotal } from "@/lib/order-pieces";
 import type { ProjectAnalysis } from "@/lib/project-analyze";
 import type { OrderStatus, Source } from "@prisma/client";
 import { Prisma } from "@prisma/client";
@@ -198,6 +198,7 @@ const orderPatch = z.object({
   themeNote: z.string().default(""),
   deliveryMode: z.string().default("retrait"),
   deliveryAddress: z.string().default(""),
+  deliveryKm: z.coerce.number().int().min(0).max(2000).optional(),
   notes: z.string().default(""),
 });
 
@@ -222,17 +223,27 @@ export async function updateOrder(orderId: string, formData: FormData) {
   if (typeof rawPieces === "string" && rawPieces.trim() !== "") {
     const pieces = parsePieces(rawPieces);
     if (pieces) {
-      const order = await prisma.order.findUnique({ where: { id: orderId }, select: { tenantId: true, occasion: true, priceLocked: true, priceQuoted: true } });
+      const order = await prisma.order.findUnique({ where: { id: orderId }, select: { tenantId: true, occasion: true, priceQuoted: true, deliveryKm: true, discountKind: true, discountValue: true } });
       const flat = flatFromPieces(pieces);
       piecesData = {
         pieces: pieces.length ? (pieces as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
         ...flat,
         themeNote: pieces.find((p) => p.type === "CAKE")?.themeNote ?? pieces[0]?.themeNote ?? d.themeNote,
       };
-      if (order && !order.priceLocked && pieces.length) {
+      if (order && pieces.length) {
+        // Total TOUJOURS recalculé : pièces + livraison − remise. La remise vit
+        // à part (Order.discount*), donc ajouter des cupcakes deux jours avant
+        // l'événement remet le prix à jour sans effacer le geste commercial.
         const s = await getSettings(order.tenantId);
-        const total = piecesTotal(s.pricing, pieces, order.occasion);
-        if (total > 0) piecesData.priceQuoted = total;
+        const km = d.deliveryKm ?? order.deliveryKm;
+        const t = orderTotal(s.pricing, {
+          pieces,
+          occasion: order.occasion,
+          deliveryMode: d.deliveryMode,
+          deliveryKm: km,
+          discount: order.discountKind ? { kind: order.discountKind as "chf" | "pct", value: order.discountValue } : null,
+        });
+        if (t.total > 0) piecesData.priceQuoted = t.total;
       }
     }
   }
@@ -249,6 +260,7 @@ export async function updateOrder(orderId: string, formData: FormData) {
       themeNote: d.themeNote,
       deliveryMode: d.deliveryMode,
       deliveryAddress: d.deliveryAddress,
+      deliveryKm: d.deliveryMode === "livraison" ? (d.deliveryKm ?? null) : null,
       fourrages: formData.getAll("fourrages").map(String).filter(Boolean).slice(0, 2),
       sansLactose: formData.get("sansLactose") === "on",
       notes: d.notes,
@@ -521,22 +533,33 @@ export async function setPrice(orderId: string, value: string) {
   revalidatePath("/compta");
 }
 
-/** Rendre la main au prix calculé (bouton « recalculer » de la fiche). */
-export async function unlockPrice(orderId: string): Promise<{ error?: string; price?: number }> {
+/** Remise de la commande (fixe CHF ou %) — vit à part du total, qui reste
+    recalculé à chaque modification des pièces ou de la livraison. */
+export async function setDiscount(orderId: string, kind: string, value: number): Promise<{ error?: string; total?: number }> {
   const tenant = await currentTenant();
   const order = await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id } });
   if (!order) return { error: "Commande introuvable." };
-  const { piecesOf } = await import("@/lib/order-pieces");
-  const pieces = piecesOf(order);
+  const k = kind === "pct" || kind === "chf" ? kind : "";
+  const v = Number.isFinite(value) && value > 0 ? Math.min(k === "pct" ? 100 : 100000, value) : 0;
   const s = await getSettings(tenant.id);
-  const total = pieces.length ? piecesTotal(s.pricing, pieces, order.occasion) : 0;
+  const pieces = piecesOf(order);
+  const t = orderTotal(s.pricing, {
+    pieces, occasion: order.occasion, deliveryMode: order.deliveryMode,
+    deliveryKm: order.deliveryKm, discount: v > 0 ? { kind: k as "chf" | "pct", value: v } : null,
+  });
   await prisma.order.update({
     where: { id: orderId },
-    data: { priceLocked: false, ...(total > 0 ? { priceQuoted: total } : {}) },
+    data: {
+      discountKind: v > 0 ? k : "",
+      discountValue: v,
+      ...(pieces.length ? { priceQuoted: t.total } : {}),
+    },
   });
+  await syncPaymentJournal(orderId);
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
-  return { price: total };
+  revalidatePath("/compta");
+  return { total: t.total };
 }
 
 /** Enregistre l'état de paiement en une fois (acompte + solde, en CHF).

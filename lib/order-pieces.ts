@@ -12,7 +12,7 @@
    — qui les lisent tous — continuent de fonctionner sans être réécrits.
 --------------------------------------------------------------------------- */
 import { z } from "zod";
-import { CUPCAKE_STEP, MINI_CUPCAKE_STEP, cakePrice, cupcakePrice, type Pricing } from "@/lib/pricing";
+import { CUPCAKE_STEP, MINI_CUPCAKE_STEP, cakePrice, cupcakePrice, deliveryFee, discountAmount, type Discount, type Pricing } from "@/lib/pricing";
 
 export type PieceType = "CAKE" | "CUPCAKE" | "MINI_CUPCAKE";
 
@@ -120,6 +120,29 @@ export function piecePrice(p: Pricing, piece: OrderPiece, occasion?: string | nu
 /** Total catalogue des pièces (hors livraison). */
 export function piecesTotal(p: Pricing, pieces: OrderPiece[], occasion?: string | null): number {
   return pieces.reduce((a, piece) => a + piecePrice(p, piece, occasion), 0);
+}
+
+/* --------------------------------------------------------- total commande */
+
+export type OrderTotal = {
+  pieces: number; // sous-total des pièces
+  delivery: number; // forfait de livraison
+  discount: number; // remise appliquée (montant)
+  total: number; // à payer
+};
+
+/** LE calcul d'une commande : pièces + livraison − remise.
+    Recalculé à chaque modification (ajout de cupcakes, changement d'adresse…) :
+    la remise vit à part, donc rien n'est jamais figé ni perdu. */
+export function orderTotal(
+  p: Pricing,
+  o: { pieces: OrderPiece[]; occasion?: string | null; deliveryMode?: string; deliveryKm?: number | null; discount?: Discount | null }
+): OrderTotal {
+  const pieces = piecesTotal(p, o.pieces, o.occasion);
+  const delivery = o.deliveryMode === "livraison" ? deliveryFee(p, o.deliveryKm) : 0;
+  const sub = pieces + delivery;
+  const discount = discountAmount(sub, o.discount);
+  return { pieces, delivery, discount, total: Math.max(0, sub - discount) };
 }
 
 /** Libellé lisible d'un fourrage : les pièces stockent des identifiants

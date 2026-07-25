@@ -22,6 +22,7 @@ export type Pricing = {
   fourrages: FourrageTarif[]; // liste + supplément par fourrage
   kmFree: number; // km de livraison offerts
   kmRate: number; // CHF par km au-delà
+  origin: string; // point de départ des livraisons (calcul de distance)
 };
 
 /* Défauts = tarifs Maman Gâteau au 24.07.2026. Les trois coulis sont
@@ -58,6 +59,7 @@ export const DEFAULT_PRICING: Pricing = {
   ],
   kmFree: 10,
   kmRate: 1,
+  origin: "Pully, Suisse",
 };
 
 /* Fourrages proposés aux cupcakes (liste courte, 1 seul choix) — le coulis
@@ -91,7 +93,24 @@ export function readPricing(raw: unknown): Pricing {
       : DEFAULT_PRICING.fourrages,
     kmFree: num(o.kmFree, DEFAULT_PRICING.kmFree),
     kmRate: num(o.kmRate, DEFAULT_PRICING.kmRate),
+    origin: typeof o.origin === "string" && o.origin.trim() ? o.origin.trim().slice(0, 120) : DEFAULT_PRICING.origin,
   };
+}
+
+/* ------------------------------------------------------------- remise */
+
+export type Discount = { kind: "chf" | "pct"; value: number };
+
+/** Montant d'une remise appliquée à un sous-total (CHF entiers). */
+export function discountAmount(sub: number, d?: Discount | null): number {
+  if (!d || d.value <= 0) return 0;
+  const raw = d.kind === "pct" ? (sub * d.value) / 100 : d.value;
+  return Math.min(sub, Math.round(raw));
+}
+
+/** Libellé client d'une remise : « Remise 10 % » ou « Remise CHF 30 ». */
+export function discountLabel(d: Discount): string {
+  return d.kind === "pct" ? `Remise ${String(d.value).replace(".", ",")} %` : `Remise CHF ${d.value}`;
 }
 
 /* --------------------------------------------------------------- calculs */

@@ -8,6 +8,8 @@ import { PAYKIND_LABEL } from "@/lib/money";
 import { safePdfText as safe } from "@/lib/pdf";
 import { parseItems, itemsTotalCents } from "@/lib/order-items";
 import { parseExtras, extraLabel } from "@/lib/order-extras";
+import { piecesOf, orderTotal } from "@/lib/order-pieces";
+import { discountLabel } from "@/lib/pricing";
 import { drawQrBill, qrBillReady, splitAddress, toAddressLines, QR_ZONE_PT } from "@/lib/qrbill";
 
 /* ---------------------------------------------------------------------------
@@ -150,6 +152,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       if (order.eventDate) details.push(`Date de la prestation : ${dt(order.eventDate)}`);
       details.push(order.deliveryMode === "livraison" ? `Livraison${order.deliveryAddress ? ` — ${order.deliveryAddress}` : ""} (incluse)` : cap(lex.pickupLabel));
       for (const d of details) for (const l of wrap(d, font, 9, A4.w - 2 * M - 110)) { y -= 13; text(l, M + 10, 9, { color: gray }); }
+    }
+
+    // ---- Livraison et remise (mêmes explications que le devis)
+    const fPieces = piecesOf(order);
+    if (!lineItems.length && fPieces.length) {
+      const t = orderTotal(s.pricing, {
+        pieces: fPieces, occasion: order.occasion, deliveryMode: order.deliveryMode, deliveryKm: order.deliveryKm,
+        discount: order.discountKind ? { kind: order.discountKind as "chf" | "pct", value: order.discountValue } : null,
+      });
+      if (order.deliveryMode === "livraison" || t.discount > 0) {
+        y -= 10; hr(); y -= 14;
+        text("Sous-total", A4.w - M - 220, 9.5, { color: gray });
+        text(chf(t.pieces * 100), 0, 9.5, { color: gray, right: A4.w - M });
+        if (order.deliveryMode === "livraison") {
+          y -= 13;
+          text(`Livraison${order.deliveryKm ? ` — ${order.deliveryKm} km` : ""} (offerte jusqu'à ${s.pricing.kmFree} km, puis CHF ${s.pricing.kmRate}/km)`, M, 9.5, { color: gray });
+          text(t.delivery > 0 ? chf(t.delivery * 100) : "offerte", 0, 9.5, { color: gray, right: A4.w - M });
+        }
+        if (t.discount > 0) {
+          y -= 13;
+          text(discountLabel({ kind: order.discountKind as "chf" | "pct", value: order.discountValue }), M, 9.5, { bold: true, color: rgb(0.05, 0.55, 0.35) });
+          text(`− ${chf(t.discount * 100)}`, 0, 9.5, { bold: true, right: A4.w - M, color: rgb(0.05, 0.55, 0.35) });
+        }
+      }
     }
 
     // ---- Total (+ TVA incluse si assujetti)

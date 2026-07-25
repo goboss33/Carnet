@@ -27,7 +27,7 @@ import KindToggle from "./KindToggle";
 import AnalyzeDialog from "@/components/analyze-dialog";
 import { parseItems } from "@/lib/order-items";
 import { parseExtras, extraLabel, extrasTotal } from "@/lib/order-extras";
-import { piecesOf } from "@/lib/order-pieces";
+import { piecesOf, orderTotal } from "@/lib/order-pieces";
 import { Calendar, Cake, Truck, StickyNote, Images, FileText, FileSignature, Package } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +58,16 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
   const items = parseItems(order.items) ?? null;
   const extras = parseExtras(order.extras); // compléments du configurateur (cupcakes…)
   const pieces = piecesOf(order); // pièces stockées, ou gâteau dérivé des champs plats
+  // Détail du prix — seulement en mode standard avec pièces (le Mode ligne a ses lignes)
+  const calc = !exception && pieces.length
+    ? (() => {
+        const t = orderTotal(eff.pricing, {
+          pieces, occasion: order.occasion, deliveryMode: order.deliveryMode, deliveryKm: order.deliveryKm,
+          discount: order.discountKind ? { kind: order.discountKind as "chf" | "pct", value: order.discountValue } : null,
+        });
+        return { ...t, deliveryKm: order.deliveryKm };
+      })()
+    : null;
 
   const days = order.eventDate ? Math.ceil((order.eventDate.getTime() - Date.now()) / 86400000) : null;
   const jx = days === null ? null : days < 0 ? "passé" : days === 0 ? "aujourd'hui" : days === 1 ? "demain" : `J-${days}`;
@@ -131,7 +141,17 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
         <StatusPicker orderId={order.id} current={order.status} paidCents={paidCents} totalCents={(order.priceQuoted ?? 0) * 100} />
         <OccasionPicker orderId={order.id} current={order.occasion} />
         <EventDatePicker orderId={order.id} value={d(order.eventDate)} display={order.eventDate ? fmtDate(order.eventDate) : "—"} badge={jx} badgeTone={jxTone} />
-        <PaymentModal orderId={order.id} priceQuoted={order.priceQuoted} depositCents={order.depositCents} balanceCents={order.balanceCents} tipCents={order.tipCents} status={order.status} />
+        <PaymentModal
+          orderId={order.id}
+          priceQuoted={order.priceQuoted}
+          depositCents={order.depositCents}
+          balanceCents={order.balanceCents}
+          tipCents={order.tipCents}
+          status={order.status}
+          calc={calc}
+          discountKind={order.discountKind}
+          discountValue={order.discountValue}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -183,7 +203,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
             <section>
               <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700"><Truck className="size-4 text-(--color-brand)" /> Remise</div>
               <div className="space-y-4">
-                <DeliveryFields mode={order.deliveryMode} address={order.deliveryAddress} />
+                <DeliveryFields mode={order.deliveryMode} address={order.deliveryAddress} km={order.deliveryKm} />
                 <label className="block sm:max-w-xs"><span className={label} title="Heure du retrait ou de la livraison">RDV de remise</span><input name="handoverAt" type="datetime-local" defaultValue={order.handoverAt ? new Date(order.handoverAt.getTime() - order.handoverAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""} className={input} /></label>
               </div>
             </section>

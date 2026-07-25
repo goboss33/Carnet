@@ -16,12 +16,14 @@ export function AddressAutocomplete({
   placeholder,
   className,
   inputClassName,
+  onPicked,
 }: {
   name: string;
   defaultValue?: string;
   placeholder?: string;
   className?: string;
   inputClassName?: string;
+  onPicked?: (address: string) => void; // ex. recalcul de la distance
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState("");
@@ -58,6 +60,7 @@ export function AddressAutocomplete({
     setOpen(false);
     setItems([]);
     setQ("");
+    onPicked?.(v);
   };
 
   return (

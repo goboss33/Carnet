@@ -6,6 +6,8 @@ import { getBrand } from "@/lib/brand";
 import { getLexicon } from "@/lib/lexicon";
 import { parseItems, itemsTotalCents } from "@/lib/order-items";
 import { parseExtras, extraLabel } from "@/lib/order-extras";
+import { piecesOf, orderTotal, pieceSummary, piecePrice } from "@/lib/order-pieces";
+import { discountLabel } from "@/lib/pricing";
 import { safePdfText as safe } from "@/lib/pdf";
 
 /* ---------------------------------------------------------------------------
@@ -120,8 +122,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       y -= 4;
     };
 
+    const orderPieces = piecesOf(order);
     if (counted.length) {
       for (const it of counted) drawItem(it.label || "—", it.detail, it.cents, it);
+    } else if (orderPieces.length > 1) {
+      // Plusieurs pièces : chacune sa ligne, avec son prix catalogue.
+      for (const piece of orderPieces) {
+        const [head, ...rest] = pieceSummary(piece, s.pricing).split(" — ");
+        drawItem(head, rest.join(" — ") || undefined, piecePrice(s.pricing, piece, order.occasion) * 100);
+      }
+      if (order.eventDate) { text(`Date de la prestation : ${dt(order.eventDate)}`, M + 10, 9, { color: gray }); y -= 14; }
     } else {
       // Pas de lignes : reconstitue une désignation depuis la fiche (comme la facture).
       const title = [cap(lex.product), "sur mesure", order.occasion ? `— ${order.occasion}` : ""].filter(Boolean).join(" ");
@@ -133,6 +143,32 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         order.eventDate ? `Date de la prestation : ${dt(order.eventDate)}` : "",
       ].filter(Boolean).join(" — ");
       drawItem(title, details || undefined, totalCents);
+    }
+
+    // ---- Livraison et remise : le client doit voir ce qu'il gagne
+    const detail = !counted.length && orderPieces.length
+      ? orderTotal(s.pricing, {
+          pieces: orderPieces, occasion: order.occasion, deliveryMode: order.deliveryMode, deliveryKm: order.deliveryKm,
+          discount: order.discountKind ? { kind: order.discountKind as "chf" | "pct", value: order.discountValue } : null,
+        })
+      : null;
+    if (detail) {
+      y -= 6; hr(); y -= 14;
+      text("Sous-total", A4.w - M - 220, 9.5, { color: gray });
+      text(chf(detail.pieces * 100), 0, 9.5, { color: gray, right: A4.w - M });
+      if (order.deliveryMode === "livraison") {
+        y -= 13;
+        const km = order.deliveryKm;
+        const rule = `livraison offerte jusqu'à ${s.pricing.kmFree} km, puis CHF ${s.pricing.kmRate}/km`;
+        text(`Livraison${km ? ` — ${km} km` : ""} (${rule})`, M, 9.5, { color: gray });
+        text(detail.delivery > 0 ? chf(detail.delivery * 100) : "offerte", 0, 9.5, { color: gray, right: A4.w - M });
+      }
+      if (detail.discount > 0) {
+        y -= 13;
+        text(discountLabel({ kind: order.discountKind as "chf" | "pct", value: order.discountValue }), M, 9.5, { bold: true, color: rgb(0.05, 0.55, 0.35) });
+        text(`− ${chf(detail.discount * 100)}`, 0, 9.5, { bold: true, right: A4.w - M, color: rgb(0.05, 0.55, 0.35) });
+      }
+      y -= 4;
     }
 
     // ---- Total

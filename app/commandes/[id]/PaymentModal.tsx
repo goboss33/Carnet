@@ -11,8 +11,49 @@ import { useState, useEffect, useRef, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { Pencil, X, Check } from "lucide-react";
 import { cn } from "@/lib/ui";
-import { setPrice, savePayment, refundDeposit } from "@/app/actions";
+import { setPrice, savePayment, refundDeposit, setDiscount } from "@/app/actions";
 import type { OrderStatus } from "@prisma/client";
+
+/* Remise — fixe (CHF) ou pourcentage. Elle vit à part du total : ainsi le
+   prix se recalcule à chaque ajout de pièce SANS jamais perdre le geste
+   commercial d'Annie. */
+function DiscountField({ orderId, kind, value }: { orderId: string; kind: string; value: number }) {
+  const [k, setK] = useState(kind || "chf");
+  const [v, setV] = useState(value || 0);
+  const [pending, start] = useTransition();
+  const saved = useRef({ kind, value });
+
+  useEffect(() => {
+    if ((saved.current.kind || "chf") === k && saved.current.value === v) return;
+    const t = setTimeout(() => {
+      saved.current = { kind: v > 0 ? k : "", value: v };
+      start(() => setDiscount(orderId, v > 0 ? k : "", v));
+    }, 500);
+    return () => clearTimeout(t);
+  }, [k, v, orderId]);
+
+  return (
+    <div className="mt-2 flex items-center gap-2 border-t border-zinc-200 pt-2">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Remise</span>
+      <input
+        type="number" min="0" step="1" value={v === 0 ? "" : v} placeholder="0"
+        onChange={(e) => setV(clamp(Number(e.target.value)))}
+        className="w-20 rounded-md border border-zinc-300 px-2 py-1 text-right text-[13px] tabular-nums outline-none focus:border-(--color-brand)"
+      />
+      <div className="inline-flex rounded-md border border-zinc-300 bg-white p-0.5 text-[12px]">
+        {(["chf", "pct"] as const).map((x) => (
+          <button
+            key={x} type="button" onClick={() => setK(x)}
+            className={cn("rounded px-2 py-0.5 font-semibold transition-colors", k === x ? "bg-zinc-900 text-white" : "text-zinc-500 hover:text-zinc-800")}
+          >
+            {x === "chf" ? "CHF" : "%"}
+          </button>
+        ))}
+      </div>
+      {pending && <span className="text-[11px] text-zinc-400">…</span>}
+    </div>
+  );
+}
 
 type Props = {
   orderId: string;
@@ -21,6 +62,12 @@ type Props = {
   balanceCents: number | null;
   tipCents: number | null;
   status: OrderStatus;
+  /* Détail du calcul (mode standard avec pièces) : le total devient un
+     RÉSULTAT — pièces + livraison − remise — recalculé à chaque modification.
+     Absent (Mode ligne, fiche vide) : le total reste saisi à la main. */
+  calc?: { pieces: number; delivery: number; deliveryKm: number | null; discount: number; total: number } | null;
+  discountKind?: string;
+  discountValue?: number;
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -78,7 +125,7 @@ export function PaymentModal(props: Props) {
   );
 }
 
-function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, tipCents, status, onClose }: Props & { onClose: () => void }) {
+function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, tipCents, status, calc, discountKind, discountValue, onClose }: Props & { onClose: () => void }) {
   const [pricePending, startPrice] = useTransition();
   const [payPending, startPay] = useTransition();
 
@@ -104,10 +151,11 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, tipCen
 
   // auto-save du total (debounce court)
   useEffect(() => {
+    if (calc) return; // total calculé : rien à enregistrer ici
     if (round2(total) === round2(savedTotal)) return;
     const t = setTimeout(() => startPrice(() => setPrice(orderId, String(total))), 400);
     return () => clearTimeout(t);
-  }, [total, savedTotal, orderId, startPrice]);
+  }, [total, savedTotal, orderId, startPrice, calc]);
 
   // auto-save de l'encaissé + pourboire (debounce court)
   useEffect(() => {
@@ -117,11 +165,13 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, tipCen
   }, [collected, tip, savedPaid, savedTip, orderId, startPay]);
 
   // Filet de sécurité : à la fermeture, on force l'enregistrement non persisté.
+  const calcRef = useRef(calc);
+  calcRef.current = calc;
   const latest = useRef({ total, collected, tip, savedTotal, savedPaid, savedTip });
   latest.current = { total, collected, tip, savedTotal, savedPaid, savedTip };
   useEffect(() => () => {
     const l = latest.current;
-    if (round2(l.total) !== round2(l.savedTotal)) void setPrice(orderId, String(l.total));
+    if (!calcRef.current && round2(l.total) !== round2(l.savedTotal)) void setPrice(orderId, String(l.total));
     if (Math.abs(l.collected - l.savedPaid) > 0.005 || Math.abs(l.tip - l.savedTip) > 0.005) void savePayment(orderId, l.collected, l.tip);
   }, [orderId]);
 
@@ -132,16 +182,38 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, tipCen
         <button type="button" onClick={onClose} aria-label="Fermer" className="-mt-1 shrink-0 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="size-5" /></button>
       </div>
 
-      {/* Total */}
-      <label className="block">
-        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Total du devis (CHF)</span>
-        <input
-          type="number" min="0" step="1"
-          value={total === 0 ? "" : total}
-          onChange={(e) => setTotal(clamp(Number(e.target.value)))}
-          className={cn(inputCls, "text-base font-semibold")}
-        />
-      </label>
+      {/* Total — calculé depuis les pièces quand elles existent, sinon saisi */}
+      {calc ? (
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50/70 px-3 py-2.5">
+          <div className="space-y-1 text-[12px] text-zinc-500">
+            <p className="flex justify-between"><span>Pièces</span><span className="tabular-nums text-zinc-700">CHF {fmt(calc.pieces)}</span></p>
+            {calc.delivery > 0 && (
+              <p className="flex justify-between">
+                <span>Livraison{calc.deliveryKm ? ` · ${calc.deliveryKm} km` : ""}</span>
+                <span className="tabular-nums text-zinc-700">CHF {fmt(calc.delivery)}</span>
+              </p>
+            )}
+            {calc.discount > 0 && (
+              <p className="flex justify-between text-emerald-700"><span>Remise</span><span className="tabular-nums">− CHF {fmt(calc.discount)}</span></p>
+            )}
+          </div>
+          <p className="mt-2 flex items-baseline justify-between border-t border-zinc-200 pt-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Total du devis</span>
+            <span className="text-base font-semibold tabular-nums text-zinc-900">CHF {fmt(calc.total)}</span>
+          </p>
+          <DiscountField orderId={orderId} kind={discountKind ?? ""} value={discountValue ?? 0} />
+        </div>
+      ) : (
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Total du devis (CHF)</span>
+          <input
+            type="number" min="0" step="1"
+            value={total === 0 ? "" : total}
+            onChange={(e) => setTotal(clamp(Number(e.target.value)))}
+            className={cn(inputCls, "text-base font-semibold")}
+          />
+        </label>
+      )}
 
       {cancelled ? (
         collected > 0 && (

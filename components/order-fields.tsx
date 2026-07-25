@@ -99,8 +99,28 @@ export function FourrageChips({ selected }: { selected: string[] }) {
 
 /* Mode de livraison : toggle Retrait / Livraison ; l'adresse (autocomplétée
    Google Places) n'est visible que pour Livraison mais reste dans le DOM. */
-export function DeliveryFields({ mode, address }: { mode: string; address: string }) {
+export function DeliveryFields({ mode, address, km: initialKm }: { mode: string; address: string; km?: number | null }) {
   const [m, setM] = useState(mode === "livraison" ? "livraison" : "retrait");
+  const [km, setKm] = useState<number | null>(initialKm ?? null);
+  const [fee, setFee] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  /* Distance calculée comme dans le configurateur (Google Routes, clé serveur) :
+     l'adresse peut changer à tout moment, le forfait suit. */
+  const computeKm = async (addr: string) => {
+    if (!addr || addr.trim().length < 5) return;
+    setBusy(true);
+    try {
+      const r = await fetch("/api/places/distance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: addr }),
+      }).then((x) => x.json());
+      if (r?.ok) { setKm(r.km); setFee(r.fee); }
+    } catch { /* silencieux : la distance reste modifiable à la main */ }
+    setBusy(false);
+  };
+
   return (
     // Colonne « Mode » auto-dimensionnée : le toggle ne peut plus déborder sous l'adresse.
     <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
@@ -120,7 +140,24 @@ export function DeliveryFields({ mode, address }: { mode: string; address: strin
           <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Adresse de livraison</span>
           {address && <MapsLink address={address} className="text-[11px]" />}
         </span>
-        <AddressAutocomplete name="deliveryAddress" defaultValue={address} inputClassName={inputCls} placeholder="Commencez à taper l'adresse…" />
+        <AddressAutocomplete
+          name="deliveryAddress"
+          defaultValue={address}
+          inputClassName={inputCls}
+          placeholder="Commencez à taper l'adresse…"
+          onPicked={computeKm}
+        />
+        {/* Distance : recalculée à chaque changement d'adresse, corrigeable à la main */}
+        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-zinc-400">
+          <span>Distance</span>
+          <input
+            name="deliveryKm" type="number" min="0" value={km ?? ""}
+            onChange={(e) => { const v = parseInt(e.target.value, 10); setKm(Number.isFinite(v) ? v : null); setFee(null); }}
+            className="w-16 rounded-md border border-zinc-300 px-1.5 py-0.5 text-right text-[12px] tabular-nums text-zinc-700 outline-none focus:border-(--color-brand)"
+          />
+          <span>km</span>
+          {busy ? <span className="animate-pulse">calcul…</span> : fee !== null ? <span>· forfait CHF {fee}</span> : null}
+        </div>
       </div>
     </div>
   );
