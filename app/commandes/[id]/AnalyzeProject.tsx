@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { analyzeProjectImage } from "@/app/actions";
+import { compressImage } from "@/lib/client-image";
 import { cn } from "@/lib/ui";
 
 export default function AnalyzeProject({ orderId }: { orderId: string }) {
@@ -19,9 +20,9 @@ export default function AnalyzeProject({ orderId }: { orderId: string }) {
   const onFile = (files: FileList | null) => {
     const f = files?.[0];
     if (!f) return;
-    const fd = new FormData();
-    fd.append("file", f);
     start(async () => {
+      const fd = new FormData();
+      fd.append("file", await compressImage(f)); // compressée côté navigateur avant l'envoi
       const r = await analyzeProjectImage(orderId, fd);
       if (r.error) toast.error(r.error);
       else toast.success(r.summary ?? "Fiche mise à jour.");

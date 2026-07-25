@@ -40,6 +40,12 @@ export function ExpenseModal({ row, onClose, onSaved }: { row: ExpenseDraft; onC
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     start(async () => {
+      // Justificatif image : compressé côté navigateur avant l'envoi (les PDF passent tels quels).
+      const receipt = fd.get("receipt");
+      if (receipt instanceof File && receipt.size > 0) {
+        const { compressImage } = await import("@/lib/client-image");
+        fd.set("receipt", await compressImage(receipt));
+      }
       if (isNew) await createExpense(fd);
       else await updateExpense(row.id!, fd);
       router.refresh();

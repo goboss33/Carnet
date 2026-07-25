@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import { Sparkles, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { createLeadFromImage } from "@/app/actions";
+import { compressImage } from "@/lib/client-image";
 
 export default function AnalyzeNew() {
   const input = useRef<HTMLInputElement>(null);
@@ -16,9 +17,9 @@ export default function AnalyzeNew() {
   const onFile = async (files: FileList | null) => {
     const f = files?.[0];
     if (!f) return;
-    const fd = new FormData();
-    fd.append("file", f);
     setPending(true);
+    const fd = new FormData();
+    fd.append("file", await compressImage(f)); // compressée côté navigateur avant l'envoi
     try {
       const r = await createLeadFromImage(fd); // succès = redirection serveur
       if (r?.error) { toast.error(r.error); setPending(false); }

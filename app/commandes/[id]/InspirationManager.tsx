@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { ImagePlus, X, FileSignature } from "lucide-react";
 import { toast } from "sonner";
 import { uploadInspirations, removeInspiration, toggleQuotePhoto } from "@/app/actions";
+import { compressImage } from "@/lib/client-image";
 import MediaViewer from "@/app/components/MediaViewer";
 
 export default function InspirationManager({ orderId, photos, quotePhotos = [] }: { orderId: string; photos: string[]; quotePhotos?: string[] }) {
@@ -18,9 +19,10 @@ export default function InspirationManager({ orderId, photos, quotePhotos = [] }
 
   const onFiles = (files: FileList | null) => {
     if (!files?.length) return;
-    const fd = new FormData();
-    for (const f of Array.from(files)) fd.append("files", f);
+    const list = Array.from(files);
     start(async () => {
+      const fd = new FormData();
+      for (const f of list) fd.append("files", await compressImage(f)); // compressées côté navigateur
       const r = await uploadInspirations(orderId, fd);
       if (r.error) toast.error(r.error);
       else toast.success(`${r.added} photo${(r.added ?? 0) > 1 ? "s" : ""} ajoutée${(r.added ?? 0) > 1 ? "s" : ""}.`);
