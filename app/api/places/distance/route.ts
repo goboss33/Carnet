@@ -39,7 +39,11 @@ export async function POST(req: NextRequest) {
       }),
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) throw new Error(`routes-api ${res.status}`);
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.error(`routes ${res.status}:`, detail.slice(0, 500));
+      return NextResponse.json({ ok: false, reason: `http-${res.status}` });
+    }
     const data = await res.json();
     const meters = data?.routes?.[0]?.distanceMeters;
     if (typeof meters !== "number") return NextResponse.json({ ok: false, reason: "not-found" });

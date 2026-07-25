@@ -16,7 +16,11 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
-  if (!key || input.length < 3) return NextResponse.json({ ok: false, suggestions: [] });
+  if (!key) {
+    console.warn("places: GOOGLE_MAPS_SERVER_KEY absente — autocomplétion désactivée.");
+    return NextResponse.json({ ok: false, reason: "no-key", suggestions: [] });
+  }
+  if (input.length < 3) return NextResponse.json({ ok: false, suggestions: [] });
 
   try {
     const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
@@ -32,14 +36,21 @@ export async function POST(req: NextRequest) {
       }),
       signal: AbortSignal.timeout(6000),
     });
-    if (!res.ok) throw new Error(`places ${res.status}`);
+    if (!res.ok) {
+      // Le message de Google est la seule façon de distinguer une clé restreinte
+      // par IP (cas classique en local), une API non activée, un quota épuisé…
+      const detail = await res.text().catch(() => "");
+      console.error(`places ${res.status}:`, detail.slice(0, 500));
+      return NextResponse.json({ ok: false, reason: `http-${res.status}`, suggestions: [] });
+    }
     const data = await res.json();
     const suggestions: string[] = (data.suggestions ?? [])
       .map((s: { placePrediction?: { text?: { text?: string } } }) => s.placePrediction?.text?.text)
       .filter(Boolean)
       .slice(0, 5);
     return NextResponse.json({ ok: true, suggestions });
-  } catch {
-    return NextResponse.json({ ok: false, suggestions: [] });
+  } catch (e) {
+    console.error("places:", e);
+    return NextResponse.json({ ok: false, reason: "error", suggestions: [] });
   }
 }
