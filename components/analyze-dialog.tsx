@@ -9,7 +9,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { Sparkles, X, ClipboardType, ImagePlus, AlertTriangle, ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { analyzeConversation, applyAnalysisToOrder, createOrderFromAnalysis } from "@/app/actions";
@@ -23,7 +22,6 @@ type Row = { key: string; label: string; value: string };
 const chf = (c: number) => `CHF ${(c / 100).toLocaleString("fr-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function AnalyzeDialog({ orderId, trigger }: { orderId?: string; trigger: "button" | "card" }) {
-  const router = useRouter();
   const [menu, setMenu] = useState(false);
   const [mode, setMode] = useState<Mode | null>(null);
   const [text, setText] = useState("");
@@ -78,11 +76,12 @@ export default function AnalyzeDialog({ orderId, trigger }: { orderId?: string; 
     setBusy(true);
     if (orderId) {
       const r = await applyAnalysisToOrder(orderId, p);
-      setBusy(false);
-      if (r.error) { toast.error(r.error); return; }
-      toast.success(r.applied ? `${r.applied} élément${r.applied > 1 ? "s" : ""} appliqué${r.applied > 1 ? "s" : ""}.` : "Rien de coché.");
-      close();
-      router.refresh();
+      if (r.error) { setBusy(false); toast.error(r.error); return; }
+      if (!r.applied) { setBusy(false); toast.message("Rien de coché — fiche inchangée."); return; }
+      // Rechargement COMPLET : la fiche est un formulaire non contrôlé (defaultValue)
+      // et l'éditeur de lignes a son propre état — un router.refresh() laisserait les
+      // anciennes valeurs à l'écran, que l'auto-save ré-enregistrerait par-dessus.
+      window.location.reload();
     } else {
       try {
         const r = await createOrderFromAnalysis(p);
