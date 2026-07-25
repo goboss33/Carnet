@@ -23,7 +23,7 @@ import { ContactInfo } from "./ContactInfo";
 import { ChannelPicker } from "./ChannelPicker";
 import ItemsEditor from "./ItemsEditor";
 import KindToggle from "./KindToggle";
-import AnalyzeProject from "./AnalyzeProject";
+import AnalyzeDialog from "@/components/analyze-dialog";
 import { parseItems } from "@/lib/order-items";
 import { Calendar, Cake, Truck, StickyNote, Images, FileText, FileSignature } from "lucide-react";
 
@@ -89,7 +89,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
         }
         actions={
           <>
-            <AnalyzeProject orderId={order.id} />
+            <AnalyzeDialog orderId={order.id} trigger="button" />
             {order.priceQuoted ? (
               <>
               <a

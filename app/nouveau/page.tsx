@@ -10,7 +10,7 @@ import { OCCASIONS } from "@/lib/order-options";
 import { occasionIcon } from "@/lib/occasions";
 import { ChannelIcon } from "@/components/ui/channel-icon";
 import { TiersParts, DeliveryFields } from "@/components/order-fields";
-import AnalyzeNew from "./AnalyzeNew";
+import AnalyzeDialog from "@/components/analyze-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui";
 
@@ -149,7 +149,7 @@ export default function Nouveau() {
       <p className="mb-6 text-sm text-zinc-500">30 secondes, promis — prénom, un contact et le prix suffisent, le reste peut attendre.</p>
 
       <div className="max-w-2xl">
-        <AnalyzeNew />
+        <AnalyzeDialog trigger="card" />
       </div>
 
       <form action={action} className="max-w-2xl space-y-7 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-7">

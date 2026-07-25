@@ -13,6 +13,7 @@ import { getSettings } from "@/lib/settings";
 import { nextOrderNo } from "@/lib/order-number";
 import { syncPaymentJournal } from "@/lib/payment-journal";
 import { parseItems, itemsTotalCents } from "@/lib/order-items";
+import type { ProjectAnalysis } from "@/lib/project-analyze";
 import type { OrderStatus, Source } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 
@@ -234,91 +235,131 @@ export async function updateOrder(orderId: string, formData: FormData) {
   void syncOrderEvent(orderId).catch(() => null);
 }
 
-/** Pipeline commun : fichier → webp compact → analyse Gemini. */
-async function analyzeUpload(formData: FormData) {
-  const file = formData.get("file");
-  if (!(file instanceof File) || !file.size) return { error: "Aucune image." as const };
-  if (file.size > 8_000_000 || !file.type.startsWith("image/")) return { error: "Image trop lourde (max 8 Mo) ou format invalide." as const };
-  const sharp = (await import("sharp")).default;
-  const buf = await sharp(Buffer.from(await file.arrayBuffer()))
-    .rotate()
-    .resize(1600, 2400, { fit: "inside", withoutEnlargement: true })
-    .webp({ quality: 90 })
-    .toBuffer();
-  const { analyzeProjectConversation } = await import("@/lib/project-analyze");
-  const a = await analyzeProjectConversation(buf, "image/webp");
-  if (!a) return { error: "Analyse impossible — réessaie avec une capture plus lisible." as const };
-  return { a };
+/* ------------------------------------------------- analyse d'un échange */
+
+/** Étape 1 — ANALYSE : ne touche jamais la base, rend une proposition à revoir.
+    Accepte un texte collé (le plus fiable) et/ou des captures d'écran. */
+export async function analyzeConversation(formData: FormData): Promise<{ error?: string; analysis?: ProjectAnalysis }> {
+  await currentTenant(); // garde d'accès
+  const text = String(formData.get("text") ?? "").trim();
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  if (!text && !files.length) return { error: "Colle le texte de l'échange ou dépose une capture." };
+
+  const images: { buf: Buffer; mime: string }[] = [];
+  if (!text && files.length) {
+    const sharp = (await import("sharp")).default;
+    for (const f of files.slice(0, 6)) {
+      if (f.size > 10_000_000 || !f.type.startsWith("image/")) continue;
+      // Largeur préservée (lisibilité OCR) : on ne borne que la hauteur.
+      const buf = await sharp(Buffer.from(await f.arrayBuffer()))
+        .rotate()
+        .resize({ width: 1600, height: 4000, fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      images.push({ buf, mime: "image/jpeg" });
+    }
+    if (!images.length) return { error: "Images illisibles ou trop lourdes (max 10 Mo)." };
+  }
+
+  const { analyzeConversationInput } = await import("@/lib/project-analyze");
+  const analysis = await analyzeConversationInput({ text: text || undefined, images });
+  if (!analysis) return { error: "Analyse impossible — colle plutôt le texte de l'échange, c'est bien plus fiable." };
+  return { analysis };
 }
 
-/** Analyse IA d'une capture d'échange client → MET À JOUR la fiche (Mode ligne ou standard).
-    Règle : l'analyse écrase avec ce qu'elle trouve, ne vide jamais ce qu'elle ne trouve pas.
-    Les lignes existantes sont remplacées (l'ancien total part en note d'activité). */
-export async function analyzeProjectImage(orderId: string, formData: FormData): Promise<{ error?: string; summary?: string }> {
+/* Proposition validée par l'utilisateur (sous-ensemble coché dans la revue). */
+const applySchema = z.object({
+  occasion: z.string().optional(),
+  themeNote: z.string().optional(),
+  celebrant: z.string().optional(),
+  celebrantAge: z.number().int().positive().optional(),
+  parts: z.number().int().positive().optional(),
+  tiers: z.number().int().min(1).max(2).optional(),
+  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  price: z.number().int().nonnegative().optional(),
+  items: z.array(z.object({
+    id: z.string().max(40), label: z.string().max(120), detail: z.string().max(300).optional(),
+    qty: z.number().int().nullable().optional(), unit: z.number().int().nullable().optional(),
+    cents: z.number().int().nonnegative(), opt: z.boolean().optional(),
+  })).max(20).optional(),
+  quoteSent: z.boolean().optional(),
+  client: z.object({
+    firstName: z.string().max(60).optional(), lastName: z.string().max(60).optional(),
+    phone: z.string().max(30).optional(), email: z.string().max(120).optional(), company: z.string().max(80).optional(),
+  }).optional(),
+  channel: z.enum(ALL_SOURCES).optional(),
+});
+export type AnalysisApply = z.infer<typeof applySchema>;
+
+/** Étape 2a — APPLIQUE la proposition validée à une fiche existante. */
+export async function applyAnalysisToOrder(orderId: string, payload: unknown): Promise<{ error?: string; applied?: number }> {
   const tenant = await currentTenant();
   const order = await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id } });
   if (!order) return { error: "Commande introuvable." };
-  const r = await analyzeUpload(formData);
-  if ("error" in r) return { error: r.error };
-  const a = r.a;
+  const parsed = applySchema.safeParse(payload);
+  if (!parsed.success) return { error: "Proposition invalide." };
+  const p = parsed.data;
 
   const { normalizeOccasion } = await import("@/lib/order-options");
-  const maj: string[] = [];
   const data: Prisma.OrderUpdateInput = {};
-  const set = <T,>(key: keyof Prisma.OrderUpdateInput, v: T | undefined, label: string) => {
-    if (v !== undefined) { (data as Record<string, unknown>)[key as string] = v; maj.push(label); }
-  };
-  set("occasion", a.occasion ? normalizeOccasion(a.occasion, a.celebrantAge ?? order.celebrantAge) : undefined, "occasion");
-  set("themeNote", a.themeNote, "thème");
-  set("celebrant", a.celebrant, "fêté·e");
-  set("celebrantAge", a.celebrantAge, "âge");
-  set("eventDate", a.eventDate ? new Date(`${a.eventDate}T12:00:00Z`) : undefined, "date");
-
-  let summary: string;
-  if (a.mode === "ligne" && a.items?.length) {
+  const labels: string[] = [];
+  if (p.occasion !== undefined) { data.occasion = normalizeOccasion(p.occasion, p.celebrantAge ?? order.celebrantAge); labels.push("occasion"); }
+  if (p.themeNote !== undefined) { data.themeNote = p.themeNote; labels.push("thème"); }
+  if (p.celebrant !== undefined) { data.celebrant = p.celebrant; labels.push("fêté·e"); }
+  if (p.celebrantAge !== undefined) { data.celebrantAge = p.celebrantAge; labels.push("âge"); }
+  if (p.eventDate !== undefined) { data.eventDate = new Date(`${p.eventDate}T12:00:00Z`); labels.push("date"); }
+  if (p.parts !== undefined) { data.parts = p.parts; labels.push("parts"); }
+  if (p.tiers !== undefined) { data.tiers = p.tiers; labels.push("étages"); }
+  if (p.items?.length) {
     const previous = parseItems(order.items) ?? [];
-    const total = itemsTotalCents(a.items);
     data.kind = "EXCEPTION";
-    data.items = a.items as unknown as Prisma.InputJsonValue;
-    if (total) data.priceQuoted = Math.round(total / 100);
-    else if (a.price) data.priceQuoted = Math.round(a.price);
-    summary = `Mode ligne · ${a.items.filter((i) => !i.opt).length} postes${total ? ` · CHF ${Math.round(total / 100).toLocaleString("fr-CH")}` : ""}${previous.length ? ` (remplace ${previous.length} lignes, ancien total CHF ${Math.round(itemsTotalCents(previous) / 100).toLocaleString("fr-CH")})` : ""}`;
-  } else {
-    set("parts", a.parts, "parts");
-    set("tiers", a.tiers, "étages");
-    set("priceQuoted", a.price ? Math.round(a.price) : undefined, "prix");
-    summary = maj.length ? `Mis à jour : ${maj.join(", ")}` : "Rien d'exploitable dans cette capture.";
+    data.items = p.items as unknown as Prisma.InputJsonValue;
+    data.priceQuoted = Math.round(itemsTotalCents(p.items as never) / 100) || order.priceQuoted;
+    labels.push(`${p.items.length} ligne${p.items.length > 1 ? "s" : ""}${previous.length ? ` (remplacent ${previous.length})` : ""}`);
+  } else if (p.price !== undefined) {
+    data.priceQuoted = p.price;
+    labels.push("prix");
   }
-  // Statut : l'échange montre un devis déjà envoyé → LEAD passe en Devis envoyé (jamais au-delà, jamais en arrière).
-  if (a.quoteSent && order.status === "LEAD") { data.status = "DEVIS_ENVOYE"; maj.push("statut → Devis envoyé"); summary += " · statut → Devis envoyé"; }
+  if (p.quoteSent && order.status === "LEAD") { data.status = "DEVIS_ENVOYE"; labels.push("statut → Devis envoyé"); }
 
-  if (Object.keys(data).length) {
-    await prisma.order.update({ where: { id: orderId }, data });
-    await prisma.activity.create({ data: { orderId, type: "NOTE", body: `Analyse IA d'un échange : ${summary}.` } }).catch(() => null);
+  // Contact : complété seulement là où c'est vide (jamais d'écrasement).
+  if (p.client) {
+    const c = await prisma.contact.findUnique({ where: { id: order.contactId } });
+    if (c) {
+      const patch: Prisma.ContactUpdateInput = {};
+      if (p.client.company && !c.company) patch.company = p.client.company;
+      if (p.client.phone && !c.phone) patch.phone = normPhone(p.client.phone);
+      if (p.client.email && !c.email) patch.email = normEmail(p.client.email);
+      if (p.client.lastName && !c.lastName) patch.lastName = p.client.lastName;
+      if (Object.keys(patch).length) { await prisma.contact.update({ where: { id: c.id }, data: patch }); labels.push("contact"); }
+    }
   }
+
+  if (!labels.length) return { applied: 0 };
+  if (Object.keys(data).length) await prisma.order.update({ where: { id: orderId }, data });
+  await prisma.activity.create({ data: { orderId, type: "NOTE", body: `Analyse d'un échange appliquée : ${labels.join(", ")}.` } }).catch(() => null);
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
-  return { summary };
+  return { applied: labels.length };
 }
 
-/** « Nouvelle fiche » par analyse IA : capture → contact (dédupliqué) + fiche créés, puis redirection. */
-export async function createLeadFromImage(formData: FormData): Promise<{ error?: string } | never> {
+/** Étape 2b — CRÉE une fiche depuis la proposition validée (contact dédupliqué). */
+export async function createOrderFromAnalysis(payload: unknown): Promise<{ error?: string } | never> {
   const tenant = await currentTenant();
-  const r = await analyzeUpload(formData);
-  if ("error" in r) return { error: r.error };
-  const a = r.a;
+  const parsed = applySchema.safeParse(payload);
+  if (!parsed.success) return { error: "Proposition invalide." };
+  const p = parsed.data;
 
   const { normalizeOccasion } = await import("@/lib/order-options");
-  const phone = normPhone(a.client?.phone ?? "");
-  const email = normEmail(a.client?.email ?? "");
-  const source = (a.channel ?? "AUTRE") as Source;
+  const phone = normPhone(p.client?.phone ?? "");
+  const email = normEmail(p.client?.email ?? "");
+  const source = (p.channel ?? "AUTRE") as Source;
 
-  // Contact : réutilisé si tél/e-mail connus, sinon créé ; complété sans écraser.
   const where = contactWhere(tenant.id, phone, email);
   let contact = where ? await prisma.contact.findFirst({ where }) : null;
   if (contact) {
     const patch: Prisma.ContactUpdateInput = {};
-    if (a.client?.company && !contact.company) patch.company = a.client.company;
+    if (p.client?.company && !contact.company) patch.company = p.client.company;
     if (phone && !contact.phone) patch.phone = phone;
     if (email && !contact.email) patch.email = email;
     if (Object.keys(patch).length) contact = await prisma.contact.update({ where: { id: contact.id }, data: patch });
@@ -326,34 +367,33 @@ export async function createLeadFromImage(formData: FormData): Promise<{ error?:
     contact = await prisma.contact.create({
       data: {
         tenantId: tenant.id,
-        firstName: a.client?.firstName || a.celebrant || "À compléter",
-        lastName: a.client?.lastName ?? "",
-        company: a.client?.company ?? "",
+        firstName: p.client?.firstName || p.celebrant || "À compléter",
+        lastName: p.client?.lastName ?? "",
+        company: p.client?.company ?? "",
         phone, email, source,
       },
     });
   }
 
-  const isLigne = a.mode === "ligne" && !!a.items?.length;
-  const total = isLigne ? itemsTotalCents(a.items!) : 0;
+  const hasItems = !!p.items?.length;
   const order = await prisma.order.create({
     data: {
       tenantId: tenant.id,
       orderNo: await nextOrderNo(tenant.id),
       contactId: contact.id,
-      status: a.quoteSent ? "DEVIS_ENVOYE" : "LEAD",
+      status: p.quoteSent ? "DEVIS_ENVOYE" : "LEAD",
       source,
-      kind: isLigne ? "EXCEPTION" : "STANDARD",
-      ...(isLigne ? { items: a.items as unknown as Prisma.InputJsonValue } : {}),
-      occasion: a.occasion ? normalizeOccasion(a.occasion, a.celebrantAge) : "",
-      celebrant: a.celebrant ?? "",
-      celebrantAge: a.celebrantAge ?? null,
-      themeNote: a.themeNote ?? "",
-      parts: !isLigne ? (a.parts ?? null) : null,
-      tiers: !isLigne && (a.tiers === 1 || a.tiers === 2) ? a.tiers : null,
-      eventDate: a.eventDate ? new Date(`${a.eventDate}T12:00:00Z`) : null,
-      priceQuoted: total ? Math.round(total / 100) : a.price ? Math.round(a.price) : null,
-      activities: { create: { type: "SYSTEM", body: "Fiche créée par analyse IA d'un échange." } },
+      kind: hasItems ? "EXCEPTION" : "STANDARD",
+      ...(hasItems ? { items: p.items as unknown as Prisma.InputJsonValue } : {}),
+      occasion: p.occasion ? normalizeOccasion(p.occasion, p.celebrantAge) : "",
+      celebrant: p.celebrant ?? "",
+      celebrantAge: p.celebrantAge ?? null,
+      themeNote: p.themeNote ?? "",
+      parts: !hasItems ? (p.parts ?? null) : null,
+      tiers: !hasItems ? (p.tiers ?? null) : null,
+      eventDate: p.eventDate ? new Date(`${p.eventDate}T12:00:00Z`) : null,
+      priceQuoted: hasItems ? Math.round(itemsTotalCents(p.items as never) / 100) || null : (p.price ?? null),
+      activities: { create: { type: "SYSTEM", body: "Fiche créée depuis l'analyse d'un échange (proposition validée)." } },
     },
   });
 
