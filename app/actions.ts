@@ -13,6 +13,7 @@ import { getSettings } from "@/lib/settings";
 import { nextOrderNo } from "@/lib/order-number";
 import { syncPaymentJournal } from "@/lib/payment-journal";
 import { parseItems, itemsTotalCents } from "@/lib/order-items";
+import { readPricing } from "@/lib/pricing";
 import type { ProjectAnalysis } from "@/lib/project-analyze";
 import type { OrderStatus, Source } from "@prisma/client";
 import { Prisma } from "@prisma/client";
@@ -1257,6 +1258,16 @@ export async function saveSettings(formData: FormData) {
     accountHolder: String(formData.get("accountHolder") ?? "").trim(),
     iban: String(formData.get("iban") ?? "").trim(),
     bankName: String(formData.get("bankName") ?? "").trim(),
+    pricing: (() => {
+      // Tarifs : JSON produit par l'onglet Tarifs, revalidé côté serveur (jamais de valeur folle en base).
+      const raw = formData.get("pricing");
+      if (typeof raw !== "string" || !raw.trim()) return undefined;
+      try {
+        return readPricing(JSON.parse(raw)) as unknown as Prisma.InputJsonValue;
+      } catch {
+        return undefined;
+      }
+    })(),
     businessAddress: String(formData.get("businessAddress") ?? "").trim().slice(0, 200),
     businessUid: String(formData.get("businessUid") ?? "").trim().slice(0, 40),
     paymentTermsDays: clampInt(num("paymentTermsDays"), 0, 90),

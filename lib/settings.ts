@@ -4,6 +4,7 @@
 --------------------------------------------------------------------------- */
 
 import { prisma } from "@/lib/db";
+import { readPricing, type Pricing } from "@/lib/pricing";
 
 export type EffectiveSettings = {
   kmRate: number;
@@ -44,6 +45,7 @@ export type EffectiveSettings = {
   accountHolder: string;
   iban: string;
   bankName: string;
+  pricing: Pricing;
   businessAddress: string;
   businessUid: string;
   paymentTermsDays: number;
@@ -104,6 +106,7 @@ export async function getSettings(tenantId: string): Promise<EffectiveSettings> 
     accountHolder: s?.accountHolder ?? "",
     iban: s?.iban ?? "",
     bankName: s?.bankName ?? "",
+    pricing: readPricing(s?.pricing),
     businessAddress: s?.businessAddress ?? "",
     businessUid: s?.businessUid ?? "",
     paymentTermsDays: s?.paymentTermsDays ?? 20,

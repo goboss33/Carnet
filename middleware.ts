@@ -8,6 +8,7 @@ export async function middleware(req: NextRequest) {
   if (
     pathname === "/login" ||
     pathname === "/api/uploadtest" || // TEMP
+    pathname === "/api/tarifs" || // tarifs publics : lus par le configurateur du site
     pathname.startsWith("/api/telegram") ||
     pathname.startsWith("/api/hooks")
   ) {

@@ -77,6 +77,8 @@ model Settings {
   accountHolder     String   @default("")
   iban              String   @default("")
   bankName          String   @default("")
+  // tarifs (source de vérité — consommés par le site via /api/tarifs)
+  pricing           Json?
   // facturation & TVA
   businessAddress   String   @default("") // adresse figurant sur les factures (multiligne)
   businessUid       String   @default("") // n° IDE (CHE-…) — affiché sur les factures, indépendant de la TVA

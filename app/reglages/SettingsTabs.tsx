@@ -5,12 +5,13 @@
    l'onglet affiché. */
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Palette, Zap, Target, Wallet, Sparkles } from "lucide-react";
+import { Palette, Zap, Target, Wallet, Sparkles, Tag } from "lucide-react";
 
 const TABS = [
   { id: "perso", label: "Personnalisation", Icon: Palette },
   { id: "automatismes", label: "Automatismes", Icon: Zap },
   { id: "objectifs", label: "Objectifs", Icon: Target },
+  { id: "tarifs", label: "Tarifs", Icon: Tag },
   { id: "compta", label: "Compta & paiement", Icon: Wallet },
   { id: "assistant", label: "Assistant IA", Icon: Sparkles },
 ] as const;

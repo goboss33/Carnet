@@ -37,6 +37,10 @@ export function normalizeOccasion(raw: string, age?: number | null): string {
 
 export const BISCUITS = ["Vanille", "Chocolat", "Citron", "Cannelle", "Orange", "Nature"] as const;
 
+/* Les trois coulis sont distincts depuis le 24.07.2026 (avant : une seule
+   entrée fourre-tout — on ne savait pas lequel la cliente voulait).
+   L'ancien libellé reste accepté sur les fiches existantes : FourrageChips
+   conserve toute valeur hors liste. */
 export const FOURRAGES = [
   "Ganache chocolat noir",
   "Ganache chocolat lait",
@@ -48,7 +52,9 @@ export const FOURRAGES = [
   "Crème noisettes",
   "Crème Oreo & mascarpone",
   "Crème caramel beurre salé",
-  "Coulis fraise, framboise ou fruits rouges",
+  "Coulis fraise",
+  "Coulis framboise",
+  "Coulis fruits rouges",
   "Fruits frais (selon saison)",
 ] as const;
 

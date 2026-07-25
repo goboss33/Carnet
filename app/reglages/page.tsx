@@ -13,6 +13,7 @@ import { ibanValid, qrBillReady, toAddressLines } from "@/lib/qrbill";
 import { PageHeader } from "@/components/ui/page-header";
 import { SubmitButton } from "@/components/ui/submit-button";
 import StudioMaintenance from "./StudioMaintenance";
+import PricingSection from "./PricingSection";
 
 export const dynamic = "force-dynamic";
 
@@ -200,6 +201,13 @@ export default async function Reglages() {
                 <input name="goalInstagram" type="number" min="0" defaultValue={raw?.goalInstagram ?? ""} placeholder={String(eff.goalInstagram)} className={input} />
               </label>
             </div>
+        </CardBody>
+      </Card>
+    ),
+    tarifs: (
+      <Card>
+        <CardBody className="p-6">
+          <PricingSection initial={eff.pricing} />
         </CardBody>
       </Card>
     ),
