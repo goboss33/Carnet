@@ -88,8 +88,10 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
           </span>
         }
         actions={
-          order.priceQuoted ? (
-            <>
+          <>
+            <AnalyzeProject orderId={order.id} />
+            {order.priceQuoted ? (
+              <>
               <a
                 href={`/api/commandes/${order.id}/devis`}
                 target="_blank"
@@ -107,14 +109,15 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                 <FileText className="size-3.5" /> Facture
               </a>
             </>
-          ) : (
-            <span
-              title="Renseigne d'abord le prix (ou des lignes) pour générer devis et facture."
-              className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-[13px] font-medium text-zinc-400"
-            >
-              <FileSignature className="size-3.5" /> Devis · Facture
-            </span>
-          )
+            ) : (
+              <span
+                title="Renseigne d'abord le prix (ou des lignes) pour générer devis et facture."
+                className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-[13px] font-medium text-zinc-400"
+              >
+                <FileSignature className="size-3.5" /> Devis · Facture
+              </span>
+            )}
+          </>
         }
       />
 
@@ -142,12 +145,9 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                 lignes, OFF → champs gâteau. Les lignes restent en base quand on
                 éteint (rien n'est perdu, elles reviennent si on rallume). */}
             <section>
-              <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700">
-                <span className="flex items-center gap-2"><Cake className="size-4 text-(--color-brand)" /> Le projet</span>
-                <span className="ml-auto flex items-center gap-3">
-                  <AnalyzeProject orderId={order.id} />
-                  <KindToggle orderId={order.id} exception={exception} />
-                </span>
+              <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700">
+                <Cake className="size-4 text-(--color-brand)" /> Le projet
+                <KindToggle orderId={order.id} exception={exception} />
               </div>
               {/* Fond nuancé en Mode ligne : délimite visuellement la section quand on bascule */}
               <div className={exception ? "space-y-4 rounded-xl border border-zinc-100 bg-zinc-50/70 p-3 sm:p-4" : "space-y-4"}>

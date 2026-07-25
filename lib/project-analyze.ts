@@ -18,6 +18,9 @@ export type ProjectAnalysis = {
   eventDate?: string; // YYYY-MM-DD
   price?: number; // CHF
   items?: OrderItem[];
+  client?: { firstName?: string; lastName?: string; phone?: string; email?: string; company?: string };
+  channel?: "WHATSAPP" | "INSTAGRAM" | "FACEBOOK" | "EMAIL";
+  quoteSent?: boolean; // le fil montre qu'un devis/estimation chiffrée a déjà été envoyé
 };
 
 const PROMPT = `Tu analyses la capture d'écran d'un échange client (e-mail, WhatsApp, Instagram) pour une pâtissière artisanale suisse (gâteaux sur mesure).
@@ -32,7 +35,10 @@ Objectif : pré-remplir la fiche de commande. Réponds UNIQUEMENT avec un objet 
   "tiers": 1 ou 2 ou null (nombre d'étages, seulement si mentionné),
   "event_date": "YYYY-MM-DD" ou null,
   "price_chf": nombre ou null (prix TOTAL évoqué),
-  "items": [ { "label": "désignation courte", "detail": "détail utile ou null", "qty": nombre ou null, "unit_chf": prix unitaire ou null, "amount_chf": montant de la ligne ou null, "optional": true si offert/optionnel } ]
+  "items": [ { "label": "désignation courte", "detail": "détail utile ou null", "qty": nombre ou null, "unit_chf": prix unitaire ou null, "amount_chf": montant de la ligne ou null, "optional": true si offert/optionnel } ],
+  "client": { "first_name": "prénom ou null", "last_name": "nom de famille ou null", "phone": "n° ou null", "email": "e-mail ou null", "company": "raison sociale si client entreprise, sinon null" },
+  "channel": "whatsapp" | "instagram" | "facebook" | "email" | null (déduis-le de l'apparence de la capture),
+  "quote_sent": true si le fil montre que la pâtissière a DÉJÀ envoyé un devis/estimation chiffrée au client, sinon false
 }
 Règles pour "mode" :
 - "ligne" si l'échange révèle un projet à PLUSIEURS postes distincts (pièce maîtresse + parts de service + livraison/installation…), un client ENTREPRISE, ou un très gros volume (plus de 100 parts).
@@ -101,6 +107,22 @@ export async function analyzeProjectConversation(image: Buffer, mime: string): P
       eventDate: typeof j.event_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(j.event_date) ? j.event_date : undefined,
       price: num(j.price_chf, 10_000_000),
       items: items.length ? items : undefined,
+      client: (() => {
+        const c = (j.client ?? {}) as Record<string, unknown>;
+        const out = {
+          firstName: str(c.first_name, 60),
+          lastName: str(c.last_name, 60),
+          phone: str(c.phone, 30),
+          email: str(c.email, 120),
+          company: str(c.company, 80),
+        };
+        return Object.values(out).some(Boolean) ? out : undefined;
+      })(),
+      channel: (() => {
+        const ch = String(j.channel ?? "").toUpperCase();
+        return ch === "WHATSAPP" || ch === "INSTAGRAM" || ch === "FACEBOOK" || ch === "EMAIL" ? (ch as ProjectAnalysis["channel"]) : undefined;
+      })(),
+      quoteSent: j.quote_sent === true,
     };
   } catch (e) {
     console.error("analyse projet:", e);

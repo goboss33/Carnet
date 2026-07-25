@@ -36,14 +36,14 @@ export default function AnalyzeProject({ orderId }: { orderId: string }) {
         type="button"
         disabled={pending}
         onClick={() => input.current?.click()}
-        title="Envoie une capture de l'échange (e-mail, WhatsApp…) — l'IA choisit le mode adapté et pré-remplit la fiche sans écraser l'existant."
+        title="Envoie une capture de l'échange (e-mail, WhatsApp…) — l'IA met à jour la fiche : mode, lignes, occasion, dates, statut."
         className={cn(
-          "flex items-center gap-1.5 text-[12px] font-medium text-zinc-400 transition hover:text-(--color-brand)",
-          pending && "animate-pulse text-(--color-brand)"
+          "inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 text-[13px] font-medium text-zinc-700 transition hover:bg-zinc-50",
+          pending && "animate-pulse border-(--color-brand) text-(--color-brand)"
         )}
       >
         <Sparkles className="size-3.5" />
-        {pending ? "Analyse…" : "Analyser un échange"}
+        {pending ? "Analyse…" : "Analyser"}
       </button>
       <input ref={input} type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e.target.files)} />
     </>
