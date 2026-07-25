@@ -141,10 +141,10 @@ export default function OrdersTable({ rows, statut, annee, years }: { rows: Row[
             {years.map((yy) => <option key={yy} value={yy}>{yy}</option>)}
             <option value="all">Toutes années</option>
           </select>
-          {(statut || occ || query || annee !== currentYear) && (
+          {(statut || occ || query || annee !== "all") && (
             <button
               type="button"
-              onClick={() => { setQuery(""); setOcc(""); if (statut || annee !== currentYear) router.push("/commandes"); }}
+              onClick={() => { setQuery(""); setOcc(""); if (statut || annee !== "all") router.push("/commandes"); }}
               className="text-sm text-zinc-400 transition-colors hover:text-zinc-700"
             >
               Réinitialiser
