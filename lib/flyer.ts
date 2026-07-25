@@ -40,12 +40,27 @@ const FOOT_Y = 1690;
 
 /* Coordonnées de marque (identiques à celles de la base) */
 const SUBTITLE = "CAKE DESIGN SUR MESURE — LAUSANNE · RIVIERA";
-/* « en quelques gestes » vantait la simplicité de la FABRICATION — contresens
-   pour du sur-mesure. La promesse réelle du QR, c'est le prix tout de suite. */
-const PITCH = "votre gâteau, prix affiché aussitôt";
+/* Devant une belle photo de gâteau, la question du lecteur n'est pas « est-ce
+   joli ? » mais « combien ça coûte, et vais-je devoir demander ? ». La ligne
+   doit répondre à ÇA. « 2 minutes » est un chiffre, donc crédible — « rapide »
+   ne veut rien dire. */
+const PITCH = "votre gâteau — son prix en 2 minutes";
 const INSTAGRAM = "@maman.gateau.suisse";
 const PHONE = "+41 77 440 18 29 · Pully";
-const FOOTER = "DEVIS GRATUIT EN 24 H · RÉPONSE PERSONNELLE D’ANNIE";
+/* Pied de page = les trois freins levés : l'attente, l'engagement, la
+   confiance envers une inconnue. L'ancien « devis gratuit en 24 h »
+   CONTREDISAIT la promesse de prix immédiat. */
+const FOOT_A = "PRIX IMMÉDIAT · SANS ENGAGEMENT ·";
+const FOOT_B = "5,0 SUR GOOGLE";
+/* Largeurs mesurées au rendu (textes constants) → bloc centré sans double passe. */
+const FOOT_A_W = 506;
+const FOOT_B_W = 243;
+const STAR_W = 22;
+const FOOT_GAP = 10;
+const FOOT_X = Math.round(W / 2 - (FOOT_A_W + FOOT_GAP + STAR_W + FOOT_GAP + FOOT_B_W) / 2);
+/* Étoile en TRACÉ : l'image Docker n'embarque que Quicksand, aucune police de
+   secours — un caractère ★ ne s'afficherait pas. */
+const STAR_PATH = "M12 .587l3.668 7.431 8.332 1.209-6 5.848 1.416 8.263L12 19.446l-7.416 3.892L6 15.075 0 9.227l8.332-1.209z";
 
 /* Tracés officiels des marques (Simple Icons, viewBox 24) */
 const IG_PATH =
@@ -64,7 +79,7 @@ function bottomOverlay(): Buffer {
       <rect x="200" y="1198" width="840" height="34" fill="${BG}"/>
       <rect x="470" y="1348" width="770" height="56" fill="${BG}"/>
       <rect x="470" y="1494" width="770" height="98" fill="${BG}"/>
-      <rect x="180" y="1664" width="880" height="40" fill="${BG}"/>
+      <rect x="100" y="1664" width="1040" height="40" fill="${BG}"/>
 
       <text x="${W / 2}" y="${SUB_Y}" text-anchor="middle" font-family="Quicksand" font-size="27"
         font-weight="500" letter-spacing="2.5" fill="${GOLD}">${esc(SUBTITLE)}</text>
@@ -77,8 +92,11 @@ function bottomOverlay(): Buffer {
       ${icon(WA_PATH, ICON_X, WA_Y, ICON, INK)}
       <text x="${TXT_X}" y="${WA_Y + 27}" font-family="Quicksand" font-size="32" font-weight="500" fill="${INK}">${esc(PHONE)}</text>
 
-      <text x="${W / 2}" y="${FOOT_Y}" text-anchor="middle" font-family="Quicksand" font-size="24"
-        font-weight="500" letter-spacing="1.5" fill="${SOFT}">${esc(FOOTER)}</text>
+      <text x="${FOOT_X}" y="${FOOT_Y}" font-family="Quicksand" font-size="24" font-weight="500"
+        letter-spacing="1.5" fill="${SOFT}">${esc(FOOT_A)}</text>
+      ${icon(STAR_PATH, FOOT_X + FOOT_A_W + FOOT_GAP, FOOT_Y - 20, STAR_W, "#C9A34D")}
+      <text x="${FOOT_X + FOOT_A_W + FOOT_GAP + STAR_W + FOOT_GAP}" y="${FOOT_Y}" font-family="Quicksand"
+        font-size="24" font-weight="600" letter-spacing="1.5" fill="${SOFT}">${esc(FOOT_B)}</text>
     </svg>`
   );
 }
