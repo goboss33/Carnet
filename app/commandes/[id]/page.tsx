@@ -25,7 +25,8 @@ import ItemsEditor from "./ItemsEditor";
 import KindToggle from "./KindToggle";
 import AnalyzeDialog from "@/components/analyze-dialog";
 import { parseItems } from "@/lib/order-items";
-import { Calendar, Cake, Truck, StickyNote, Images, FileText, FileSignature } from "lucide-react";
+import { parseExtras, extraLabel, extrasTotal } from "@/lib/order-extras";
+import { Calendar, Cake, Truck, StickyNote, Images, FileText, FileSignature, Package } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
 
   const exception = order.kind === "EXCEPTION";
   const items = parseItems(order.items) ?? null;
+  const extras = parseExtras(order.extras); // compléments du configurateur (cupcakes…)
 
   const days = order.eventDate ? Math.ceil((order.eventDate.getTime() - Date.now()) / 86400000) : null;
   const jx = days === null ? null : days < 0 ? "passé" : days === 0 ? "aujourd'hui" : days === 1 ? "demain" : `J-${days}`;
@@ -166,6 +168,20 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                     </label>
                     <FourrageChips selected={order.fourrages} />
                   </>
+                )}
+                {/* Compléments du configurateur — prix déjà inclus dans le total, jamais rechiffrés */}
+                {extras.length > 0 && (
+                  <div>
+                    <span className={label}>Compléments commandés</span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {extras.map((x) => (
+                        <span key={x.label} className="inline-flex items-center gap-1.5 rounded-full border border-(--color-brand) bg-(--color-brand-soft) px-3 py-1 text-[12px] font-medium text-(--color-brand)">
+                          <Package className="size-3.5" /> {extraLabel(x)}
+                        </span>
+                      ))}
+                      <span className="text-[11px] text-zinc-400">compris dans le prix{extrasTotal(extras) ? ` (CHF ${extrasTotal(extras)})` : ""}</span>
+                    </div>
+                  </div>
                 )}
                 <label className="block"><span className={label}>Thème & style</span><input name="themeNote" defaultValue={order.themeNote} className={input} placeholder="Ex. licorne pastel arc-en-ciel, semi-naked fleurs fraîches…" /></label>
                 {!exception && (

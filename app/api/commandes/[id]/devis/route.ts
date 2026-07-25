@@ -5,6 +5,7 @@ import { getSettings } from "@/lib/settings";
 import { getBrand } from "@/lib/brand";
 import { getLexicon } from "@/lib/lexicon";
 import { parseItems, itemsTotalCents } from "@/lib/order-items";
+import { parseExtras, extraLabel } from "@/lib/order-extras";
 import { safePdfText as safe } from "@/lib/pdf";
 
 /* ---------------------------------------------------------------------------
@@ -124,9 +125,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     } else {
       // Pas de lignes : reconstitue une désignation depuis la fiche (comme la facture).
       const title = [cap(lex.product), "sur mesure", order.occasion ? `— ${order.occasion}` : ""].filter(Boolean).join(" ");
+      const ex = parseExtras(order.extras); // prix déjà inclus dans le total → « compris »
       const details = [
         order.themeNote ? `Thème : ${order.themeNote}` : "",
         [order.tiers ? `${order.tiers} étage${order.tiers > 1 ? "s" : ""}` : "", order.parts ? `${order.parts} ${order.parts > 1 ? lex.units : lex.unit}` : ""].filter(Boolean).join(" · "),
+        ex.length ? `Compris : ${ex.map(extraLabel).join(", ")}` : "",
         order.eventDate ? `Date de la prestation : ${dt(order.eventDate)}` : "",
       ].filter(Boolean).join(" — ");
       drawItem(title, details || undefined, totalCents);

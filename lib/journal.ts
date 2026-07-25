@@ -70,6 +70,7 @@ async function orderBrief(tenantId: string, orderId: string): Promise<string | n
   if (!o) return null;
   const isExc = o.kind === "EXCEPTION";
   const { parseItems } = await import("@/lib/order-items");
+  const { parseExtras, extraLabel } = await import("@/lib/order-extras");
   const postes = isExc
     ? (parseItems(o.items) ?? []).filter((it) => !it.opt).map((it) => (it.detail ? `${it.label} (${it.detail})` : it.label)).filter(Boolean)
     : [];
@@ -84,6 +85,10 @@ async function orderBrief(tenantId: string, orderId: string): Promise<string | n
     o.biscuit ? `Biscuit : ${o.biscuit}` : null,
     o.fourrages.length ? `Fourrages : ${o.fourrages.join(", ")}` : null,
     o.sansLactose ? `Sans lactose : oui` : null,
+    (() => {
+      const ex = parseExtras(o.extras);
+      return ex.length ? `Compléments : ${ex.map(extraLabel).join(", ")}` : null;
+    })(),
     o.themeNote ? `Thème : ${o.themeNote}` : null,
     isExc && o.deliveryMode === "livraison" && o.deliveryAddress
       ? `Lieu de l'événement : ${o.deliveryAddress}`

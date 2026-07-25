@@ -7,6 +7,7 @@ import { getLexicon } from "@/lib/lexicon";
 import { PAYKIND_LABEL } from "@/lib/money";
 import { safePdfText as safe } from "@/lib/pdf";
 import { parseItems, itemsTotalCents } from "@/lib/order-items";
+import { parseExtras, extraLabel } from "@/lib/order-extras";
 import { drawQrBill, qrBillReady, splitAddress, toAddressLines, QR_ZONE_PT } from "@/lib/qrbill";
 
 /* ---------------------------------------------------------------------------
@@ -143,6 +144,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       const compo = [order.biscuit, ...(order.fourrages ?? [])].filter(Boolean).join(", ");
       if (compo) details.push(`Composition : ${compo}`);
       if (order.sansLactose) details.push("Sans lactose");
+      // Compléments du configurateur : leur prix est déjà dans le total → « compris ».
+      const ex = parseExtras(order.extras);
+      if (ex.length) details.push(`Compris : ${ex.map(extraLabel).join(", ")}`);
       if (order.eventDate) details.push(`Date de la prestation : ${dt(order.eventDate)}`);
       details.push(order.deliveryMode === "livraison" ? `Livraison${order.deliveryAddress ? ` — ${order.deliveryAddress}` : ""} (incluse)` : cap(lex.pickupLabel));
       for (const d of details) for (const l of wrap(d, font, 9, A4.w - 2 * M - 110)) { y -= 13; text(l, M + 10, 9, { color: gray }); }
