@@ -27,7 +27,7 @@ function DiscountField({ orderId, kind, value }: { orderId: string; kind: string
     if ((saved.current.kind || "chf") === k && saved.current.value === v) return;
     const t = setTimeout(() => {
       saved.current = { kind: v > 0 ? k : "", value: v };
-      start(() => setDiscount(orderId, v > 0 ? k : "", v));
+      start(() => { void setDiscount(orderId, v > 0 ? k : "", v); }); // la transition attend un retour vide
     }, 500);
     return () => clearTimeout(t);
   }, [k, v, orderId]);
