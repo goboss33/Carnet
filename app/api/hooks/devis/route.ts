@@ -10,9 +10,42 @@ import { z } from "zod";
 import { prisma, currentTenant } from "@/lib/db";
 import { notifyAllInline, sendPhotosAll, sendAlbumAll } from "@/lib/telegram";
 import { normPhone, normEmail, contactWhere } from "@/lib/normalize";
+import { parseExtras } from "@/lib/order-extras";
+import type { OrderPiece } from "@/lib/order-pieces";
+import { CUPCAKE_STEP, MINI_CUPCAKE_STEP } from "@/lib/pricing";
 import { nextOrderNo } from "@/lib/order-number";
 
 export const dynamic = "force-dynamic";
+
+/* Construit les pièces à produire depuis la demande du configurateur :
+   le gâteau, puis une pièce par type de boîte commandée (6 cupcakes ou
+   12 minis × quantité), qui hérite des goûts et du thème du gâteau. */
+function piecesFromConfigurator(o: {
+  parts?: number | null; tiers?: number | null; biscuit: string; fourrages: string[];
+  themeNote?: string; style?: string; lactoseFree: boolean; extras?: unknown;
+}): OrderPiece[] {
+  const theme = o.themeNote || o.style || "";
+  const pieces: OrderPiece[] = [{
+    id: "p0", type: "CAKE", qty: o.parts ?? 0, tiers: o.tiers ?? 1,
+    biscuit: o.biscuit, fourrages: (o.fourrages ?? []).slice(0, 2),
+    themeNote: theme, sansLactose: o.lactoseFree,
+  }];
+  for (const [i, x] of parseExtras(o.extras).entries()) {
+    const mini = /mini/i.test(x.label);
+    const perBox = mini ? MINI_CUPCAKE_STEP : CUPCAKE_STEP;
+    pieces.push({
+      id: `px${i}`,
+      type: mini ? "MINI_CUPCAKE" : "CUPCAKE",
+      qty: perBox * Math.max(1, x.qty),
+      tiers: null,
+      biscuit: "", // goûts non demandés au configurateur : Annie complète
+      fourrages: (o.fourrages ?? []).slice(0, 1),
+      themeNote: theme,
+      sansLactose: o.lactoseFree,
+    });
+  }
+  return pieces;
+}
 
 const payload = z.object({
   contact: z.object({
@@ -97,7 +130,11 @@ export async function POST(req: NextRequest) {
       deliveryAddress: o.deliveryAddress,
       deliveryKm: o.deliveryKm ?? null,
       priceQuoted: o.priceQuoted ?? null,
+      priceLocked: true, // prix venu du configurateur : le calcul ne le réécrit pas
       extras: o.extras as never,
+      // Les compléments deviennent de vraies pièces à produire (héritant des
+      // goûts et du thème du gâteau) — Annie ajuste ensuite si besoin.
+      pieces: piecesFromConfigurator(o) as never,
       partnerId: partner?.id ?? null,
       activities: {
         create: {

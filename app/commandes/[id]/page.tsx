@@ -22,10 +22,12 @@ import { BISCUITS } from "@/lib/order-options";
 import { ContactInfo } from "./ContactInfo";
 import { ChannelPicker } from "./ChannelPicker";
 import ItemsEditor from "./ItemsEditor";
+import PiecesEditor from "./PiecesEditor";
 import KindToggle from "./KindToggle";
 import AnalyzeDialog from "@/components/analyze-dialog";
 import { parseItems } from "@/lib/order-items";
 import { parseExtras, extraLabel, extrasTotal } from "@/lib/order-extras";
+import { piecesOf } from "@/lib/order-pieces";
 import { Calendar, Cake, Truck, StickyNote, Images, FileText, FileSignature, Package } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +57,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
   const exception = order.kind === "EXCEPTION";
   const items = parseItems(order.items) ?? null;
   const extras = parseExtras(order.extras); // compléments du configurateur (cupcakes…)
+  const pieces = piecesOf(order); // pièces stockées, ou gâteau dérivé des champs plats
 
   const days = order.eventDate ? Math.ceil((order.eventDate.getTime() - Date.now()) / 86400000) : null;
   const jx = days === null ? null : days < 0 ? "passé" : days === 0 ? "aujourd'hui" : days === 1 ? "demain" : `J-${days}`;
@@ -151,47 +154,30 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                 <Cake className="size-4 text-(--color-brand)" /> Le projet
                 <KindToggle orderId={order.id} exception={exception} />
               </div>
-              {/* Fond nuancé en Mode ligne : délimite visuellement la section quand on bascule */}
-              <div className={exception ? "space-y-4 rounded-xl border border-zinc-100 bg-zinc-50/70 p-3 sm:p-4" : "space-y-4"}>
-                {exception ? (
+              {exception ? (
+                /* Mode ligne : fond nuancé pour délimiter la section au changement de mode */
+                <div className="space-y-4 rounded-xl border border-zinc-100 bg-zinc-50/70 p-3 sm:p-4">
                   <ItemsEditor initial={items} />
-                ) : (
-                  <>
-                    <TiersParts tiers={order.tiers} parts={order.parts} />
-                    <label className="block">
-                      <span className={label}>Biscuit</span>
-                      <select name="biscuit" defaultValue={order.biscuit} className={input}>
-                        <option value="">—</option>
-                        {BISCUITS.map((b) => <option key={b} value={b}>{b}</option>)}
-                        {order.biscuit && !(BISCUITS as readonly string[]).includes(order.biscuit) && <option value={order.biscuit}>{order.biscuit}</option>}
-                      </select>
-                    </label>
-                    <FourrageChips selected={order.fourrages} />
-                  </>
-                )}
-                {/* Compléments du configurateur — prix déjà inclus dans le total, jamais rechiffrés */}
-                {extras.length > 0 && (
-                  <div>
-                    <span className={label}>Compléments commandés</span>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {extras.map((x) => (
-                        <span key={x.label} className="inline-flex items-center gap-1.5 rounded-full border border-(--color-brand) bg-(--color-brand-soft) px-3 py-1 text-[12px] font-medium text-(--color-brand)">
-                          <Package className="size-3.5" /> {extraLabel(x)}
-                        </span>
-                      ))}
-                      <span className="text-[11px] text-zinc-400">compris dans le prix{extrasTotal(extras) ? ` (CHF ${extrasTotal(extras)})` : ""}</span>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <PiecesEditor initial={pieces} pricing={eff.pricing} occasion={order.occasion} />
+                  {/* Compléments du configurateur non repris en pièce (rare) — prix déjà inclus */}
+                  {extras.length > 0 && pieces.every((p) => p.type === "CAKE") && (
+                    <div>
+                      <span className={label}>Compléments commandés</span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {extras.map((x) => (
+                          <span key={x.label} className="inline-flex items-center gap-1.5 rounded-full border border-(--color-brand) bg-(--color-brand-soft) px-3 py-1 text-[12px] font-medium text-(--color-brand)">
+                            <Package className="size-3.5" /> {extraLabel(x)}
+                          </span>
+                        ))}
+                        <span className="text-[11px] text-zinc-400">compris dans le prix{extrasTotal(extras) ? ` (CHF ${extrasTotal(extras)})` : ""}</span>
+                      </div>
                     </div>
-                  </div>
-                )}
-                <label className="block"><span className={label}>Thème & style</span><input name="themeNote" defaultValue={order.themeNote} className={input} placeholder="Ex. licorne pastel arc-en-ciel, semi-naked fleurs fraîches…" /></label>
-                {!exception && (
-                  <label className="flex cursor-pointer items-center gap-2.5" title="Gâteau sans lactose">
-                    <input type="checkbox" name="sansLactose" defaultChecked={order.sansLactose} className="peer sr-only" />
-                    <span className="relative h-5 w-9 shrink-0 rounded-full bg-zinc-200 transition-colors peer-checked:bg-(--color-brand) after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4" />
-                    <span className="text-[13px] font-medium text-zinc-600">Sans lactose</span>
-                  </label>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </section>
 
             <section>

@@ -14,6 +14,7 @@ import { nextOrderNo } from "@/lib/order-number";
 import { syncPaymentJournal } from "@/lib/payment-journal";
 import { parseItems, itemsTotalCents } from "@/lib/order-items";
 import { readPricing } from "@/lib/pricing";
+import { parsePieces, flatFromPieces, piecesTotal } from "@/lib/order-pieces";
 import type { ProjectAnalysis } from "@/lib/project-analyze";
 import type { OrderStatus, Source } from "@prisma/client";
 import { Prisma } from "@prisma/client";
@@ -213,6 +214,29 @@ export async function updateOrder(orderId: string, formData: FormData) {
         : { items: Prisma.JsonNull }; // liste vidée → retour au prix unique (conservé)
     }
   }
+  // Pièces à produire : présentes dans la FormData quand l'éditeur est monté
+  // (mode standard). Elles pilotent les champs plats — lus par l'agenda, le
+  // bot, les crons et le Journal — et le prix calculé (sauf verrou manuel).
+  const rawPieces = formData.get("pieces");
+  let piecesData: Record<string, unknown> = {};
+  if (typeof rawPieces === "string" && rawPieces.trim() !== "") {
+    const pieces = parsePieces(rawPieces);
+    if (pieces) {
+      const order = await prisma.order.findUnique({ where: { id: orderId }, select: { tenantId: true, occasion: true, priceLocked: true, priceQuoted: true } });
+      const flat = flatFromPieces(pieces);
+      piecesData = {
+        pieces: pieces.length ? (pieces as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+        ...flat,
+        themeNote: pieces.find((p) => p.type === "CAKE")?.themeNote ?? pieces[0]?.themeNote ?? d.themeNote,
+      };
+      if (order && !order.priceLocked && pieces.length) {
+        const s = await getSettings(order.tenantId);
+        const total = piecesTotal(s.pricing, pieces, order.occasion);
+        if (total > 0) piecesData.priceQuoted = total;
+      }
+    }
+  }
+
   await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -229,6 +253,7 @@ export async function updateOrder(orderId: string, formData: FormData) {
       sansLactose: formData.get("sansLactose") === "on",
       notes: d.notes,
       ...itemsData,
+      ...piecesData, // prime sur les champs plats du formulaire
     },
   });
   revalidatePath(`/commandes/${orderId}`);
@@ -480,16 +505,38 @@ export async function recordPayment(orderId: string, formData: FormData) {
   revalidatePath("/compta");
 }
 
-/** Prix du devis (Total) — piloté depuis la modale paiement (hors auto-save). */
+/** Prix du devis (Total) — piloté depuis la modale paiement (hors auto-save).
+    Saisir un prix VERROUILLE la commande : le calcul des pièces ne l'écrase
+    plus (geste commercial, remise partenaire, projet négocié). Vider le champ
+    rend la main au calcul automatique. */
 export async function setPrice(orderId: string, value: string) {
   const n = Math.round(Number(value));
+  const manual = Number.isFinite(n) && n > 0;
   await prisma.order.update({
     where: { id: orderId },
-    data: { priceQuoted: Number.isFinite(n) && n > 0 ? n : null },
+    data: { priceQuoted: manual ? n : null, priceLocked: manual },
   });
   revalidatePath(`/commandes/${orderId}`);
   revalidatePath("/");
   revalidatePath("/compta");
+}
+
+/** Rendre la main au prix calculé (bouton « recalculer » de la fiche). */
+export async function unlockPrice(orderId: string): Promise<{ error?: string; price?: number }> {
+  const tenant = await currentTenant();
+  const order = await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id } });
+  if (!order) return { error: "Commande introuvable." };
+  const { piecesOf } = await import("@/lib/order-pieces");
+  const pieces = piecesOf(order);
+  const s = await getSettings(tenant.id);
+  const total = pieces.length ? piecesTotal(s.pricing, pieces, order.occasion) : 0;
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { priceLocked: false, ...(total > 0 ? { priceQuoted: total } : {}) },
+  });
+  revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/");
+  return { price: total };
 }
 
 /** Enregistre l'état de paiement en une fois (acompte + solde, en CHF).
