@@ -8,7 +8,7 @@ import { PAYKIND_LABEL } from "@/lib/money";
 import { safePdfText as safe } from "@/lib/pdf";
 import { parseItems, itemsTotalCents } from "@/lib/order-items";
 import { parseExtras, extraLabel } from "@/lib/order-extras";
-import { piecesOf, orderTotal } from "@/lib/order-pieces";
+import { piecesOf, orderTotal, pieceSummary, piecePrice } from "@/lib/order-pieces";
 import { discountLabel } from "@/lib/pricing";
 import { drawQrBill, qrBillReady, splitAddress, toAddressLines, QR_ZONE_PT } from "@/lib/qrbill";
 
@@ -134,6 +134,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         y -= 17;
       }
       y += 13; // compense le dernier pas de boucle (le trait du total suit)
+    } else if (piecesOf(order).length > 1) {
+      // Plusieurs pièces : chacune sa ligne (même présentation que le devis).
+      for (const piece of piecesOf(order)) {
+        const [head, ...rest] = pieceSummary(piece, s.pricing).split(" — ");
+        text(head, M, 10.5, { bold: true });
+        text(chf(piecePrice(s.pricing, piece, order.occasion) * 100), 0, 10.5, { bold: true, right: A4.w - M });
+        if (rest.length) for (const l of wrap(rest.join(" — "), font, 9, A4.w - 2 * M - 90)) { y -= 12; text(l, M + 10, 9, { color: gray }); }
+        y -= 17;
+      }
+      if (order.eventDate) { text(`Date de la prestation : ${dt(order.eventDate)}`, M + 10, 9, { color: gray }); y -= 4; }
+      else y += 13;
     } else {
       const title = [cap(lex.product), "sur mesure", order.occasion ? `— ${order.occasion}` : ""].filter(Boolean).join(" ");
       text(title, M, 10.5, { bold: true });

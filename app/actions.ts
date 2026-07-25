@@ -320,6 +320,12 @@ const applySchema = z.object({
     qty: z.number().int().nullable().optional(), unit: z.number().int().nullable().optional(),
     cents: z.number().int().nonnegative(), opt: z.boolean().optional(),
   })).max(20).optional(),
+  pieces: z.array(z.object({
+    id: z.string().max(40), type: z.enum(["CAKE", "CUPCAKE", "MINI_CUPCAKE"]),
+    qty: z.number().int().min(0).max(100000), tiers: z.number().int().min(1).max(2).nullish(),
+    biscuit: z.string().max(60).optional(), fourrages: z.array(z.string().max(80)).max(4).default([]),
+    themeNote: z.string().max(200).optional(), sansLactose: z.boolean().optional(),
+  })).max(12).optional(),
   quoteSent: z.boolean().optional(),
   client: z.object({
     firstName: z.string().max(60).optional(), lastName: z.string().max(60).optional(),
@@ -348,7 +354,20 @@ export async function applyAnalysisToOrder(orderId: string, payload: unknown): P
   if (p.eventDate !== undefined) { data.eventDate = new Date(`${p.eventDate}T12:00:00Z`); labels.push("date"); }
   if (p.parts !== undefined) { data.parts = p.parts; labels.push("parts"); }
   if (p.tiers !== undefined) { data.tiers = p.tiers; labels.push("étages"); }
-  if (p.items?.length) {
+  if (p.pieces?.length) {
+    // Pièces validées : elles pilotent les champs plats ET le prix (moteur tarifaire).
+    const s2 = await getSettings(tenant.id);
+    const flat = flatFromPieces(p.pieces as never);
+    Object.assign(data, flat);
+    data.pieces = p.pieces as unknown as Prisma.InputJsonValue;
+    const t = orderTotal(s2.pricing, {
+      pieces: p.pieces as never, occasion: p.occasion ?? order.occasion,
+      deliveryMode: order.deliveryMode, deliveryKm: order.deliveryKm,
+      discount: order.discountKind ? { kind: order.discountKind as "chf" | "pct", value: order.discountValue } : null,
+    });
+    if (t.total > 0) data.priceQuoted = t.total;
+    labels.push(`${p.pieces.length} pièce${p.pieces.length > 1 ? "s" : ""}`);
+  } else if (p.items?.length) {
     const previous = parseItems(order.items) ?? [];
     data.kind = "EXCEPTION";
     data.items = p.items as unknown as Prisma.InputJsonValue;
@@ -414,6 +433,8 @@ export async function createOrderFromAnalysis(payload: unknown): Promise<{ error
   }
 
   const hasItems = !!p.items?.length;
+  const hasPieces = !hasItems && !!p.pieces?.length;
+  const flat = hasPieces ? flatFromPieces(p.pieces as never) : null;
   const order = await prisma.order.create({
     data: {
       tenantId: tenant.id,
@@ -427,8 +448,12 @@ export async function createOrderFromAnalysis(payload: unknown): Promise<{ error
       celebrant: p.celebrant ?? "",
       celebrantAge: p.celebrantAge ?? null,
       themeNote: p.themeNote ?? "",
-      parts: !hasItems ? (p.parts ?? null) : null,
-      tiers: !hasItems ? (p.tiers ?? null) : null,
+      ...(hasPieces ? { pieces: p.pieces as unknown as Prisma.InputJsonValue } : {}),
+      parts: hasPieces ? flat!.parts : !hasItems ? (p.parts ?? null) : null,
+      tiers: hasPieces ? flat!.tiers : !hasItems ? (p.tiers ?? null) : null,
+      biscuit: hasPieces ? flat!.biscuit : "",
+      fourrages: hasPieces ? flat!.fourrages : [],
+      sansLactose: hasPieces ? flat!.sansLactose : false,
       eventDate: p.eventDate ? new Date(`${p.eventDate}T12:00:00Z`) : null,
       priceQuoted: hasItems ? Math.round(itemsTotalCents(p.items as never) / 100) || null : (p.price ?? null),
       activities: { create: { type: "SYSTEM", body: "Fiche créée depuis l'analyse d'un échange (proposition validée)." } },

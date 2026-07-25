@@ -51,7 +51,7 @@ export default function AnalyzeDialog({ orderId, trigger }: { orderId?: string; 
     setAnalysis(a);
     // Tout ce qui a une valeur est coché par défaut ; l'utilisateur décoche.
     const init: Record<string, boolean> = {};
-    for (const k of ["occasion", "themeNote", "celebrant", "celebrantAge", "eventDate", "parts", "tiers", "price", "items", "client", "quoteSent"]) init[k] = true;
+    for (const k of ["occasion", "themeNote", "celebrant", "celebrantAge", "eventDate", "parts", "tiers", "price", "items", "pieces", "client", "quoteSent"]) init[k] = true;
     setChecked(init);
   };
 
@@ -65,9 +65,11 @@ export default function AnalyzeDialog({ orderId, trigger }: { orderId?: string; 
     if (checked.celebrant && a.celebrant) p.celebrant = a.celebrant;
     if (checked.celebrantAge && a.celebrantAge) p.celebrantAge = a.celebrantAge;
     if (checked.eventDate && a.eventDate) p.eventDate = a.eventDate;
-    if (checked.parts && a.parts && !a.items?.length) p.parts = a.parts;
-    if (checked.tiers && a.tiers && !a.items?.length) p.tiers = a.tiers;
-    if (checked.price && a.price && !a.items?.length) p.price = Math.round(a.price);
+    if (checked.pieces && a.pieces?.length) p.pieces = a.pieces;
+    const hasPieces = checked.pieces && !!a.pieces?.length;
+    if (checked.parts && a.parts && !a.items?.length && !hasPieces) p.parts = a.parts;
+    if (checked.tiers && a.tiers && !a.items?.length && !hasPieces) p.tiers = a.tiers;
+    if (checked.price && a.price && !a.items?.length && !hasPieces) p.price = Math.round(a.price);
     if (checked.items && a.items?.length) p.items = a.items;
     if (checked.quoteSent && a.quoteSent) p.quoteSent = true;
     if (checked.client && a.client) p.client = a.client;
@@ -98,8 +100,8 @@ export default function AnalyzeDialog({ orderId, trigger }: { orderId?: string; 
         analysis.celebrantAge && { key: "celebrantAge", label: "Âge", value: `${analysis.celebrantAge} ans` },
         analysis.themeNote && { key: "themeNote", label: "Thème", value: analysis.themeNote },
         analysis.eventDate && { key: "eventDate", label: "Date", value: new Date(`${analysis.eventDate}T12:00:00Z`).toLocaleDateString("fr-CH") },
-        !analysis.items?.length && analysis.parts && { key: "parts", label: "Parts", value: String(analysis.parts) },
-        !analysis.items?.length && analysis.tiers && { key: "tiers", label: "Étages", value: String(analysis.tiers) },
+        !analysis.items?.length && !analysis.pieces?.length && analysis.parts && { key: "parts", label: "Parts", value: String(analysis.parts) },
+        !analysis.items?.length && !analysis.pieces?.length && analysis.tiers && { key: "tiers", label: "Étages", value: String(analysis.tiers) },
         !analysis.items?.length && analysis.price && { key: "price", label: "Prix", value: `CHF ${analysis.price.toLocaleString("fr-CH")}` },
         analysis.quoteSent && { key: "quoteSent", label: "Statut", value: "Devis déjà envoyé" },
         analysis.client && {
@@ -229,6 +231,29 @@ export default function AnalyzeDialog({ orderId, trigger }: { orderId?: string; 
                         </span>
                       </label>
                     ))}
+
+                    {analysis.pieces?.length ? (
+                      <label className="flex cursor-pointer items-start gap-3 py-2.5">
+                        <input type="checkbox" checked={checked.pieces ?? false} onChange={(e) => setChecked((c) => ({ ...c, pieces: e.target.checked }))} className="mt-0.5 size-4 shrink-0 accent-(--color-brand)" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                            À produire · {analysis.pieces.length} pièce{analysis.pieces.length > 1 ? "s" : ""}
+                          </span>
+                          <span className="mt-1 block space-y-0.5">
+                            {analysis.pieces.map((p) => (
+                              <span key={p.id} className="block truncate text-[13px] text-zinc-800">
+                                {p.type === "CAKE"
+                                  ? `Gâteau — ${p.qty} parts${p.tiers === 2 ? " · 2 étages" : ""}`
+                                  : `${p.qty} ${p.type === "MINI_CUPCAKE" ? "mini-cupcakes" : "cupcakes"}`}
+                                {[p.biscuit, p.fourrages[0], p.themeNote].filter(Boolean).length
+                                  ? ` · ${[p.biscuit, p.fourrages[0], p.themeNote].filter(Boolean).join(" · ")}`
+                                  : ""}
+                              </span>
+                            ))}
+                          </span>
+                        </span>
+                      </label>
+                    ) : null}
 
                     {analysis.items?.length ? (
                       <label className="flex cursor-pointer items-start gap-3 py-2.5">

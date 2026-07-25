@@ -71,6 +71,11 @@ async function orderBrief(tenantId: string, orderId: string): Promise<string | n
   const isExc = o.kind === "EXCEPTION";
   const { parseItems } = await import("@/lib/order-items");
   const { parseExtras, extraLabel } = await import("@/lib/order-extras");
+  const { piecesOf, pieceSummary } = await import("@/lib/order-pieces");
+  // Toutes les pièces sont décrites : un anniversaire avec un gâteau Mario ET un
+  // gâteau Luigi doit donner un article qui parle des deux.
+  const pieces = isExc ? [] : piecesOf(o);
+  const multi = pieces.length > 1;
   const postes = isExc
     ? (parseItems(o.items) ?? []).filter((it) => !it.opt).map((it) => (it.detail ? `${it.label} (${it.detail})` : it.label)).filter(Boolean)
     : [];
@@ -80,11 +85,13 @@ async function orderBrief(tenantId: string, orderId: string): Promise<string | n
     o.celebrant ? `Fêté·e : ${o.celebrant}` : null,
     o.celebrantAge ? `Âge fêté : ${o.celebrantAge} ans` : null,
     postes.length ? `Postes du projet :\n${postes.map((p) => `  - ${p}`).join("\n")}` : null,
-    o.parts ? `Parts : ${o.parts}` : null,
-    o.tiers ? `Étages : ${o.tiers}` : null,
-    o.biscuit ? `Biscuit : ${o.biscuit}` : null,
-    o.fourrages.length ? `Fourrages : ${o.fourrages.join(", ")}` : null,
+    multi ? `Pièces réalisées (${pieces.length}) :\n${pieces.map((p) => `  - ${pieceSummary(p)}`).join("\n")}` : null,
+    !multi && o.parts ? `Parts : ${o.parts}` : null,
+    !multi && o.tiers ? `Étages : ${o.tiers}` : null,
+    !multi && o.biscuit ? `Biscuit : ${o.biscuit}` : null,
+    !multi && o.fourrages.length ? `Fourrages : ${o.fourrages.join(", ")}` : null,
     o.sansLactose ? `Sans lactose : oui` : null,
+    multi ? "Consigne : l'article doit mentionner CHAQUE pièce (ne pas n'en décrire qu'une)." : null,
     (() => {
       const ex = parseExtras(o.extras);
       return ex.length ? `Compléments : ${ex.map(extraLabel).join(", ")}` : null;

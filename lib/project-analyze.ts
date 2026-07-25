@@ -13,6 +13,8 @@
 import { extractJson } from "@/lib/gemini";
 import { logAiCall } from "@/lib/ai-log";
 import type { OrderItem } from "@/lib/order-items";
+import type { OrderPiece, PieceType } from "@/lib/order-pieces";
+import { CUPCAKE_STEP, MINI_CUPCAKE_STEP } from "@/lib/pricing";
 
 export type ProjectAnalysis = {
   mode: "ligne" | "standard";
@@ -25,6 +27,7 @@ export type ProjectAnalysis = {
   eventDate?: string; // YYYY-MM-DD
   price?: number; // CHF
   items?: OrderItem[];
+  pieces?: OrderPiece[]; // mode standard : ce qu'il y a à produire (plusieurs gâteaux, cupcakes…)
   client?: { firstName?: string; lastName?: string; phone?: string; email?: string; company?: string };
   channel?: "WHATSAPP" | "INSTAGRAM" | "FACEBOOK" | "EMAIL";
   quoteSent?: boolean;
@@ -39,8 +42,9 @@ Objectif : pré-remplir une fiche de commande. Réponds UNIQUEMENT avec un objet
   "theme": "thème/style souhaité ou null",
   "celebrant": "prénom de la personne fêtée, ou nom de l'entreprise si événement d'entreprise, ou null",
   "celebrant_age": nombre ou null,
-  "parts": nombre de parts ou null,
+  "parts": nombre de parts du gâteau principal ou null,
   "tiers": 1 ou 2 ou null,
+  "pieces": [ { "type": "gateau" | "cupcakes" | "mini-cupcakes", "qty": nombre (parts pour un gâteau, pièces pour des cupcakes), "tiers": 1 ou 2 ou null, "biscuit": "vanille|chocolat|citron|… ou null", "fourrage": "goût demandé ou null", "theme": "thème de CETTE pièce ou null" } ],
   "event_date": "YYYY-MM-DD" ou null,
   "price_chf": nombre ou null (prix TOTAL),
   "price_verbatim": "citation EXACTE de l'échange qui donne ce total, ou null",
@@ -56,6 +60,7 @@ RÈGLES ABSOLUES — le respect de ces règles prime sur la complétude :
 3. Tout montant (price_chf, amount_chf, unit_chf) DOIT être accompagné de sa citation exacte dans "verbatim"/"price_verbatim". Pas de citation possible = pas de montant (null).
 4. Ne déduis JAMAIS un nom de personne ou une société d'un simple mot visible : recopie ce qui est écrit (adresse e-mail, signature) ou mets null.
 5. "mode": "ligne" si le projet a PLUSIEURS postes distincts (pièce maîtresse + parts de service + livraison…), un client ENTREPRISE, ou plus de 100 parts. Sinon "standard".
+6. "pieces" : en mode "standard" UNIQUEMENT, liste ce qu'il y a à produire. Un client peut demander DEUX gâteaux différents (ex. « un Mario et un Luigi ») et/ou des cupcakes : une entrée par pièce. Un seul gâteau classique = une seule entrée. Rien de lisible = tableau vide.
 Aucun texte hors du JSON.`;
 
 type Input = { text?: string; images?: { buf: Buffer; mime: string }[] };
@@ -159,8 +164,33 @@ export async function analyzeConversationInput(input: Input): Promise<ProjectAna
       return Object.values(out).some(Boolean) ? out : undefined;
     })();
 
+    /* Pièces (mode standard) : quantités calées sur les pas de vente
+       (cupcakes par 6, minis par 12), au moins une boîte. */
+    const rawPieces = Array.isArray(j.pieces) ? (j.pieces as Record<string, unknown>[]) : [];
+    const pieces: OrderPiece[] = rawPieces
+      .map((it, i) => {
+        const t = String(it.type ?? "").toLowerCase();
+        const type: PieceType = t.includes("mini") ? "MINI_CUPCAKE" : t.includes("cupcake") ? "CUPCAKE" : "CAKE";
+        const step = type === "CUPCAKE" ? CUPCAKE_STEP : type === "MINI_CUPCAKE" ? MINI_CUPCAKE_STEP : 1;
+        const raw = num(it.qty, 100000) ?? 0;
+        const qty = type === "CAKE" ? Math.round(raw) : Math.max(step, Math.round(raw / step) * step);
+        const fourrage = str(it.fourrage, 80);
+        return {
+          id: `ia${Date.now()}${i}`,
+          type,
+          qty,
+          tiers: type === "CAKE" ? (it.tiers === 2 ? 2 : 1) : null,
+          biscuit: str(it.biscuit, 60) ?? "",
+          fourrages: fourrage ? [fourrage] : [],
+          themeNote: str(it.theme, 200),
+        } as OrderPiece;
+      })
+      .filter((p) => p.qty > 0)
+      .slice(0, 12);
+
     return {
       mode: j.mode === "ligne" ? "ligne" : "standard",
+      pieces: pieces.length ? pieces : undefined,
       occasion: str(j.occasion, 60),
       themeNote: str(j.theme, 120),
       celebrant: str(j.celebrant, 60),

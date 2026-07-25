@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Truck, Store, Clock, MilkOff, MapPin } from "lucide-react";
 import { MapsLink, shortAddress } from "@/components/ui/map-link";
 import Heatmap, { type HeatDay } from "./Heatmap";
+import { piecesOf, cupcakeCount } from "@/lib/order-pieces";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,22 @@ function startOfWeek(d: Date): Date {
 }
 
 const localISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/* Ce qu'il y a à produire, en une ligne : « 2 gâteaux · 35 parts · 12 cupcakes ».
+   Un projet (Mode ligne) affiche son montant, il n'a pas de parts. */
+function pieceLine(o: OrderWithContact): string {
+  if (o.kind === "EXCEPTION") return `Projet${o.priceQuoted ? ` · CHF ${o.priceQuoted.toLocaleString("fr-CH")}` : ""}`;
+  const pieces = piecesOf(o);
+  const cakes = pieces.filter((p) => p.type === "CAKE");
+  const parts = cakes.reduce((a, c) => a + (c.qty || 0), 0);
+  const cups = cupcakeCount(pieces);
+  const bits = [
+    cakes.length > 1 ? `${cakes.length} gâteaux` : cakes[0]?.tiers === 2 ? "2 étages" : null,
+    parts > 0 ? `${parts} parts` : null,
+    cups > 0 ? `${cups} cupcakes` : null,
+  ].filter(Boolean);
+  return bits.join(" · ") || "—";
+}
 
 function Card({ o, now, anchorId }: { o: OrderWithContact; now: Date; anchorId?: string }) {
   const d = o.eventDate!;
@@ -82,11 +99,7 @@ function Card({ o, now, anchorId }: { o: OrderWithContact; now: Date; anchorId?:
               </p>
               {/* L3 — étages + parts (+ sans lactose) */}
               <p className="mt-1 flex items-center gap-2 text-[13px] text-zinc-500">
-                <span>
-                  {o.kind === "EXCEPTION"
-                    ? `Projet${o.priceQuoted ? ` · CHF ${o.priceQuoted.toLocaleString("fr-CH")}` : ""}`
-                    : [o.tiers ? `${o.tiers} étage${o.tiers > 1 ? "s" : ""}` : null, o.parts ? `${o.parts} parts` : null].filter(Boolean).join(" · ") || "—"}
-                </span>
+                <span className="min-w-0 truncate" title={pieceLine(o)}>{pieceLine(o)}</span>
                 {o.sansLactose && (
                   <span className="shrink-0" title="Sans lactose"><MilkOff className="size-3.5 text-red-500" /></span>
                 )}
@@ -161,7 +174,7 @@ export default async function Agenda() {
     const key = localISO(o.eventDate!);
     const h = (heatDays[key] ??= { count: 0, parts: 0 });
     h.count++;
-    h.parts += o.parts ?? 0;
+    h.parts += piecesOf(o).filter((x) => x.type === "CAKE").reduce((n, x) => n + (x.qty || 0), 0);
   }
   // Ancre du 1er gâteau de chaque jour (cible du clic sur la heatmap).
   const seenDays = new Set<string>();
@@ -206,14 +219,26 @@ export default async function Agenda() {
         {groups.filter((g) => g.always || g.items.length > 0).map((g) => {
           // Charge : seuls les gâteaux à produire comptent (les devis non confirmés sont exclus).
           const firm = g.items.filter((o) => o.status !== "DEVIS_ENVOYE");
-          const parts = firm.reduce((a, o) => a + (o.parts ?? 0), 0);
+          // Charge : les parts de gâteau d'un côté, les cupcakes de l'autre —
+          // 24 cupcakes ne représentent pas le même travail que 24 parts.
+          const load = firm.reduce(
+            (a, o) => {
+              const ps = piecesOf(o);
+              a.parts += ps.filter((x) => x.type === "CAKE").reduce((n, x) => n + (x.qty || 0), 0);
+              a.cups += cupcakeCount(ps);
+              return a;
+            },
+            { parts: 0, cups: 0 }
+          );
           return (
             <section key={g.key}>
               <div className="mb-2.5 flex items-baseline gap-2 px-1">
                 <h2 className="text-[13px] font-bold uppercase tracking-wide text-zinc-600">{g.label}</h2>
                 {firm.length > 0 && (
                   <span className="text-[12px] tabular-nums text-zinc-400">
-                    {firm.length} gâteau{firm.length > 1 ? "x" : ""}{parts > 0 ? ` · ${parts} parts` : ""}
+                    {firm.length} commande{firm.length > 1 ? "s" : ""}
+                    {load.parts > 0 ? ` · ${load.parts} parts` : ""}
+                    {load.cups > 0 ? ` · ${load.cups} cupcakes` : ""}
                   </span>
                 )}
               </div>
