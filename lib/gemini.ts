@@ -28,7 +28,7 @@ ils sont couverts par le forfait kilométrique, pas par les dépenses).`;
 const FALLBACK_MODEL = "gemini-flash-latest";
 
 /** Extrait le premier objet JSON balancé d'un texte (fences et bavardage tolérés). */
-function extractJson(raw: string): Record<string, unknown> | null {
+export function extractJson(raw: string): Record<string, unknown> | null {
   const cleaned = raw.replace(/```(?:json)?/gi, "").trim();
   const start = cleaned.indexOf("{");
   if (start < 0) return null;

@@ -61,10 +61,11 @@ export default function OrdersTable({ rows, statut, annee, years }: { rows: Row[
   const { sorted, sort, toggle } = useSort(rows, { key: "date", dir: "desc" }, ACCESSORS);
   const { confirm, node } = useConfirm();
 
+  const defaultYear = String(new Date().getFullYear()); // défaut = année en cours
   const go = (statutVal: string, anneeVal: string) => {
     const p = new URLSearchParams();
     if (statutVal) p.set("statut", statutVal);
-    if (anneeVal && anneeVal !== "all") p.set("annee", anneeVal); // défaut = toutes les années
+    if (anneeVal && anneeVal !== defaultYear) p.set("annee", anneeVal);
     router.push(`/commandes${p.toString() ? `?${p}` : ""}`);
   };
 
@@ -141,10 +142,10 @@ export default function OrdersTable({ rows, statut, annee, years }: { rows: Row[
             {years.map((yy) => <option key={yy} value={yy}>{yy}</option>)}
             <option value="all">Toutes années</option>
           </select>
-          {(statut || occ || query || annee !== "all") && (
+          {(statut || occ || query || annee !== defaultYear) && (
             <button
               type="button"
-              onClick={() => { setQuery(""); setOcc(""); if (statut || annee !== "all") router.push("/commandes"); }}
+              onClick={() => { setQuery(""); setOcc(""); if (statut || annee !== defaultYear) router.push("/commandes"); }}
               className="text-sm text-zinc-400 transition-colors hover:text-zinc-700"
             >
               Réinitialiser

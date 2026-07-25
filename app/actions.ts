@@ -234,6 +234,62 @@ export async function updateOrder(orderId: string, formData: FormData) {
   void syncOrderEvent(orderId).catch(() => null);
 }
 
+/** Analyse IA d'une capture d'échange client → pré-remplit la fiche (Mode ligne ou standard).
+    Non destructif : ne remplit que les champs vides ; refuse d'écraser des lignes existantes. */
+export async function analyzeProjectImage(orderId: string, formData: FormData): Promise<{ error?: string; summary?: string }> {
+  const tenant = await currentTenant();
+  const order = await prisma.order.findFirst({ where: { id: orderId, tenantId: tenant.id } });
+  if (!order) return { error: "Commande introuvable." };
+  const file = formData.get("file");
+  if (!(file instanceof File) || !file.size) return { error: "Aucune image." };
+  if (file.size > 8_000_000 || !file.type.startsWith("image/")) return { error: "Image trop lourde (max 8 Mo) ou format invalide." };
+
+  const sharp = (await import("sharp")).default;
+  const buf = await sharp(Buffer.from(await file.arrayBuffer()))
+    .rotate()
+    .resize(1600, 2400, { fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 90 })
+    .toBuffer();
+
+  const { analyzeProjectConversation } = await import("@/lib/project-analyze");
+  const a = await analyzeProjectConversation(buf, "image/webp");
+  if (!a) return { error: "Analyse impossible — réessaie avec une capture plus lisible." };
+
+  const { normalizeOccasion } = await import("@/lib/order-options");
+  const filled: string[] = [];
+  const data: Prisma.OrderUpdateInput = {};
+  // Champs communs — seulement s'ils sont vides sur la fiche (non destructif).
+  if (a.occasion && !order.occasion) { data.occasion = normalizeOccasion(a.occasion, a.celebrantAge ?? order.celebrantAge); filled.push("occasion"); }
+  if (a.themeNote && !order.themeNote) { data.themeNote = a.themeNote; filled.push("thème"); }
+  if (a.celebrant && !order.celebrant) { data.celebrant = a.celebrant; filled.push("fêté·e"); }
+  if (a.celebrantAge && !order.celebrantAge) { data.celebrantAge = a.celebrantAge; filled.push("âge"); }
+  if (a.eventDate && !order.eventDate) { data.eventDate = new Date(`${a.eventDate}T12:00:00Z`); filled.push("date"); }
+
+  let summary: string;
+  if (a.mode === "ligne" && a.items?.length) {
+    const existing = parseItems(order.items) ?? [];
+    if (existing.length) return { error: "Des lignes existent déjà sur cette fiche — vide-les d'abord si tu veux repartir de l'analyse." };
+    const total = itemsTotalCents(a.items);
+    data.kind = "EXCEPTION";
+    data.items = a.items as unknown as Prisma.InputJsonValue;
+    data.priceQuoted = total ? Math.round(total / 100) : (a.price ?? order.priceQuoted ?? null);
+    summary = `Mode ligne · ${a.items.filter((i) => !i.opt).length} poste${a.items.length > 1 ? "s" : ""}${total ? ` · CHF ${Math.round(total / 100).toLocaleString("fr-CH")}` : ""}`;
+  } else {
+    if (a.parts && !order.parts) { data.parts = a.parts; filled.push("parts"); }
+    if (a.tiers && !order.tiers) { data.tiers = a.tiers; filled.push("étages"); }
+    if (a.price && !order.priceQuoted) { data.priceQuoted = Math.round(a.price); filled.push("prix"); }
+    summary = filled.length ? `Champs proposés : ${filled.join(", ")}` : "Rien de nouveau à remplir — la fiche est déjà complète.";
+  }
+
+  if (Object.keys(data).length) {
+    await prisma.order.update({ where: { id: orderId }, data });
+    await prisma.activity.create({ data: { orderId, type: "NOTE", body: `Analyse IA d'un échange : ${summary}.` } }).catch(() => null);
+  }
+  revalidatePath(`/commandes/${orderId}`);
+  revalidatePath("/");
+  return { summary };
+}
+
 /** Bascule Commande standard ↔ d'exception (B2B, grands événements). */
 export async function setOrderKind(orderId: string, exception: boolean) {
   const order = await prisma.order.findUnique({ where: { id: orderId }, select: { items: true, priceQuoted: true } });

@@ -25,9 +25,9 @@ export default async function Historique({
   const tenant = await currentTenant();
   const now = new Date();
   const statut = sp.statut && STATUS_IDS.includes(sp.statut as OrderStatus) ? (sp.statut as OrderStatus) : "";
-  // Défaut : TOUT l'historique (les commandes d'années futures — grands événements —
-  // doivent être visibles d'emblée) ; le filtre par année reste disponible.
-  const yearParam = sp.annee ?? "all";
+  // Défaut : l'année en cours (lecture du quotidien) ; « Toutes années » reste
+  // à un clic dans le filtre pour retrouver le passé et les événements futurs.
+  const yearParam = sp.annee ?? String(now.getFullYear());
   const allYears = yearParam === "all";
   const year = /^\d{4}$/.test(yearParam) ? Number(yearParam) : now.getFullYear();
 

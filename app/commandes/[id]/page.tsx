@@ -23,6 +23,7 @@ import { ContactInfo } from "./ContactInfo";
 import { ChannelPicker } from "./ChannelPicker";
 import ItemsEditor from "./ItemsEditor";
 import KindToggle from "./KindToggle";
+import AnalyzeProject from "./AnalyzeProject";
 import { parseItems } from "@/lib/order-items";
 import { Calendar, Cake, Truck, StickyNote, Images, FileText, FileSignature } from "lucide-react";
 
@@ -141,11 +142,15 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
                 lignes, OFF → champs gâteau. Les lignes restent en base quand on
                 éteint (rien n'est perdu, elles reviennent si on rallume). */}
             <section>
-              <div className="mb-3 flex items-center gap-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700">
-                <Cake className="size-4 text-(--color-brand)" /> Le projet
-                <KindToggle orderId={order.id} exception={exception} />
+              <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-zinc-100 pb-2 text-[13px] font-semibold text-zinc-700">
+                <span className="flex items-center gap-2"><Cake className="size-4 text-(--color-brand)" /> Le projet</span>
+                <span className="ml-auto flex items-center gap-3">
+                  <AnalyzeProject orderId={order.id} />
+                  <KindToggle orderId={order.id} exception={exception} />
+                </span>
               </div>
-              <div className="space-y-4">
+              {/* Fond nuancé en Mode ligne : délimite visuellement la section quand on bascule */}
+              <div className={exception ? "space-y-4 rounded-xl border border-zinc-100 bg-zinc-50/70 p-3 sm:p-4" : "space-y-4"}>
                 {exception ? (
                   <ItemsEditor initial={items} />
                 ) : (
