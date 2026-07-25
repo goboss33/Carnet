@@ -30,6 +30,7 @@ const GOLD = "#8A6A2E"; // doré assombri — le #C9A34D d'origine tombait à ~2
 
 /* Coordonnées relevées sur la base */
 const SUB_Y = 1224; // sous-titre « CAKE DESIGN SUR MESURE… »
+const PITCH_Y = 1390; // promesse sous « Scannez et composez »
 const IG_Y = 1503;
 const WA_Y = 1549;
 const TXT_X = 532; // colonne de texte, à droite des icônes
@@ -39,6 +40,9 @@ const FOOT_Y = 1690;
 
 /* Coordonnées de marque (identiques à celles de la base) */
 const SUBTITLE = "CAKE DESIGN SUR MESURE — LAUSANNE · RIVIERA";
+/* « en quelques gestes » vantait la simplicité de la FABRICATION — contresens
+   pour du sur-mesure. La promesse réelle du QR, c'est le prix tout de suite. */
+const PITCH = "votre gâteau, prix affiché aussitôt";
 const INSTAGRAM = "@maman.gateau.suisse";
 const PHONE = "+41 77 440 18 29 · Pully";
 const FOOTER = "DEVIS GRATUIT EN 24 H · RÉPONSE PERSONNELLE D’ANNIE";
@@ -58,11 +62,14 @@ function bottomOverlay(): Buffer {
   return Buffer.from(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
       <rect x="200" y="1198" width="840" height="34" fill="${BG}"/>
+      <rect x="470" y="1348" width="770" height="56" fill="${BG}"/>
       <rect x="470" y="1494" width="770" height="98" fill="${BG}"/>
       <rect x="180" y="1664" width="880" height="40" fill="${BG}"/>
 
       <text x="${W / 2}" y="${SUB_Y}" text-anchor="middle" font-family="Quicksand" font-size="27"
         font-weight="500" letter-spacing="2.5" fill="${GOLD}">${esc(SUBTITLE)}</text>
+
+      <text x="${ICON_X}" y="${PITCH_Y}" font-family="Quicksand" font-size="32" font-weight="400" fill="#6B4A3A">${esc(PITCH)}</text>
 
       ${icon(IG_PATH, ICON_X, IG_Y, ICON, INK)}
       <text x="${TXT_X}" y="${IG_Y + 27}" font-family="Quicksand" font-size="32" font-weight="500" fill="${INK}">${esc(INSTAGRAM)}</text>
