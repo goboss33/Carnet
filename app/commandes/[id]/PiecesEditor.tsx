@@ -8,7 +8,7 @@
    re-saisit que ce qui diffère. */
 
 import { useRef, useState } from "react";
-import { Plus, X, Cake, Cookie } from "lucide-react";
+import { Plus, X, Cake, Cookie, Pencil, Check } from "lucide-react";
 import {
   PIECE_LABEL, pieceStep, maxFourrages, piecePrice,
   type OrderPiece, type PieceType,
@@ -20,6 +20,79 @@ import { cn } from "@/lib/ui";
 const input = "w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-(--color-brand)";
 const label = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500";
 const uid = () => `p${Date.now()}${Math.floor(Math.random() * 1000)}`;
+
+/* Fourrages — replié on ne montre que les goûts choisis (la liste complète
+   mangeait la moitié du bloc) ; « Modifier » déplie, et atteindre le maximum
+   replie automatiquement. Même mécanique que l'ancienne fiche. */
+function FourragePicker({ options, chosen, max, onChange }: {
+  options: { id: string; label: string; sup: number }[];
+  chosen: string[];
+  max: number;
+  onChange: (next: string[]) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const isOn = (f: { id: string; label: string }) => chosen.some((x) => x === f.id || x.toLowerCase() === f.label.toLowerCase());
+  const labelOf = (v: string) => options.find((o) => o.id === v || o.label.toLowerCase() === v.toLowerCase())?.label ?? v;
+
+  const toggle = (f: { id: string; label: string }) => {
+    const on = isOn(f);
+    const next = on
+      ? chosen.filter((x) => x !== f.id && x.toLowerCase() !== f.label.toLowerCase())
+      : [...chosen, f.id].slice(-max);
+    onChange(next);
+    if (!on && next.length >= max) setEditing(false); // au complet → on replie
+  };
+
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+          Fourrage{max > 1 ? `s (max ${max})` : ""}
+        </span>
+        <button type="button" onClick={() => setEditing((v) => !v)} className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-zinc-500 transition-colors hover:text-zinc-800">
+          {editing ? <><Check className="size-3.5" /> Terminé</> : <><Pencil className="size-3.5" /> Modifier</>}
+        </button>
+      </div>
+
+      {!editing && (
+        <div className="flex flex-wrap gap-1.5">
+          {chosen.length === 0 ? (
+            <span className="text-sm text-zinc-400">Aucun fourrage — clique sur « Modifier »</span>
+          ) : (
+            chosen.map((c) => (
+              <span key={c} className="rounded-full border border-(--color-brand) bg-(--color-brand-soft) px-3 py-1 text-[12px] font-medium text-(--color-brand)">
+                {labelOf(c)}
+              </span>
+            ))
+          )}
+        </div>
+      )}
+
+      {editing && (
+        <div className="flex flex-wrap gap-1.5">
+          {options.map((f) => {
+            const on = isOn(f);
+            const full = !on && chosen.length >= max;
+            return (
+              <button
+                key={f.id} type="button" disabled={full} onClick={() => toggle(f)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-[12px] transition-colors",
+                  on ? "border-(--color-brand) bg-(--color-brand-soft) text-(--color-brand)"
+                     : full ? "cursor-not-allowed border-zinc-200 text-zinc-300"
+                            : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400"
+                )}
+                title={f.sup ? `+ CHF ${f.sup}` : undefined}
+              >
+                {f.label}{f.sup ? ` +${f.sup}` : ""}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function PiecesEditor({ initial, pricing, occasion }: {
   initial: OrderPiece[];
@@ -135,34 +208,12 @@ export default function PiecesEditor({ initial, pricing, occasion }: {
                     {p.biscuit && !biscuitOptions(p.type).includes(p.biscuit) && <option value={p.biscuit}>{p.biscuit}</option>}
                   </select>
                 </label>
-                <div>
-                  <span className={label}>Fourrage{max > 1 ? `s (max ${max})` : ""}</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {fourrageOptions(p.type).map((f) => {
-                      const on = p.fourrages.some((x) => x === f.id || x.toLowerCase() === f.label.toLowerCase());
-                      const full = !on && p.fourrages.length >= max;
-                      return (
-                        <button
-                          key={f.id} type="button" disabled={full}
-                          onClick={() => patch(p.id, {
-                            fourrages: on
-                              ? p.fourrages.filter((x) => x !== f.id && x.toLowerCase() !== f.label.toLowerCase())
-                              : [...p.fourrages, f.id].slice(-max),
-                          })}
-                          className={cn(
-                            "rounded-full border px-3 py-1 text-[12px] transition-colors",
-                            on ? "border-(--color-brand) bg-(--color-brand-soft) text-(--color-brand)"
-                               : full ? "cursor-not-allowed border-zinc-200 text-zinc-300"
-                                      : "border-zinc-300 bg-white text-zinc-600 hover:border-zinc-400"
-                          )}
-                          title={f.sup ? `+ CHF ${f.sup}` : undefined}
-                        >
-                          {f.label}{f.sup ? ` +${f.sup}` : ""}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                <FourragePicker
+                  options={fourrageOptions(p.type)}
+                  chosen={p.fourrages}
+                  max={max}
+                  onChange={(next) => patch(p.id, { fourrages: next })}
+                />
               </div>
 
               {/* Thème + sans lactose */}
