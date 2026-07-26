@@ -77,8 +77,8 @@ model Settings {
   // fiches-là ne sont pas exposées dans l'index de l'API Places — aucune
   // requête ne les retrouve. Un chiffre juste vaut mieux qu'un automatisme
   // qui échoue en silence.
-  googleRating      Float    @default(5)
-  googleCount       Int      @default(0)
+  googleRating      Float?
+  googleCount       Int?
   // paiement
   paymentDefault    String   @default("twint") // twint | virement
   twintNumber       String   @default("")
