@@ -107,3 +107,16 @@ body {
   .skeleton::after { animation: none; }
   .lift:hover { transform: none; }
 }
+
+/* ------------------------------------------------------------- curseurs */
+/* Un input[type=range] s'approprie le toucher dès que le doigt se pose : le
+   navigateur ne peut pas deviner qu'on allait balayer vers le bas, il règle
+   le curseur et avale le défilement. Avec l'auto-save, la valeur accidentelle
+   partait en base sans validation.
+
+   pan-y rend le déplacement vertical à la page : un balayage qui démarre sur
+   un curseur fait défiler sans rien changer, un glissement horizontal règle
+   comme avant. */
+input[type="range"] {
+  touch-action: pan-y;
+}
