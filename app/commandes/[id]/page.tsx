@@ -24,6 +24,7 @@ import { ChannelPicker } from "./ChannelPicker";
 import ItemsEditor from "./ItemsEditor";
 import PiecesEditor from "./PiecesEditor";
 import KindToggle from "./KindToggle";
+import FlavoursChip from "./FlavoursChip";
 import AnalyzeDialog from "@/components/analyze-dialog";
 import { parseItems } from "@/lib/order-items";
 import { parseExtras, extraLabel, extrasTotal } from "@/lib/order-extras";
@@ -273,16 +274,16 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
               </div>
             )}
 
-            {lastAssistant && (
-              <div className="mb-3 flex flex-wrap gap-2">
-                {c.phone && (
-                  <a href={waLink(c.phone, lastAssistant.content)} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-emerald-600/30 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                    WhatsApp
-                  </a>
-                )}
-                <CopyButton text={lastAssistant.content} />
-              </div>
-            )}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {lastAssistant && c.phone && (
+                <a href={waLink(c.phone, lastAssistant.content)} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-emerald-600/30 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                  WhatsApp
+                </a>
+              )}
+              {lastAssistant && <CopyButton text={lastAssistant.content} />}
+              {/* Toujours proposé : la question des parfums arrive souvent avant le 1er jet */}
+              <FlavoursChip url={eff.flavoursUrl} />
+            </div>
 
             <form action={assistantSend.bind(null, order.id)} className="space-y-2">
               <textarea

@@ -1311,6 +1311,7 @@ export async function saveSettings(formData: FormData) {
     digestHour: clampInt(num("digestHour"), 0, 23),
     nudgeHour: clampInt(num("nudgeHour"), 0, 23),
     reviewUrl: String(formData.get("reviewUrl") ?? "").trim(),
+    flavoursUrl: String(formData.get("flavoursUrl") ?? "").trim().slice(0, 200),
     cronDigest: formData.get("cronDigest") === "on",
     cronEveningNudges: formData.get("cronEveningNudges") === "on",
     cronReviews: formData.get("cronReviews") === "on",

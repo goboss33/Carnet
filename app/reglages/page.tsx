@@ -82,6 +82,13 @@ export default async function Reglages() {
               <span className="mt-1 block text-[11px] text-zinc-400">Vide = déduite de l'URL du site. Le compte de service de l'agenda doit être ajouté comme utilisateur dans Search Console.</span>
             </label>
             <label className="block">
+              <span className={label}>Carte des saveurs (URL)</span>
+              <input name="flavoursUrl" defaultValue={raw?.flavoursUrl ?? ""} placeholder={eff.flavoursUrl || "https://…/saveurs"} className={input} />
+              <span className="mt-1 block text-[11px] text-zinc-400">
+                Page envoyée aux clientes qui demandent les parfums. Vide = <b>/saveurs</b> sur l&apos;URL du site ci-dessus.
+              </span>
+            </label>
+            <label className="block">
               <span className={label}>Segment des pages du Journal</span>
               <input name="sitePathPrefix" defaultValue={raw?.sitePathPrefix ?? ""} placeholder="creations" className={input} />
               <span className="mt-1 block text-[11px] text-zinc-400">Le dossier des pages sur le site : /creations chez une pâtissière, /chantiers chez un artisan…</span>

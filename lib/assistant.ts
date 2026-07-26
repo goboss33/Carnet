@@ -71,6 +71,12 @@ export async function generateDraft(
     deposit
       ? `- Acompte à demander : CHF ${deposit} (${s.depositPct} %) par ${twint}.`
       : "- Prix pas encore fixé : n'annonce ni prix ni acompte, propose plutôt d'en discuter.",
+    // Le lien vaut mieux qu'une liste recopiée : toujours à jour, et il ramène au configurateur.
+    s.flavoursUrl && !gouts.length
+      ? `- Les goûts ne sont pas encore choisis : propose la carte des saveurs en donnant CE lien tel quel — ${s.flavoursUrl} — sans recopier la liste des parfums.`
+      : s.flavoursUrl
+        ? `- Si la cliente demande les autres parfums possibles, donne ce lien tel quel : ${s.flavoursUrl}`
+        : "",
     "",
     "Rédige le message de confirmation de devis à envoyer à la cliente, prêt à copier-coller, structuré ainsi :",
     "1) une accroche chaleureuse et personnelle ;",

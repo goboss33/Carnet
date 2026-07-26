@@ -40,6 +40,7 @@ export type EffectiveSettings = {
   siteUrl: string;
   sitePathPrefix: string;
   reviewUrl: string;
+  flavoursUrl: string;
   paymentDefault: "twint" | "virement";
   twintNumber: string;
   accountHolder: string;
@@ -101,6 +102,8 @@ export async function getSettings(tenantId: string): Promise<EffectiveSettings> 
     siteUrl: (s?.siteUrl || process.env.SITE_URL || "").replace(/\/$/, ""),
     sitePathPrefix: (s?.sitePathPrefix || "creations").replace(/^\/|\/$/g, ""),
     reviewUrl: s?.reviewUrl || process.env.GOOGLE_REVIEW_URL || "",
+    // Carte des saveurs : par défaut la page du site vitrine (marque blanche : réglable)
+    flavoursUrl: s?.flavoursUrl || (s?.siteUrl ? `${s.siteUrl.replace(/\/$/, "")}/saveurs` : ""),
     paymentDefault: s?.paymentDefault === "virement" ? "virement" : "twint",
     twintNumber: s?.twintNumber ?? "",
     accountHolder: s?.accountHolder ?? "",

@@ -71,6 +71,7 @@ model Settings {
   brandColor         String?
   lexicon            Json?
   reviewUrl         String   @default("")
+  flavoursUrl       String   @default("") // page « carte des saveurs » à envoyer aux clientes (vide = {siteUrl}/saveurs)
   // paiement
   paymentDefault    String   @default("twint") // twint | virement
   twintNumber       String   @default("")
