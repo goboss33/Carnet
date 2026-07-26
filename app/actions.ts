@@ -1312,6 +1312,11 @@ export async function saveSettings(formData: FormData) {
     nudgeHour: clampInt(num("nudgeHour"), 0, 23),
     reviewUrl: String(formData.get("reviewUrl") ?? "").trim(),
     flavoursUrl: String(formData.get("flavoursUrl") ?? "").trim().slice(0, 200),
+    googleRating: (() => {
+      const n = num("googleRating");
+      return n == null || isNaN(n) ? null : Math.min(5, Math.max(0, Math.round(n * 10) / 10));
+    })(),
+    googleCount: clampInt(num("googleCount"), 0, 100000),
     cronDigest: formData.get("cronDigest") === "on",
     cronEveningNudges: formData.get("cronEveningNudges") === "on",
     cronReviews: formData.get("cronReviews") === "on",

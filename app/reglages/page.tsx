@@ -89,6 +89,34 @@ export default async function Reglages() {
               </span>
             </label>
             <label className="block">
+              <span className={label}>Note Google affichée sur le site</span>
+              <div className="flex gap-2">
+                <input
+                  name="googleRating"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="5"
+                  defaultValue={eff.googleRating}
+                  className={`${input} w-24`}
+                />
+                <input
+                  name="googleCount"
+                  type="number"
+                  step="1"
+                  min="0"
+                  defaultValue={eff.googleCount}
+                  placeholder="nombre d'avis"
+                  className={input}
+                />
+              </div>
+              <span className="mt-1 block text-[11px] text-zinc-400">
+                Note puis nombre d&apos;avis. Saisie à la main : la fiche Google est un établissement
+                « zone de service », sans adresse publique — ces fiches-là ne sont pas lisibles par
+                l&apos;API. Le site se met à jour dans les 5 minutes.
+              </span>
+            </label>
+            <label className="block">
               <span className={label}>Segment des pages du Journal</span>
               <input name="sitePathPrefix" defaultValue={raw?.sitePathPrefix ?? ""} placeholder="creations" className={input} />
               <span className="mt-1 block text-[11px] text-zinc-400">Le dossier des pages sur le site : /creations chez une pâtissière, /chantiers chez un artisan…</span>

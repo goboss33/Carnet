@@ -72,6 +72,13 @@ model Settings {
   lexicon            Json?
   reviewUrl         String   @default("")
   flavoursUrl       String   @default("") // page « carte des saveurs » à envoyer aux clientes (vide = {siteUrl}/saveurs)
+  // Avis Google affichés sur le site vitrine. Saisis à la main : la fiche est
+  // un établissement « zone de service », sans adresse publique, et ces
+  // fiches-là ne sont pas exposées dans l'index de l'API Places — aucune
+  // requête ne les retrouve. Un chiffre juste vaut mieux qu'un automatisme
+  // qui échoue en silence.
+  googleRating      Float    @default(5)
+  googleCount       Int      @default(0)
   // paiement
   paymentDefault    String   @default("twint") // twint | virement
   twintNumber       String   @default("")

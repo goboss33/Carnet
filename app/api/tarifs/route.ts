@@ -22,6 +22,14 @@ export async function GET() {
       {
         updatedAt: new Date().toISOString(),
         pricing: s.pricing,
+        /* Avis Google : saisis dans Réglages faute d'API exploitable (fiche
+           « zone de service », absente de l'index Places). Le site les affiche
+           dans le hero et la section témoignages. */
+        google: {
+          rating: s.googleRating,
+          count: s.googleCount,
+          url: s.reviewUrl,
+        },
         cupcakes: {
           step: CUPCAKE_STEP,
           miniStep: MINI_CUPCAKE_STEP,
