@@ -9,6 +9,7 @@
 
 import { useRef, useState } from "react";
 import { Plus, X, Cake, Cookie, Pencil, Check } from "lucide-react";
+import Range from "@/components/Range";
 import {
   PIECE_LABEL, pieceStep, maxFourrages, piecePrice,
   type OrderPiece, type PieceType,
@@ -182,9 +183,9 @@ export default function PiecesEditor({ initial, pricing, occasion }: {
                   </div>
                 )}
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <input
-                    type="range" min={range.min} max={range.max} step={step} value={p.qty}
-                    onChange={(e) => patch(p.id, { qty: Number(e.target.value) })}
+                  <Range
+                    min={range.min} max={range.max} step={step} value={p.qty}
+                    onValueChange={(qty) => patch(p.id, { qty })}
                     className="min-w-0 flex-1 accent-(--color-brand)"
                   />
                   <span className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-zinc-800">

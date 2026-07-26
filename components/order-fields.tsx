@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { Pencil, Check } from "lucide-react";
 import { cn } from "@/lib/ui";
+import Range from "@/components/Range";
 import { FOURRAGES, MAX_FOURRAGES, TIERS_PARTS } from "@/lib/order-options";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { MapsLink } from "@/components/ui/map-link";
@@ -35,7 +36,7 @@ export function TiersParts({ tiers, parts }: { tiers: number | null; parts: numb
           ))}
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <input type="range" name="parts" min={r.min} max={r.max} value={p} onChange={(e) => setP(Number(e.target.value))} className="min-w-0 flex-1 accent-(--color-brand)" />
+          <Range name="parts" min={r.min} max={r.max} value={p} onValueChange={setP} className="min-w-0 flex-1 accent-(--color-brand)" />
           <span className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-zinc-800">{p} parts</span>
         </div>
       </div>

@@ -11,6 +11,7 @@ import { useState, useEffect, useRef, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { Pencil, X, Check } from "lucide-react";
 import { cn } from "@/lib/ui";
+import Range from "@/components/Range";
 import { setPrice, savePayment, refundDeposit, setDiscount } from "@/app/actions";
 import type { OrderStatus } from "@prisma/client";
 
@@ -265,9 +266,9 @@ function PaymentPanel({ orderId, priceQuoted, depositCents, balanceCents, tipCen
 
           {/* Curseur + champ CHF */}
           <div className="flex items-center gap-3">
-            <input
-              type="range" min={0} max={100} value={pct} disabled={!hasTotal}
-              onChange={(e) => setCollected(Math.round((total * Number(e.target.value)) / 100))}
+            <Range
+              min={0} max={100} value={pct} disabled={!hasTotal}
+              onValueChange={(v) => setCollected(Math.round((total * v) / 100))}
               className={cn("h-2 flex-1 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40", accent)}
             />
             <div className="relative w-24 shrink-0">
