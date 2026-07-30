@@ -1,6 +1,7 @@
 import Link from "next/link";
 import InspirationManager from "./InspirationManager";
 import StudioPanel from "./StudioPanel";
+import DevisButton from "./DevisButton";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { SOURCES, fmtDate } from "@/lib/statuts";
@@ -108,14 +109,7 @@ export default async function Commande({ params }: { params: Promise<{ id: strin
             <AnalyzeDialog orderId={order.id} trigger="button" />
             {order.priceQuoted ? (
               <>
-              <a
-                href={`/api/commandes/${order.id}/devis`}
-                target="_blank"
-                rel="noopener"
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 text-[13px] font-medium text-zinc-700 transition hover:bg-zinc-50"
-              >
-                <FileSignature className="size-3.5" /> Devis
-              </a>
+              <DevisButton orderId={order.id} defaultDays={eff.quoteValidityDays} />
               <a
                 href={`/api/commandes/${order.id}/facture`}
                 target="_blank"

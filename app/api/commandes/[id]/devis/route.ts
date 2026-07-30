@@ -23,8 +23,13 @@ export const dynamic = "force-dynamic";
 const A4 = { w: 595.28, h: 841.89 };
 const M = 52;
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  /* Validité choisie au moment de générer le devis. Un mariage dans trois
+     semaines ne s'accommode pas d'une offre valable trois mois : la date
+     limite est un levier de décision, pas une formalité. Sans paramètre, on
+     garde la valeur des Réglages. */
+  const askedDays = Number(req.nextUrl.searchParams.get("jours"));
   try {
     const tenant = await currentTenant();
     const order = await prisma.order.findUnique({ where: { id }, include: { contact: true } });
@@ -44,7 +49,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     };
     const dt = (d: Date) => d.toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
     const no = order.orderNo ? `D-${String(order.orderNo).padStart(4, "0")}` : `D-${new Date().getFullYear()}-${order.id.slice(-4).toUpperCase()}`;
-    const validUntil = new Date(Date.now() + s.quoteValidityDays * 86400000);
+    const validityDays =
+      Number.isFinite(askedDays) && askedDays >= 1 && askedDays <= 365
+        ? Math.round(askedDays)
+        : s.quoteValidityDays;
+    const validUntil = new Date(Date.now() + validityDays * 86400000);
 
     const doc = await PDFDocument.create();
     const font = await doc.embedFont(StandardFonts.Helvetica);
