@@ -12,8 +12,8 @@ import { safePdfText as safe } from "@/lib/pdf";
 
 /* ---------------------------------------------------------------------------
    GET /api/commandes/[id]/devis — devis PDF, jumeau de la facture.
-   Lignes de commande (dont options hors total), validité réglable,
-   acceptation par e-mail OU acompte (pas de scan nécessaire), zone
+   Lignes de commande (dont options hors total), validité choisie à la
+   génération, acceptation par le seul versement de l'acompte, zone
    « Bon pour accord » pour les services achats. Régénérable à volonté :
    « annule et remplace tout devis antérieur ».
 --------------------------------------------------------------------------- */
@@ -211,7 +211,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const conditions = [
       order.eventDate ? `Prestation prévue le ${dt(order.eventDate)}${order.deliveryMode === "livraison" && order.deliveryAddress ? ` — ${order.deliveryAddress}` : ""}.` : "",
       `Devis valable jusqu'au ${dt(validUntil)} ; il annule et remplace tout devis antérieur pour cette ${lex.order}.`,
-      `Il est réputé accepté par confirmation écrite (un e-mail suffit) ou par le versement de l'acompte de ${s.depositPct} %.`,
+      `Il est réputé accepté par le versement de l'acompte de ${s.depositPct} %.`,
       "Chaque élément reste modulable jusqu'à la validation finale du design.",
       quotePhotos.length ? "Les visuels présentés en page 2 illustrent l'intention créative ; ils ne constituent pas un rendu contractuel." : "",
     ].filter(Boolean);
